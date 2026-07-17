@@ -1,0 +1,205 @@
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: 'CFBundleShortVersionString, for example 1.0.0'
+        required: false
+        default: '1.0.0'
+      upload_to_testflight:
+        description: 'Upload the exported IPA to TestFlight'
+        required: true
+        default: true
+        type: boolean
+  push:
+    tags: ['ios-v*']
+
+env:
+  MARKETING_VERSION: ${{ inputs.marketing_version || '1.0.0' }}
+  SHOULD_UPLOAD: ${{ inputs.upload_to_testflight || startsWith(github.ref, 'refs/tags/ios-v') }}
+
+jobs:
+  testflight:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen and generate project
+        run: |
+          brew install xcodegen
+          bash apple/generate-project.sh
+
+      - name: Configure env
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/ios-v* ]]; then
+            echo "MARKETING_VERSION=${GITHUB_REF_NAME#ios-v}" >> $GITHUB_ENV
+          fi
+          echo "APP_BUNDLE_ID=top.lordly.yubing" >> $GITHUB_ENV
+          echo "PROJECT_PATH=apple/YuBing.xcodeproj" >> $GITHUB_ENV
+          echo "SCHEME=YuBing" >> $GITHUB_ENV
+          echo "ARCHIVE_PATH=${{ runner.temp }}/YuBing.xcarchive" >> $GITHUB_ENV
+          echo "EXPORT_PATH=${{ runner.temp }}/export" >> $GITHUB_ENV
+          echo "KEYCHAIN_PATH=${{ runner.temp }}/build-signing.keychain-db" >> $GITHUB_ENV
+          echo "KEYCHAIN_PASSWORD=${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_ENV
+
+      - name: Require signing and App Store Connect secrets
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          WATCH_APP_PROVISIONING_PROFILE_BASE64: ${{ secrets.WATCH_APP_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          required=(APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 IOS_DISTRIBUTION_CERTIFICATE_BASE64 IOS_DISTRIBUTION_CERTIFICATE_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 WATCH_APP_PROVISIONING_PROFILE_BASE64)
+          for name in "${required[@]}"; do
+            if [ -z "${!name}" ]; then
+              echo "$name is not configured." >&2
+              exit 1
+            fi
+          done
+
+      - name: Install signing certificate and provisioning profiles
+        env:
+          IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          WATCH_APP_PROVISIONING_PROFILE_BASE64: ${{ secrets.WATCH_APP_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/distribution.p12"
+          printf '%s' "$IOS_DISTRIBUTION_CERTIFICATE_BASE64" | base64 -D > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$IOS_DISTRIBUTION_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed s/\"//g)
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          install_profile() {
+            local encoded="$1" prefix="$2"
+            local profile="$RUNNER_TEMP/$prefix.mobileprovision" plist="$RUNNER_TEMP/$prefix.plist"
+            printf '%s' "$encoded" | base64 -D > "$profile"
+            security cms -D -i "$profile" > "$plist"
+            local uuid name
+            uuid=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$plist")
+            name=$(/usr/libexec/PlistBuddy -c 'Print Name' "$plist")
+            cp "$profile" "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+            echo "${prefix}_PROFILE_NAME=$name" >> "$GITHUB_ENV"
+          }
+          install_profile "$IOS_PROVISIONING_PROFILE_BASE64" IOS
+          install_profile "$WATCH_APP_PROVISIONING_PROFILE_BASE64" WATCH_APP
+
+      - name: Install App Store Connect API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s' "$ASC_KEY_P8_BASE64" | base64 -D > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+
+      - name: Archive
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcodebuild archive \
+            -project "$PROJECT_PATH" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            IOS_PROFILE_NAME="$IOS_PROFILE_NAME" \
+            WATCH_APP_PROFILE_NAME="$WATCH_APP_PROFILE_NAME" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            MARKETING_VERSION="$MARKETING_VERSION"
+
+      - name: Create export options
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>teamID</key>
+            <string>$APPLE_TEAM_ID</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$APP_BUNDLE_ID</key>
+              <string>$IOS_PROFILE_NAME</string>
+              <key>top.lordly.yubing.watchkitapp</key>
+              <string>$WATCH_APP_PROFILE_NAME</string>
+            </dict>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Validate with App Store Connect
+        if: env.SHOULD_UPLOAD == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          IPA_PATH=$(find "$EXPORT_PATH" -name '*.ipa' -print -quit)
+          xcrun altool --validate-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YuBing-iOS-IPA
+          path: ${{ runner.temp }}/export/*.ipa
+          if-no-files-found: error
+
+      - name: Upload to TestFlight
+        if: env.SHOULD_UPLOAD == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          IPA_PATH=$(find "$EXPORT_PATH" -name '*.ipa' -print -quit)
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Clean signing keychain
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" || true

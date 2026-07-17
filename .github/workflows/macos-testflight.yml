@@ -1,0 +1,140 @@
+name: macOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: 'Version, for example 1.0.0'
+        required: false
+        default: '1.0.0'
+  push:
+    tags: ['macos-v*']
+
+env:
+  MARKETING_VERSION: ${{ inputs.marketing_version || '1.0.0' }}
+
+jobs:
+  testflight:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          bash apple/generate-project.sh
+
+      - name: Configure env
+        run: |
+          echo "PROJECT_PATH=apple/YuBing.xcodeproj" >> $GITHUB_ENV
+          echo "SCHEME=YuBingMac" >> $GITHUB_ENV
+          echo "ARCHIVE_PATH=${{ runner.temp }}/YuBingMac.xcarchive" >> $GITHUB_ENV
+          echo "EXPORT_PATH=${{ runner.temp }}/mac-export" >> $GITHUB_ENV
+          echo "KEYCHAIN_PATH=${{ runner.temp }}/mac-signing.keychain-db" >> $GITHUB_ENV
+          echo "KEYCHAIN_PASSWORD=${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_ENV
+
+      - name: Require secrets
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          MAC_PROVISIONING_PROFILE_BASE64: ${{ secrets.MAC_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          required=(APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 IOS_DISTRIBUTION_CERTIFICATE_BASE64 IOS_DISTRIBUTION_CERTIFICATE_PASSWORD MAC_PROVISIONING_PROFILE_BASE64)
+          for name in "${required[@]}"; do
+            [[ -n "${!name}" ]] || { echo "$name is not configured." >&2; exit 1; }
+          done
+
+      - name: Install signing materials
+        env:
+          IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          MAC_PROVISIONING_PROFILE_BASE64: ${{ secrets.MAC_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/distribution.p12"
+          PROFILE_PATH="$RUNNER_TEMP/mac.provisionprofile"
+          PROFILE_PLIST="$RUNNER_TEMP/mac-profile.plist"
+          printf '%s' "$IOS_DISTRIBUTION_CERTIFICATE_BASE64" | base64 -D > "$CERT_PATH"
+          printf '%s' "$MAC_PROVISIONING_PROFILE_BASE64" | base64 -D > "$PROFILE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$IOS_DISTRIBUTION_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed s/\"//g)
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$PROFILE_PLIST")
+          MAC_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' "$PROFILE_PLIST")
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.provisionprofile"
+          echo "MAC_PROFILE_NAME=$MAC_PROFILE_NAME" >> "$GITHUB_ENV"
+
+      - name: Install API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s' "$ASC_KEY_P8_BASE64" | base64 -D > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+
+      - name: Archive
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcodebuild archive \
+            -project "$PROJECT_PATH" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            MAC_PROFILE_NAME="$MAC_PROFILE_NAME" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            MARKETING_VERSION="$MARKETING_VERSION"
+
+      - name: Export package
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/MacExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>top.lordly.yubing</key><string>$MAC_PROFILE_NAME</string>
+            </dict>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$ARCHIVE_PATH" -exportPath "$EXPORT_PATH" -exportOptionsPlist "$RUNNER_TEMP/MacExportOptions.plist"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YuBing-macOS
+          path: ${{ runner.temp }}/mac-export/*
+          if-no-files-found: error
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          PACKAGE=$(find "$EXPORT_PATH" -type f \( -name '*.pkg' -o -name '*.ipa' \) -print -quit)
+          xcrun altool --upload-app --type macos --file "$PACKAGE" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Clean keychain
+        if: always()
+        run: security delete-keychain "$KEYCHAIN_PATH" || true
