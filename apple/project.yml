@@ -20,6 +20,9 @@ targets:
     platform: iOS
     sources:
       - path: Shared
+    dependencies:
+      - target: YuBingWatch
+        embed: true
     entitlements:
       path: Config/YuBing.entitlements
     settings:
@@ -35,7 +38,11 @@ targets:
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
         INFOPLIST_KEY_UIBackgroundModes: audio
         INFOPLIST_KEY_UILaunchScreen_Generation: true
-        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: false
         PROVISIONING_PROFILE_SPECIFIER: $(IOS_PROFILE_NAME)
   YuBingMac:
