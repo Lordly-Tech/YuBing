@@ -9,10 +9,10 @@
     {"idiom":"watch","scale":"2x","size":"50x50","role":"appLauncher","subtype":"44mm","filename":"al-44.png"},
     {"idiom":"watch","scale":"2x","size":"46x46","role":"appLauncher","subtype":"45mm","filename":"al-45.png"},
     {"idiom":"watch","scale":"2x","size":"51x51","role":"appLauncher","subtype":"49mm","filename":"al-49.png"},
-    {"idiom":"watch","scale":"2x","size":"43x43","role":"quickLook","subtype":"38mm","filename":"ql-38.png"},
-    {"idiom":"watch","scale":"2x","size":"49x49","role":"quickLook","subtype":"42mm","filename":"ql-42.png"},
-    {"idiom":"watch","scale":"2x","size":"54x54","role":"quickLook","subtype":"44mm","filename":"ql-44.png"},
-    {"idiom":"watch","scale":"2x","size":"55x55","role":"quickLook","subtype":"45mm","filename":"ql-45.png"},
+    {"idiom":"watch","scale":"2x","size":"86x86","role":"quickLook","subtype":"38mm","filename":"ql-38-172.png"},
+    {"idiom":"watch","scale":"2x","size":"98x98","role":"quickLook","subtype":"42mm","filename":"ql-42-196.png"},
+    {"idiom":"watch","scale":"2x","size":"108x108","role":"quickLook","subtype":"44mm","filename":"ql-44-216.png"},
+    {"idiom":"watch","scale":"2x","size":"117x117","role":"quickLook","subtype":"45mm","filename":"ql-45-234.png"},
     {"idiom":"watch","scale":"2x","size":"58x58","role":"quickLook","subtype":"49mm","filename":"ql-49.png"},
     {"idiom":"watch","scale":"2x","size":"40x40","role":"longLook","subtype":"38mm","filename":"ll-38.png"},
     {"idiom":"watch","scale":"2x","size":"42x42","role":"longLook","subtype":"40mm","filename":"ll-40.png"},
@@ -20,7 +20,7 @@
     {"idiom":"watch","scale":"2x","size":"50x50","role":"longLook","subtype":"44mm","filename":"ll-44.png"},
     {"idiom":"watch","scale":"2x","size":"47x47","role":"longLook","subtype":"45mm","filename":"ll-45.png"},
     {"idiom":"watch","scale":"2x","size":"51x51","role":"longLook","subtype":"49mm","filename":"ll-49.png"},
-    {"idiom":"ios-marketing","scale":"1x","size":"1024x1024","filename":"1024.png"}
+    {"idiom":"watch-marketing","scale":"1x","size":"1024x1024","filename":"1024.png"}
   ],
   "info" : {"author":"xcode","version":1}
 }
