@@ -99,7 +99,7 @@ jobs:
             echo "${prefix}_PROFILE_NAME=$name" >> "$GITHUB_ENV"
           }
           install_profile "$IOS_PROVISIONING_PROFILE_BASE64" IOS
-          install_profile "$WATCH_APP_PROVISIONING_PROFILE_BASE64" WATCH_APP
+          install_profile "$WATCH_APP_PROVISIONING_PROFILE_BASE64" WATCH
 
       - name: Install App Store Connect API key
         env:
@@ -124,7 +124,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY='Apple Distribution' \
             IOS_PROFILE_NAME="$IOS_PROFILE_NAME" \
-            WATCH_APP_PROFILE_NAME="$WATCH_APP_PROFILE_NAME" \
+            WATCH_PROFILE_NAME="$WATCH_PROFILE_NAME" \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             MARKETING_VERSION="$MARKETING_VERSION"
 
@@ -150,7 +150,7 @@ jobs:
               <key>$APP_BUNDLE_ID</key>
               <string>$IOS_PROFILE_NAME</string>
               <key>top.lordly.yubing.watchkitapp</key>
-              <string>$WATCH_APP_PROFILE_NAME</string>
+              <string>$WATCH_PROFILE_NAME</string>
             </dict>
             <key>stripSwiftSymbols</key>
             <true/>
