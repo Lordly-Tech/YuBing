@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {"idiom":"watch","scale":"2x","size":"44x44","filename":"icon-88.png"},
+    {"idiom":"watch","scale":"2x","size":"50x50","filename":"icon-100.png"},
+    {"idiom":"watch","scale":"2x","size":"54x54","filename":"icon-108.png"},
+    {"idiom":"watch","scale":"2x","size":"56x56","filename":"icon-112.png"},
+    {"idiom":"watch","scale":"2x","size":"60x60","filename":"icon-120.png"},
+    {"idiom":"watch","scale":"2x","size":"98x98","filename":"icon-196.png"},
+    {"idiom":"ios-marketing","scale":"1x","size":"1024x1024","filename":"icon-1024.png"}
+  ],
+  "info" : {"author":"xcode","version":1}
+}
