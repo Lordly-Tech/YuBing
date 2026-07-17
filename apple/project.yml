@@ -38,10 +38,7 @@ targets:
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
         INFOPLIST_KEY_UIBackgroundModes: audio
         INFOPLIST_KEY_UILaunchScreen_Generation: true
-        INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad: "UIInterfaceOrientationPortrait,UIInterfaceOrientationLandscapeLeft,UIInterfaceOrientationLandscapeRight"
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: false
         PROVISIONING_PROFILE_SPECIFIER: $(IOS_PROFILE_NAME)
@@ -75,6 +72,7 @@ targets:
         GENERATE_INFOPLIST_FILE: true
         INFOPLIST_KEY_CFBundleDisplayName: 楸奸ゼ
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
+        INFOPLIST_KEY_CFBundleIconName: AppIcon
         INFOPLIST_KEY_WKApplication: true
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: top.lordly.yubing
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: true
