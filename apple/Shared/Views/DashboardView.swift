@@ -38,9 +38,6 @@ struct DashboardView: View {
                 }
 
                 readingTimeCard
-
-                sectionHeader("资料库", symbol: "square.stack.3d.up")
-                libraryOverview
             }
             .frame(maxWidth: YuBingMetrics.contentMaxWidth, alignment: .leading)
             .padding(20)
@@ -129,44 +126,6 @@ struct DashboardView: View {
         }
         .padding(18)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: YuBingMetrics.panelCornerRadius, style: .continuous))
-    }
-
-    private var libraryOverview: some View {
-        VStack(spacing: 0) {
-            overviewRow(section: .reading, count: store.items(of: .novel).count + store.items(of: .comic).count, tint: .blue)
-            Divider().padding(.leading, 52)
-            overviewRow(section: .music, count: mediaCount, tint: .pink)
-            Divider().padding(.leading, 52)
-            overviewRow(section: .gallery, count: store.items(of: .photo).count, tint: .green)
-            Divider().padding(.leading, 52)
-            overviewRow(section: .files, count: store.items.count, tint: .orange)
-        }
-        .padding(.horizontal, 14)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: YuBingMetrics.compactCornerRadius, style: .continuous))
-    }
-
-    private func overviewRow(section: AppSection, count: Int, tint: Color) -> some View {
-        Button {
-            NotificationCenter.default.post(name: .yuBingNavigateToSection, object: section.rawValue)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: section.symbol)
-                    .foregroundStyle(tint)
-                    .frame(width: 28, height: 28)
-                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                Text(section.title)
-                    .font(.body.weight(.medium))
-                Spacer()
-                Text("\(count)")
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.vertical, 13)
     }
 
     #if os(iOS)

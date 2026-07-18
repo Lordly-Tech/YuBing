@@ -1,9 +1,4 @@
-import Foundation
 import SwiftUI
-
-extension Notification.Name {
-    static let yuBingNavigateToSection = Notification.Name("YuBingNavigateToSection")
-}
 
 enum AppSection: String, CaseIterable, Identifiable {
     case home

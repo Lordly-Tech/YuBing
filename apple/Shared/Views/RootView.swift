@@ -55,11 +55,6 @@ private struct CompactRootView: View {
             selection = .home
         }
         #endif
-        .onReceive(NotificationCenter.default.publisher(for: .yuBingNavigateToSection)) { notification in
-            guard let rawValue = notification.object as? String,
-                  let section = AppSection(rawValue: rawValue) else { return }
-            selection = section
-        }
     }
 
     private func compactTab<Content: View>(
@@ -106,11 +101,6 @@ private struct SplitRootView: View {
             selection = .home
         }
         #endif
-        .onReceive(NotificationCenter.default.publisher(for: .yuBingNavigateToSection)) { notification in
-            guard let rawValue = notification.object as? String,
-                  let section = AppSection(rawValue: rawValue) else { return }
-            selection = section
-        }
     }
 }
 
