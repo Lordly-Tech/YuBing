@@ -1,6 +1,5 @@
 import Compression
 import Foundation
-import FoundationXML
 import PDFKit
 
 #if os(macOS)
