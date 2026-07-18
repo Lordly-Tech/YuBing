@@ -47,12 +47,19 @@ struct DashboardView: View {
             .frame(maxWidth: .infinity)
         }
         .navigationTitle("首页")
+        .toolbar {
+            ToolbarItem {
+                LibraryImportMenu(title: "添加", photoScope: .media)
+                    .labelStyle(.iconOnly)
+                    .help("添加文件")
+            }
+        }
     }
 
     private var header: some View {
         HStack(alignment: .bottom, spacing: 16) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("🐟🍪")
+                Text("🐟🍪！")
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
             }
             Spacer(minLength: 16)
@@ -139,20 +146,26 @@ struct DashboardView: View {
     }
 
     private func overviewRow(section: AppSection, count: Int, tint: Color) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: section.symbol)
-                .foregroundStyle(tint)
-                .frame(width: 28, height: 28)
-                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-            Text(section.title)
-                .font(.body.weight(.medium))
-            Spacer()
-            Text("\(count)")
-                .foregroundStyle(.secondary)
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
+        Button {
+            NotificationCenter.default.post(name: .yuBingNavigateToSection, object: section.rawValue)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: section.symbol)
+                    .foregroundStyle(tint)
+                    .frame(width: 28, height: 28)
+                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                Text(section.title)
+                    .font(.body.weight(.medium))
+                Spacer()
+                Text("\(count)")
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .padding(.vertical, 13)
     }
 

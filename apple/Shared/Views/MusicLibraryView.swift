@@ -23,7 +23,7 @@ struct MusicLibraryView: View {
                     title: "还没有影音",
                     message: "导入 MP3、M4A、AAC、WAV、FLAC、MP4、M4V 或 MOV。",
                     symbol: "play.rectangle",
-                    action: AnyView(FileImportButton(title: "导入影音", prominent: true))
+                    action: AnyView(LibraryImportMenu(title: "添加影音", photoScope: .videos, prominent: true))
                 )
             } else {
                 ScrollView {
@@ -73,7 +73,10 @@ struct MusicLibraryView: View {
         }
         .navigationTitle("影音")
         .searchable(text: $query, prompt: "搜索影音")
-        .toolbar { FileImportButton(title: "导入").labelStyle(.iconOnly) }
+        .toolbar {
+            LibraryImportMenu(title: "添加", photoScope: .videos)
+                .labelStyle(.iconOnly)
+        }
     }
 
     private var compactNowPlaying: some View {
@@ -86,9 +89,15 @@ struct MusicLibraryView: View {
                     Text("正在播放")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.pink)
-                    Text(item.displayName)
+                    Text(player.currentMetadata.title ?? item.displayName)
                         .font(.title3.weight(.semibold))
                         .lineLimit(1)
+                    if let artist = player.currentMetadata.artist {
+                        Text(artist)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                     ProgressView(value: player.currentTime, total: max(player.duration, 1))
                         .tint(.pink)
                 }
@@ -178,9 +187,19 @@ struct NowPlayingView: View {
                     .shadow(color: .black.opacity(0.14), radius: 18, y: 10)
 
                 VStack(spacing: 5) {
-                    Text(activeItem.displayName)
+                    Text(player.currentMetadata.title ?? activeItem.displayName)
                         .font(.title2.weight(.bold))
                         .multilineTextAlignment(.center)
+                    if let artist = player.currentMetadata.artist {
+                        Text(artist)
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let album = player.currentMetadata.album {
+                        Text(album)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                     Text("鱼饼 资料库")
                         .foregroundStyle(.secondary)
                 }

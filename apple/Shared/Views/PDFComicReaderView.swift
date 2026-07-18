@@ -17,12 +17,22 @@ struct PDFComicReaderView: View {
     let item: LibraryItem
 
     @State private var mode: ComicDisplayMode = .pages
+    @State private var areControlsVisible = false
     private var pageCount: Int { PDFDocument(url: item.url)?.pageCount ?? 0 }
 
     var body: some View {
         PDFKitView(url: item.url, displayMode: mode)
             .ignoresSafeArea(edges: .bottom)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.snappy(duration: 0.22)) { areControlsVisible.toggle() }
+            }
             .navigationTitle(item.displayName)
+            #if os(iOS)
+            .toolbar(areControlsVisible ? .visible : .hidden, for: .navigationBar)
+            .toolbar(areControlsVisible ? .visible : .hidden, for: .tabBar)
+            .statusBarHidden(!areControlsVisible)
+            #endif
             .toolbar {
                 ToolbarItemGroup {
                     Text("\(pageCount) 页")
@@ -94,4 +104,3 @@ extension PDFKitView: UIViewRepresentable {
     }
 }
 #endif
-

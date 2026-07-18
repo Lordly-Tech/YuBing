@@ -280,15 +280,13 @@ struct GalleryView: View {
             emptyTitle: "图库是空的",
             emptyMessage: "从系统照片或文件中选择图片。",
             emptySymbol: "photo.on.rectangle.angled",
-            importAction: AnyView(PhotoImportButton())
+            importAction: AnyView(LibraryImportMenu(title: "添加照片", photoScope: .images, prominent: true))
         )
         .navigationTitle("图库")
         .searchable(text: $query, prompt: "搜索照片")
         .toolbar {
-            ToolbarItemGroup {
-                PhotoImportButton().labelStyle(.iconOnly)
-                FileImportButton(title: "导入").labelStyle(.iconOnly)
-            }
+            LibraryImportMenu(title: "添加", photoScope: .images)
+                .labelStyle(.iconOnly)
         }
     }
 }

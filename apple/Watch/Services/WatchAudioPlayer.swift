@@ -3,6 +3,53 @@ import Combine
 import MediaPlayer
 import WatchKit
 
+struct WatchEmbeddedAudioMetadata: Equatable, Sendable {
+    var title: String?
+    var artist: String?
+    var album: String?
+    var year: String?
+    var artworkData: Data?
+
+    static let empty = WatchEmbeddedAudioMetadata(title: nil, artist: nil, album: nil, year: nil, artworkData: nil)
+
+    static func load(from url: URL) async -> WatchEmbeddedAudioMetadata {
+        let asset = AVURLAsset(url: url)
+        guard let items = try? await asset.load(.commonMetadata) else { return .empty }
+        let title = await stringValue(in: items, identifier: .commonIdentifierTitle)
+        let artist = await stringValue(in: items, identifier: .commonIdentifierArtist)
+        let album = await stringValue(in: items, identifier: .commonIdentifierAlbumName)
+        let year = await stringValue(in: items, identifier: .commonIdentifierCreationDate)
+        let artworkItem = AVMetadataItem.metadataItems(
+            from: items,
+            filteredByIdentifier: .commonIdentifierArtwork
+        ).first
+        let artworkData: Data?
+        if let artworkItem {
+            artworkData = try? await artworkItem.load(.dataValue)
+        } else {
+            artworkData = nil
+        }
+        return WatchEmbeddedAudioMetadata(
+            title: title,
+            artist: artist,
+            album: album,
+            year: year,
+            artworkData: artworkData
+        )
+    }
+
+    private static func stringValue(
+        in items: [AVMetadataItem],
+        identifier: AVMetadataIdentifier
+    ) async -> String? {
+        guard let item = AVMetadataItem.metadataItems(
+            from: items,
+            filteredByIdentifier: identifier
+        ).first else { return nil }
+        return try? await item.load(.stringValue)
+    }
+}
+
 @MainActor
 final class WatchAudioPlayer: ObservableObject {
     @Published private(set) var currentItem: WatchLibraryItem?
@@ -10,11 +57,14 @@ final class WatchAudioPlayer: ObservableObject {
     @Published private(set) var currentTime: TimeInterval = 0
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var queue: [WatchLibraryItem] = []
+    @Published private(set) var currentMetadata = WatchEmbeddedAudioMetadata.empty
+    @Published private(set) var metadataByPath: [String: WatchEmbeddedAudioMetadata] = [:]
 
     private let player = AVPlayer()
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
+    private var shouldResumeAfterInterruption = false
 
     init() {
         do {
@@ -22,13 +72,14 @@ final class WatchAudioPlayer: ObservableObject {
         } catch {
             // The route can become available later when headphones connect.
         }
+        player.automaticallyWaitsToMinimizeStalling = true
         timeObserver = player.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 0.5, preferredTimescale: 600),
+            forInterval: CMTime(seconds: 5, preferredTimescale: 600),
             queue: .main
         ) { [weak self] time in
             Task { @MainActor in
-                self?.currentTime = time.seconds.isFinite ? time.seconds : 0
-                self?.updateNowPlaying()
+                guard let self else { return }
+                self.currentTime = time.seconds.isFinite ? time.seconds : 0
             }
         }
         endObserver = NotificationCenter.default.addObserver(
@@ -43,14 +94,20 @@ final class WatchAudioPlayer: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let info = notification.userInfo,
-                  let type = info[AVAudioSessionInterruptionTypeKey] as? UInt,
-                  type == AVAudioSession.InterruptionType.ended.rawValue
-            else { return }
-            try? AVAudioSession.sharedInstance().setActive(true)
-            Task { @MainActor [weak self] in
-                guard let self, self.isPlaying else { return }
-                self.player.play()
+            guard let self,
+                  let info = notification.userInfo,
+                  let rawType = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
+            Task { @MainActor in
+                if type == .began {
+                    self.shouldResumeAfterInterruption = self.isPlaying
+                    self.player.pause()
+                    self.isPlaying = false
+                    self.updateNowPlaying()
+                } else if self.shouldResumeAfterInterruption {
+                    self.shouldResumeAfterInterruption = false
+                    await self.resumePlayback()
+                }
             }
         }
         configureRemoteCommands()
@@ -65,38 +122,71 @@ final class WatchAudioPlayer: ObservableObject {
     func play(_ item: WatchLibraryItem, queue: [WatchLibraryItem]) {
         self.queue = queue.filter { $0.kind == .music }
         currentItem = item
+        currentMetadata = metadataByPath[item.relativePath] ?? .empty
         currentTime = 0
         duration = 0
-        activateAudioSession()
-        let avItem = AVPlayerItem(url: item.url)
-        player.replaceCurrentItem(with: avItem)
-        player.play()
-        isPlaying = true
-        updateNowPlaying()
-        WKExtension.shared().isFrontmostTimeoutExtended = true
 
-        Task {
-            if let loaded = try? await avItem.asset.load(.duration) {
-                duration = loaded.seconds.isFinite ? loaded.seconds : 0
-                updateNowPlaying()
-            }
+        let avItem = AVPlayerItem(url: item.url)
+        avItem.preferredForwardBufferDuration = 15
+        player.replaceCurrentItem(with: avItem)
+        isPlaying = false
+        updateNowPlaying()
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.startPlayback(avItem, item: item)
         }
     }
 
-    private func activateAudioSession() {
+    private func startPlayback(_ avItem: AVPlayerItem, item: WatchLibraryItem) async {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
-            try AVAudioSession.sharedInstance().setActive(true)
+            try await AVAudioSession.sharedInstance().activate()
         } catch {
-            // watchOS may defer activation; playback still works.
+            // The system may wait for a Bluetooth route; keep the item ready.
         }
+        guard player.currentItem === avItem else { return }
+        player.play()
+        isPlaying = true
+        updateNowPlaying()
+
+        async let loadedDuration = try? await avItem.asset.load(.duration)
+        async let loadedMetadata = loadMetadata(for: item)
+        if let loaded = await loadedDuration {
+            duration = loaded.seconds.isFinite ? loaded.seconds : 0
+        }
+        currentMetadata = await loadedMetadata
+        updateNowPlaying()
     }
 
     func toggle() {
         guard currentItem != nil else { return }
-        if isPlaying { player.pause() } else { player.play() }
-        isPlaying.toggle()
+        if isPlaying {
+            player.pause()
+            isPlaying = false
+            updateNowPlaying()
+        } else {
+            Task { @MainActor in await resumePlayback() }
+        }
+    }
+
+    private func resumePlayback() async {
+        guard currentItem != nil else { return }
+        do { try await AVAudioSession.sharedInstance().activate() } catch { return }
+        player.play()
+        isPlaying = true
         updateNowPlaying()
+    }
+
+    func loadMetadata(for item: WatchLibraryItem) async -> WatchEmbeddedAudioMetadata {
+        if let cached = metadataByPath[item.relativePath] { return cached }
+        let metadata = await WatchEmbeddedAudioMetadata.load(from: item.url)
+        metadataByPath[item.relativePath] = metadata
+        if currentItem == item {
+            currentMetadata = metadata
+            updateNowPlaying()
+        }
+        return metadata
     }
 
     func seek(to time: TimeInterval) {
@@ -112,7 +202,8 @@ final class WatchAudioPlayer: ObservableObject {
     }
 
     func previous() {
-        guard currentTime < 4,
+        let liveTime = player.currentTime().seconds.isFinite ? player.currentTime().seconds : currentTime
+        guard liveTime < 4,
               let currentItem,
               let index = queue.firstIndex(of: currentItem),
               !queue.isEmpty else {
@@ -124,6 +215,11 @@ final class WatchAudioPlayer: ObservableObject {
 
     private func configureRemoteCommands() {
         let commands = MPRemoteCommandCenter.shared()
+        commands.playCommand.isEnabled = true
+        commands.pauseCommand.isEnabled = true
+        commands.nextTrackCommand.isEnabled = true
+        commands.previousTrackCommand.isEnabled = true
+        commands.changePlaybackPositionCommand.isEnabled = true
         commands.playCommand.addTarget { [weak self] _ in
             Task { @MainActor in if self?.isPlaying == false { self?.toggle() } }
             return .success
@@ -140,16 +236,28 @@ final class WatchAudioPlayer: ObservableObject {
             Task { @MainActor in self?.previous() }
             return .success
         }
+        commands.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+            Task { @MainActor in self?.seek(to: event.positionTime) }
+            return .success
+        }
     }
 
     private func updateNowPlaying() {
         guard let currentItem else { return }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = [
-            MPMediaItemPropertyTitle: currentItem.displayName,
-            MPMediaItemPropertyAlbumTitle: "鱼饼 Watch",
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: currentMetadata.title ?? currentItem.displayName,
+            MPMediaItemPropertyAlbumTitle: currentMetadata.album ?? "鱼饼 Watch",
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyAssetURL: currentItem.url
         ]
+        if let artist = currentMetadata.artist { info[MPMediaItemPropertyArtist] = artist }
+        if let year = currentMetadata.year { info[MPMediaItemPropertyReleaseDate] = year }
+        if let data = currentMetadata.artworkData, let image = UIImage(data: data) {
+            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 }

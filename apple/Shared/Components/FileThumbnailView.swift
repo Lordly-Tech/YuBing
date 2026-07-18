@@ -11,6 +11,7 @@ private typealias YuBingPlatformImage = UIImage
 
 struct FileThumbnailView: View {
     @EnvironmentObject private var readingStore: ReadingStore
+    @EnvironmentObject private var player: AudioPlayerController
     let item: LibraryItem
     var size: CGSize = CGSize(width: 160, height: 160)
 
@@ -37,6 +38,14 @@ struct FileThumbnailView: View {
         .clipped()
         .task(id: "\(item.url.path)-\(readingStore.coverRevision)") {
             guard !item.isDirectory else { return }
+            if item.kind == .music {
+                let metadata = await player.loadMetadata(for: item)
+                if let artworkData = metadata.artworkData,
+                   let artwork = platformImage(data: artworkData) {
+                    image = artwork
+                }
+                return
+            }
             if (item.kind == .novel || item.kind == .comic),
                let data = await readingStore.coverData(for: item),
                let cover = platformImage(data: data) {

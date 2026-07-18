@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LibraryItemCard: View {
     @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var player: AudioPlayerController
     let item: LibraryItem
     var onEditBook: (() -> Void)? = nil
     var onRename: (() -> Void)? = nil
@@ -36,14 +37,18 @@ struct LibraryItemCard: View {
                     }
                 }
 
-            Text(item.displayName)
+            Text(displayTitle)
                 .font(.headline)
                 .lineLimit(1)
 
             HStack(spacing: 5) {
-                Text(item.kind.title)
+                if let artist = audioMetadata?.artist {
+                    Text(artist)
+                } else {
+                    Text(item.kind.title)
+                }
                 Text("·")
-                Text(item.isDirectory ? "文件夹" : item.byteCount.formattedFileSize)
+                Text(audioMetadata?.album ?? (item.isDirectory ? "文件夹" : item.byteCount.formattedFileSize))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -51,6 +56,15 @@ struct LibraryItemCard: View {
         }
         .contentShape(Rectangle())
         .contextMenu { contextActions }
+    }
+
+    private var audioMetadata: EmbeddedAudioMetadata? {
+        player.metadataByPath[item.relativePath]
+    }
+
+    private var displayTitle: String {
+        guard item.kind == .music else { return item.displayName }
+        return audioMetadata?.title ?? item.displayName
     }
 
     @ViewBuilder
@@ -82,6 +96,7 @@ struct LibraryItemCard: View {
 
 struct LibraryItemRow: View {
     @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var player: AudioPlayerController
     let item: LibraryItem
     var onEditBook: (() -> Void)? = nil
     var onRename: (() -> Void)? = nil
@@ -95,10 +110,10 @@ struct LibraryItemRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.displayName)
+                Text(displayTitle)
                     .font(.body.weight(.medium))
                     .lineLimit(1)
-                Text(item.isDirectory ? item.kind.title : "\(item.kind.title) · \(item.byteCount.formattedFileSize)")
+                Text(detailText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -141,6 +156,25 @@ struct LibraryItemRow: View {
                 Button(role: .destructive, action: onDelete) { Label("删除", systemImage: "trash") }
             }
         }
+    }
+
+    private var audioMetadata: EmbeddedAudioMetadata? {
+        player.metadataByPath[item.relativePath]
+    }
+
+    private var displayTitle: String {
+        guard item.kind == .music else { return item.displayName }
+        return audioMetadata?.title ?? item.displayName
+    }
+
+    private var detailText: String {
+        guard item.kind == .music else {
+            return item.isDirectory ? item.kind.title : "\(item.kind.title) · \(item.byteCount.formattedFileSize)"
+        }
+        let details = [audioMetadata?.artist, audioMetadata?.album]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return details.isEmpty ? "影音 · \(item.byteCount.formattedFileSize)" : details.joined(separator: " · ")
     }
 }
 

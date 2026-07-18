@@ -101,6 +101,19 @@ final class LibraryStore: ObservableObject {
         }
     }
 
+    func importFile(_ sourceURL: URL, suggestedName: String, into folder: URL? = nil) {
+        let didAccess = sourceURL.startAccessingSecurityScopedResource()
+        defer { if didAccess { sourceURL.stopAccessingSecurityScopedResource() } }
+
+        do {
+            let destination = uniqueDestination(in: folder ?? libraryURL, named: suggestedName)
+            try fileManager.copyItem(at: sourceURL, to: destination)
+            refresh()
+        } catch {
+            alert = LibraryAlert(title: "导入失败", message: error.localizedDescription)
+        }
+    }
+
     func createFolder(named name: String, in folder: URL) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("/") else {

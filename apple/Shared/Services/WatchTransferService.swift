@@ -69,6 +69,9 @@ final class WatchTransferService: NSObject, ObservableObject {
     }
 
     func send(_ items: [LibraryItem]) {
+        // A transfer attempt should always return to the home card, including
+        // the failure case where the companion Watch app is not installed.
+        NotificationCenter.default.post(name: .yuBingWatchTransferDidStart, object: nil)
         #if targetEnvironment(simulator)
         lastStatus = "Watch 文件传输需要在配对真机上测试"
         return
@@ -77,8 +80,12 @@ final class WatchTransferService: NSObject, ObservableObject {
             lastStatus = "Watch 连接尚未就绪"
             return
         }
-        guard session.isPaired, session.isWatchAppInstalled else {
-            lastStatus = "请先在配对的 Apple Watch 上安装 鱼饼"
+        guard session.isPaired else {
+            lastStatus = "请先将 Apple Watch 与此 iPhone 配对"
+            return
+        }
+        guard session.isWatchAppInstalled else {
+            lastStatus = "Apple Watch 尚未安装鱼饼 Watch App，请先安装后再传输"
             return
         }
 
@@ -89,8 +96,6 @@ final class WatchTransferService: NSObject, ObservableObject {
         }
 
         lastStatus = "准备传输 \(compatible.count) 个文件"
-        NotificationCenter.default.post(name: .yuBingWatchTransferDidStart, object: nil)
-
         Task { [weak self] in
             guard let self else { return }
             var enqueued = 0

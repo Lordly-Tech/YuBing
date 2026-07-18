@@ -1,4 +1,5 @@
 import SwiftUI
+import ImageIO
 import WatchKit
 
 struct WatchMusicLibraryView: View {
@@ -27,16 +28,23 @@ struct WatchMusicLibraryView: View {
                             store.markOpened(item)
                         } label: {
                             HStack(spacing: 8) {
-                                Image(systemName: player.currentItem == item && player.isPlaying ? "speaker.wave.2.fill" : "play.circle.fill")
-                                    .foregroundStyle(.pink)
+                                WatchAudioArtwork(
+                                    data: player.metadataByPath[item.relativePath]?.artworkData,
+                                    size: 42
+                                )
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.displayName).lineLimit(1)
-                                    Text(item.byteCount.watchFormattedFileSize)
+                                    Text(player.metadataByPath[item.relativePath]?.title ?? item.displayName)
+                                        .lineLimit(1)
+                                    Text(audioDetail(for: item))
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
+                                Spacer(minLength: 0)
+                                Image(systemName: player.currentItem == item && player.isPlaying ? "speaker.wave.2.fill" : "play.circle.fill")
+                                    .foregroundStyle(.pink)
                             }
                         }
+                        .task { _ = await player.loadMetadata(for: item) }
                     } else {
                         NavigationLink {
                             WatchVideoPlayerView(item: item)
@@ -76,60 +84,50 @@ struct WatchNowPlayingView: View {
     let startingItem: WatchLibraryItem
 
     private var tracks: [WatchLibraryItem] { store.items(of: [.music]) }
-    private var active: WatchLibraryItem { player.currentItem ?? startingItem }
+    var body: some View {
+        NowPlayingView()
+            .onAppear {
+                if player.currentItem != startingItem {
+                    player.play(startingItem, queue: tracks)
+                }
+                store.markOpened(startingItem)
+            }
+            .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+private extension WatchMusicLibraryView {
+    func audioDetail(for item: WatchLibraryItem) -> String {
+        let metadata = player.metadataByPath[item.relativePath]
+        let details = [metadata?.artist, metadata?.album]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return details.isEmpty ? item.byteCount.watchFormattedFileSize : details.joined(separator: " · ")
+    }
+}
+
+private struct WatchAudioArtwork: View {
+    let data: Data?
+    let size: CGFloat
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                Image(systemName: "waveform.circle.fill")
-                    .font(.system(size: 54))
+        Group {
+            if let data,
+               let source = CGImageSourceCreateWithData(data as CFData, nil),
+               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: "waveform")
+                    .font(.title3)
                     .foregroundStyle(.pink)
-                    .symbolEffect(.variableColor.iterative, isActive: player.isPlaying)
-
-                VStack(spacing: 2) {
-                    Text(active.displayName)
-                        .font(.headline)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                    Text("鱼饼 Watch")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                VStack(spacing: 3) {
-                    Slider(
-                        value: Binding(get: { player.currentTime }, set: { player.seek(to: $0) }),
-                        in: 0...max(player.duration, 1)
-                    )
-                    HStack {
-                        Text(player.currentTime.watchPlaybackTime)
-                        Spacer()
-                        Text(player.duration.watchPlaybackTime)
-                    }
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: 12) {
-                    Button { player.previous() } label: { Image(systemName: "backward.fill") }
-                    Button { player.toggle() } label: {
-                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .frame(width: 28, height: 28)
-                    }
-                    .watchGlassButton(prominent: true)
-                    Button { player.next() } label: { Image(systemName: "forward.fill") }
-                }
-                .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.pink.opacity(0.12))
             }
-            .padding(.horizontal, 4)
         }
-        .navigationTitle("正在播放")
-        .onAppear {
-            if player.currentItem != startingItem {
-                player.play(startingItem, queue: tracks)
-            }
-            store.markOpened(startingItem)
-        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

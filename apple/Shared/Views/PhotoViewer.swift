@@ -12,6 +12,7 @@ struct PhotoViewer: View {
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var loadFailed = false
+    @State private var areControlsVisible = false
 
     var body: some View {
         ZStack {
@@ -32,6 +33,9 @@ struct PhotoViewer: View {
                             lastScale = scale
                         }
                     }
+                    .onTapGesture {
+                        withAnimation(.snappy(duration: 0.22)) { areControlsVisible.toggle() }
+                    }
             } else if loadFailed {
                 ContentUnavailableView("无法显示图片", systemImage: "photo.badge.exclamationmark")
                     .foregroundStyle(.white)
@@ -41,6 +45,11 @@ struct PhotoViewer: View {
             }
         }
         .navigationTitle(item.displayName)
+        #if os(iOS)
+        .toolbar(areControlsVisible ? .visible : .hidden, for: .navigationBar)
+        .toolbar(areControlsVisible ? .visible : .hidden, for: .tabBar)
+        .statusBarHidden(!areControlsVisible)
+        #endif
         .toolbar {
             ToolbarItemGroup {
                 Button {
