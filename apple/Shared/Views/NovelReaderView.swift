@@ -729,7 +729,6 @@ private struct ReaderPagedChapterContent: UIViewControllerRepresentable {
                 verticalMargin: verticalMargin,
                 appearance: appearance
             ),
-            currentProgress: progress,
             requestedProgress: scrollRequest.progress,
             requestID: scrollRequest.id,
             autoTurnPulse: autoTurnPulse
@@ -868,7 +867,6 @@ private final class ReaderPagesViewController: UIViewController,
 
     func configure(
         _ configuration: ReaderPagesConfiguration,
-        currentProgress: Double,
         requestedProgress: Double,
         requestID: UUID,
         autoTurnPulse: UUID
@@ -879,7 +877,7 @@ private final class ReaderPagesViewController: UIViewController,
 
         if configuration.key != configurationKey {
             configurationKey = configuration.key
-            let preservedProgress = isInitialConfiguration ? requestedProgress : currentProgress
+            let preservedProgress = isInitialConfiguration ? requestedProgress : self.currentProgress
             pendingTargetProgress = preservedProgress
             if lastRequestID == nil { lastRequestID = requestID }
             lastAutoTurnPulse = autoTurnPulse
@@ -892,6 +890,7 @@ private final class ReaderPagesViewController: UIViewController,
 
         if lastRequestID != requestID {
             repaginationWorkItem?.cancel()
+            repaginationWorkItem = nil
             lastRequestID = requestID
             pendingTargetProgress = requestedProgress
             showPage(at: pageIndex(for: requestedProgress), animated: false, direction: .forward)
@@ -920,6 +919,10 @@ private final class ReaderPagesViewController: UIViewController,
         } else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
         }
+    }
+
+    deinit {
+        repaginationWorkItem?.cancel()
     }
 
     private var textStartIndex: Int {
