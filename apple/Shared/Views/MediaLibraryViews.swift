@@ -15,10 +15,21 @@ private enum ReadingFilter: String, CaseIterable, Identifiable {
     }
 }
 
+private enum ReadingShelfStyle: String, CaseIterable, Identifiable {
+    case covers
+    case list
+
+    var id: String { rawValue }
+    var title: String { self == .covers ? "封面" : "列表" }
+    var symbol: String { self == .covers ? "square.grid.2x2" : "list.bullet" }
+}
+
 struct ReadingLibraryView: View {
     @EnvironmentObject private var store: LibraryStore
     @State private var filter: ReadingFilter = .all
+    @State private var shelfStyle: ReadingShelfStyle = .covers
     @State private var query = ""
+    @State private var isFormatGuidePresented = false
 
     private var items: [LibraryItem] {
         store.items.filter { item in
@@ -34,28 +45,132 @@ struct ReadingLibraryView: View {
     }
 
     var body: some View {
-        LibraryGridContent(
-            items: items,
-            emptyTitle: "还没有书",
-            emptyMessage: "导入 TXT、Markdown、EPUB、PDF 或漫画文件。",
-            emptySymbol: "books.vertical",
-            importAction: AnyView(FileImportButton(title: "导入书籍", prominent: true))
-        )
+        Group {
+            if items.isEmpty {
+                ContentUnavailablePanel(
+                    title: "还没有书",
+                    message: "支持 TXT、EPUB、MOBI、AZW3、DOC、DOCX 与 PDF。",
+                    symbol: "books.vertical",
+                    action: AnyView(FileImportButton(title: "导入书籍", prominent: true))
+                )
+            } else if shelfStyle == .covers {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 145, maximum: 230), spacing: 16)], spacing: 20) {
+                        ForEach(items) { item in
+                            NavigationLink(value: item) {
+                                LibraryItemCard(item: item)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .frame(maxWidth: YuBingMetrics.contentMaxWidth)
+                    .padding(20)
+                    .frame(maxWidth: .infinity)
+                }
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(items) { item in
+                            NavigationLink(value: item) {
+                                LibraryItemRow(item: item)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 6)
+                            }
+                            .buttonStyle(.plain)
+                            Divider().padding(.leading, 80)
+                        }
+                    }
+                    .frame(maxWidth: 820)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
         .navigationTitle("阅读")
         .searchable(text: $query, prompt: "搜索书名")
         .safeAreaInset(edge: .top, spacing: 0) {
-            Picker("类型", selection: $filter) {
-                ForEach(ReadingFilter.allCases) { option in
-                    Text(option.title).tag(option)
+            HStack(spacing: 12) {
+                Picker("类型", selection: $filter) {
+                    ForEach(ReadingFilter.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 420)
+
+                Picker("书架样式", selection: $shelfStyle) {
+                    ForEach(ReadingShelfStyle.allCases) { option in
+                        Image(systemName: option.symbol)
+                            .accessibilityLabel(option.title)
+                            .tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 104)
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 420)
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
             .background(.bar)
         }
-        .toolbar { FileImportButton(title: "导入").labelStyle(.iconOnly) }
+        .toolbar {
+            ToolbarItemGroup {
+                Button { isFormatGuidePresented = true } label: {
+                    Label("支持的阅读格式", systemImage: "info.circle")
+                }
+                FileImportButton(title: "导入").labelStyle(.iconOnly)
+            }
+        }
+        .sheet(isPresented: $isFormatGuidePresented) {
+            ReaderFormatGuideView()
+        }
+    }
+}
+
+private struct ReaderFormatGuideView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("可阅读格式") {
+                    formatRow("TXT", detail: "自动识别 UTF-8、UTF-16、GBK/GB18030；支持自动分章和手动封面。", symbol: "doc.plaintext")
+                    formatRow("EPUB", detail: "读取书名、目录、正文顺序与内嵌封面。", symbol: "books.vertical")
+                    formatRow("MOBI / AZW3", detail: "读取无 DRM 的 Kindle 文本，并在本机自动分章。", symbol: "book.closed")
+                    formatRow("DOC / DOCX", detail: "提取 Word 正文后自动识别章节；复杂版式会转换为纯文本。", symbol: "doc.richtext")
+                    formatRow("PDF", detail: "使用系统 PDF 阅读器保留原页面、图片和排版。", symbol: "doc.text.image")
+                }
+
+                Section("Apple Watch") {
+                    Label("手机会先把电子书转换为带章节和封面的离线书籍包，再传到手表。", systemImage: "applewatch.radiowaves.left.and.right")
+                    Label("手表无需连接手机即可选章、阅读和记录进度。", systemImage: "checkmark.circle")
+                }
+
+                Section("格式限制") {
+                    Label("受 DRM、密码或平台账号保护的电子书无法读取。", systemImage: "lock")
+                    Label("扫描版 PDF 没有可提取文字，但仍能按原页面阅读。", systemImage: "viewfinder")
+                }
+            }
+            .navigationTitle("阅读格式")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func formatRow(_ title: String, detail: String, symbol: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbol)
+                .foregroundStyle(.tint)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.headline)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 3)
     }
 }
 
@@ -135,4 +250,3 @@ struct LibraryGridContent: View {
         }
     }
 }
-

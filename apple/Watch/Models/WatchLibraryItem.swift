@@ -50,7 +50,7 @@ struct WatchLibraryItem: Identifiable, Codable, Hashable {
     static func classify(url: URL, isDirectory: Bool) -> WatchLibraryKind {
         guard !isDirectory else { return .folder }
         let ext = url.pathExtension.lowercased()
-        if ["txt", "md", "markdown"].contains(ext) { return .novel }
+        if ["txt", "md", "markdown", WatchBookPackage.fileExtension].contains(ext) { return .novel }
         if ext == "pdf" { return .comic }
         if audioExtensions.contains(ext) { return .music }
         if imageExtensions.contains(ext) { return .photo }
@@ -78,4 +78,3 @@ extension TimeInterval {
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
-

@@ -19,6 +19,8 @@ final class WatchTransferService: NSObject, ObservableObject {
     @Published private(set) var watchItems: [WatchManifestItem] = []
 
     private var session: WCSession?
+    private weak var readingStore: ReadingStore?
+    private var bufferedReadingStats: [WatchReadingStatPayload] = []
 
     override init() {
         super.init()
@@ -30,6 +32,14 @@ final class WatchTransferService: NSObject, ObservableObject {
         self.session = session
         session.delegate = self
         session.activate()
+    }
+
+    func attach(readingStore: ReadingStore) {
+        self.readingStore = readingStore
+        if !bufferedReadingStats.isEmpty {
+            readingStore.mergeWatchStats(bufferedReadingStats)
+            bufferedReadingStats.removeAll()
+        }
     }
 
     func send(_ items: [LibraryItem]) {
@@ -47,19 +57,96 @@ final class WatchTransferService: NSObject, ObservableObject {
         }
 
         let compatible = items.filter(\.isWatchCompatible)
-        for item in compatible {
-            session.transferFile(
-                item.url,
-                metadata: [
-                    "name": item.name,
-                    "kind": item.kind.rawValue,
-                    "relativePath": item.relativePath,
-                    "byteCount": item.byteCount
-                ]
-            )
+        guard !compatible.isEmpty else {
+            lastStatus = "所选项目不支持在 Watch 上打开"
+            return
         }
-        pendingCount = session.outstandingFileTransfers.count
-        lastStatus = compatible.isEmpty ? "所选项目不支持在 Watch 上打开" : "已加入后台传输队列"
+
+        Task { [weak self] in
+            guard let self else { return }
+            var enqueued = 0
+            var failures: [String] = []
+            for item in compatible {
+                do {
+                    if item.kind == .novel {
+                        self.lastStatus = "正在为 Watch 整理《\(item.displayName)》"
+                        let transfer = try await self.makeWatchBookTransfer(for: item)
+                        session.transferFile(transfer.url, metadata: transfer.metadata)
+                    } else {
+                        session.transferFile(item.url, metadata: self.metadata(for: item))
+                    }
+                    enqueued += 1
+                } catch {
+                    failures.append("\(item.displayName)：\(error.localizedDescription)")
+                }
+            }
+            self.pendingCount = session.outstandingFileTransfers.count
+            if failures.isEmpty {
+                self.lastStatus = "已加入后台传输队列（\(enqueued) 个）"
+            } else if enqueued > 0 {
+                self.lastStatus = "已发送 \(enqueued) 个，\(failures.count) 个转换失败"
+            } else {
+                self.lastStatus = failures.joined(separator: "\n")
+            }
+        }
+    }
+
+    private func metadata(for item: LibraryItem) -> [String: Any] {
+        [
+            "name": item.name,
+            "kind": item.kind.rawValue,
+            "relativePath": item.relativePath,
+            "byteCount": item.byteCount
+        ]
+    }
+
+    private func makeWatchBookTransfer(for item: LibraryItem) async throws -> (url: URL, metadata: [String: Any]) {
+        let sourceURL = item.url
+        let parsed = try await Task.detached(priority: .userInitiated) {
+            try BookParser.parse(url: sourceURL)
+        }.value
+
+        let storedCover = await readingStore?.coverData(for: item, discoverIfNeeded: false)
+        let cover = storedCover ?? parsed.coverData
+        if storedCover == nil, let cover {
+            readingStore?.saveCover(cover, for: item)
+        }
+        let record = readingStore?.record(for: item) ?? ReadingRecord()
+        let package = WatchBookPackage(
+            version: 1,
+            sourceID: item.relativePath,
+            title: parsed.title,
+            originalFileName: item.name,
+            format: parsed.format,
+            chapters: parsed.chapters,
+            totalLength: parsed.totalLength,
+            coverData: cover,
+            initialChapterIndex: min(max(record.chapterIndex, 0), max(parsed.chapters.count - 1, 0)),
+            initialChapterProgress: min(max(record.chapterProgress, 0), 1)
+        )
+
+        let encoder = PropertyListEncoder()
+        encoder.outputFormat = .binary
+        let data = try encoder.encode(package)
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("YuBing Watch Transfers", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileName = "\(UUID().uuidString).\(WatchBookPackage.fileExtension)"
+        let url = directory.appendingPathComponent(fileName)
+        try data.write(to: url, options: .atomic)
+
+        let stem = (item.relativePath as NSString).deletingPathExtension
+        let relativePath = "\(stem).\(WatchBookPackage.fileExtension)"
+        return (
+            url,
+            [
+                "name": "\(parsed.title).\(WatchBookPackage.fileExtension)",
+                "kind": LibraryKind.novel.rawValue,
+                "relativePath": relativePath,
+                "byteCount": Int64(data.count),
+                "sourceID": item.relativePath
+            ]
+        )
     }
 
     private func updateSessionState(_ session: WCSession) {
@@ -104,7 +191,11 @@ extension WatchTransferService: WCSessionDelegate {
         didFinish fileTransfer: WCSessionFileTransfer,
         error: Error?
     ) {
+        let temporaryURL = fileTransfer.file.fileURL
         Task { @MainActor [weak self] in
+            if temporaryURL.pathExtension.lowercased() == WatchBookPackage.fileExtension {
+                try? FileManager.default.removeItem(at: temporaryURL)
+            }
             self?.pendingCount = session.outstandingFileTransfers.count
             if let error {
                 self?.lastStatus = "传输失败：\(error.localizedDescription)"
@@ -118,11 +209,21 @@ extension WatchTransferService: WCSessionDelegate {
         _ session: WCSession,
         didReceiveApplicationContext applicationContext: [String: Any]
     ) {
-        guard let data = applicationContext["libraryManifest"] as? Data,
-              let manifest = try? JSONDecoder().decode([WatchManifestItem].self, from: data) else { return }
+        let manifest = (applicationContext["libraryManifest"] as? Data)
+            .flatMap { try? JSONDecoder().decode([WatchManifestItem].self, from: $0) }
+        let stats = (applicationContext["readingStats"] as? Data)
+            .flatMap { try? JSONDecoder().decode([WatchReadingStatPayload].self, from: $0) }
         Task { @MainActor [weak self] in
-            self?.watchItems = manifest
-            self?.updateSessionState(session)
+            guard let self else { return }
+            if let manifest { self.watchItems = manifest }
+            if let stats {
+                if let readingStore = self.readingStore {
+                    readingStore.mergeWatchStats(stats)
+                } else {
+                    self.bufferedReadingStats = stats
+                }
+            }
+            self.updateSessionState(session)
         }
     }
 }

@@ -11,11 +11,7 @@ struct ItemDestinationView: View {
             case .folder:
                 FileBrowserView(folderURL: item.url)
             case .novel:
-                if ["txt", "md", "markdown"].contains(item.fileExtension) {
-                    NovelReaderView(item: item)
-                } else {
-                    DocumentPreviewScreen(item: item, message: "此格式由系统预览打开。TXT 与 Markdown 可使用 鱼饼 阅读器。")
-                }
+                NovelReaderView(item: item)
             case .comic:
                 if item.fileExtension == "pdf" {
                     PDFComicReaderView(item: item)
@@ -81,4 +77,3 @@ private struct DocumentPreviewScreen: View {
         }
     }
 }
-

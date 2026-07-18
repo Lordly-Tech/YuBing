@@ -4,6 +4,7 @@ import SwiftUI
 struct YuBingApp: App {
     @StateObject private var store = LibraryStore()
     @StateObject private var player = AudioPlayerController()
+    @StateObject private var readingStore = ReadingStore()
     #if os(iOS)
     @StateObject private var watchTransfer = WatchTransferService()
     #endif
@@ -13,8 +14,10 @@ struct YuBingApp: App {
             RootView()
                 .environmentObject(store)
                 .environmentObject(player)
+                .environmentObject(readingStore)
                 #if os(iOS)
                 .environmentObject(watchTransfer)
+                .onAppear { watchTransfer.attach(readingStore: readingStore) }
                 #endif
         }
         #if os(macOS)
@@ -23,4 +26,3 @@ struct YuBingApp: App {
         #endif
     }
 }
-

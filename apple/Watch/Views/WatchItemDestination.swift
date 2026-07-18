@@ -11,7 +11,7 @@ struct WatchItemDestination: View {
             case .folder:
                 WatchFileBrowserView(folderURL: item.url)
             case .novel:
-                WatchNovelReaderView(item: item)
+                WatchBookDetailView(item: item)
             case .comic:
                 WatchPDFReaderView(item: item)
             case .photo:
@@ -26,4 +26,3 @@ struct WatchItemDestination: View {
         .onAppear { store.markOpened(item) }
     }
 }
-

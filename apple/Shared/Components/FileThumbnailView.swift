@@ -10,6 +10,7 @@ private typealias YuBingPlatformImage = UIImage
 #endif
 
 struct FileThumbnailView: View {
+    @EnvironmentObject private var readingStore: ReadingStore
     let item: LibraryItem
     var size: CGSize = CGSize(width: 160, height: 160)
 
@@ -32,8 +33,14 @@ struct FileThumbnailView: View {
             }
         }
         .clipped()
-        .task(id: item.url) {
+        .task(id: "\(item.url.path)-\(readingStore.coverRevision)") {
             guard !item.isDirectory else { return }
+            if item.kind == .novel,
+               let data = await readingStore.coverData(for: item),
+               let cover = platformImage(data: data) {
+                image = cover
+                return
+            }
             let scale: CGFloat
             #if os(macOS)
             scale = NSScreen.main?.backingScaleFactor ?? 2
@@ -67,5 +74,12 @@ struct FileThumbnailView: View {
         Image(uiImage: image)
         #endif
     }
-}
 
+    private func platformImage(data: Data) -> YuBingPlatformImage? {
+        #if os(macOS)
+        NSImage(data: data)
+        #else
+        UIImage(data: data)
+        #endif
+    }
+}

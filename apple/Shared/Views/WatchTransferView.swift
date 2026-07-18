@@ -34,7 +34,11 @@ struct WatchTransferView: View {
 
             Section("选择要传输的文件") {
                 if compatibleItems.isEmpty {
-                    ContentUnavailableView("没有兼容文件", systemImage: "applewatch", description: Text("支持 TXT、Markdown、PDF、图片与音频。"))
+                    ContentUnavailableView(
+                        "没有兼容文件",
+                        systemImage: "applewatch",
+                        description: Text("支持 TXT、EPUB、MOBI、AZW3、DOC、DOCX、PDF、图片与音频。")
+                    )
                 } else {
                     ForEach(compatibleItems) { item in
                         Button {
@@ -93,4 +97,3 @@ struct WatchTransferView: View {
     }
 }
 #endif
-

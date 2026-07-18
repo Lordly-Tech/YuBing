@@ -36,7 +36,7 @@ struct LibraryItem: Identifiable, Codable, Hashable, Sendable {
     var isWatchCompatible: Bool {
         switch kind {
         case .novel:
-            return ["txt", "md", "markdown"].contains(fileExtension)
+            return Self.novelExtensions.contains(fileExtension)
         case .comic:
             return fileExtension == "pdf" || Self.imageExtensions.contains(fileExtension)
         case .music, .photo:
@@ -48,7 +48,7 @@ struct LibraryItem: Identifiable, Codable, Hashable, Sendable {
 
     static let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "heic", "heif", "gif", "tif", "tiff", "webp"]
     static let musicExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "aif", "aiff", "caf", "flac", "alac"]
-    static let novelExtensions: Set<String> = ["txt", "md", "markdown", "epub", "mobi", "azw", "azw3"]
+    static let novelExtensions: Set<String> = ["txt", "md", "markdown", "epub", "mobi", "azw", "azw3", "doc", "docx"]
     static let comicExtensions: Set<String> = ["pdf", "cbz", "cbr"]
 
     static func classify(url: URL, isDirectory: Bool) -> LibraryKind {
