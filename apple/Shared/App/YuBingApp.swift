@@ -5,6 +5,7 @@ struct YuBingApp: App {
     @StateObject private var store = LibraryStore()
     @StateObject private var player = AudioPlayerController()
     @StateObject private var readingStore = ReadingStore()
+    @StateObject private var wifiTransfer = WiFiTransferService()
     #if os(iOS)
     @StateObject private var watchTransfer = WatchTransferService()
     #endif
@@ -15,6 +16,8 @@ struct YuBingApp: App {
                 .environmentObject(store)
                 .environmentObject(player)
                 .environmentObject(readingStore)
+                .environmentObject(wifiTransfer)
+                .onAppear { wifiTransfer.attach(store: store) }
                 #if os(iOS)
                 .environmentObject(watchTransfer)
                 .onAppear { watchTransfer.attach(readingStore: readingStore) }

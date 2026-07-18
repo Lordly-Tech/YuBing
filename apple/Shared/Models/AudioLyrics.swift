@@ -142,11 +142,15 @@ enum LRCParser {
             }
         }
 
-        let unique = Dictionary(grouping: lines, by: { "\($0.time)|\($0.text)" })
-            .compactMap { $0.value.first }
-            .sorted { lhs, rhs in
-                lhs.time == rhs.time ? lhs.text < rhs.text : lhs.time < rhs.time
-            }
+        var seen: Set<String> = []
+        var unique: [TimedLyricLine] = []
+        for line in lines {
+            let key = "\(line.time)|\(line.text)"
+            if seen.insert(key).inserted { unique.append(line) }
+        }
+        unique.sort { lhs, rhs in
+            lhs.time == rhs.time ? lhs.text < rhs.text : lhs.time < rhs.time
+        }
         let untimedText = unique.isEmpty && !untimed.isEmpty ? untimed.joined(separator: "\n") : nil
         return TimedLyrics(lines: unique, untimedText: untimedText)
     }

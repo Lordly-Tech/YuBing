@@ -81,8 +81,10 @@ struct PhotoImportButton: View {
 
 struct LibraryImportMenu: View {
     @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var wifiTransfer: WiFiTransferService
     @State private var isFileImporterPresented = false
     @State private var photoSelection: [PhotosPickerItem] = []
+    @State private var showsWiFiTransfer = false
 
     var destination: URL?
     var title = "添加"
@@ -103,6 +105,12 @@ struct LibraryImportMenu: View {
                 matching: photoScope.filter
             ) {
                 Label(photoScope.title, systemImage: "photo.on.rectangle.angled")
+            }
+
+            Button {
+                showsWiFiTransfer = true
+            } label: {
+                Label("同一 Wi-Fi 传输", systemImage: "wifi")
             }
         } label: {
             Label(title, systemImage: "plus")
@@ -126,6 +134,50 @@ struct LibraryImportMenu: View {
                 photoSelection.removeAll()
             }
         }
+        .sheet(isPresented: $showsWiFiTransfer) {
+            WiFiTransferPanel()
+                .environmentObject(wifiTransfer)
+        }
+    }
+}
+
+private struct WiFiTransferPanel: View {
+    @EnvironmentObject private var transfer: WiFiTransferService
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                Image(systemName: transfer.isRunning ? "wifi" : "wifi.slash")
+                    .font(.system(size: 54))
+                    .foregroundStyle(transfer.isRunning ? .green : .secondary)
+                Text(transfer.status)
+                    .font(.headline)
+                if let address = transfer.address {
+                    Text(address)
+                        .font(.title3.monospaced())
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.center)
+                    ShareLink(item: address) {
+                        Label("分享地址", systemImage: "square.and.arrow.up")
+                    }
+                }
+                Button {
+                    transfer.isRunning ? transfer.stop() : transfer.start()
+                } label: {
+                    Label(transfer.isRunning ? "停止传输" : "开始传输", systemImage: transfer.isRunning ? "stop.fill" : "play.fill")
+                        .frame(minWidth: 180)
+                }
+                .adaptiveGlassButton(prominent: !transfer.isRunning)
+            }
+            .padding(28)
+            .frame(minWidth: 340, minHeight: 300)
+            .navigationTitle("Wi-Fi 传输")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+            }
+        }
+        .onDisappear { transfer.stop() }
     }
 }
 

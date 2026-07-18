@@ -155,12 +155,14 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
             return (nil, nil, nil)
         }
         let subtype = CMFormatDescriptionGetMediaSubType(description)
-        let codec = String(bytes: [
+        let rawBytes: [UInt8] = [
             UInt8((subtype >> 24) & 0xff),
             UInt8((subtype >> 16) & 0xff),
             UInt8((subtype >> 8) & 0xff),
             UInt8(subtype & 0xff)
-        ].filter { $0 >= 32 && $0 < 127 }, encoding: .ascii)
+        ]
+        let printableBytes = rawBytes.filter { byte in byte >= 32 && byte < 127 }
+        let codec = String(bytes: printableBytes, encoding: .ascii)
         guard let basic = CMAudioFormatDescriptionGetStreamBasicDescription(description) else {
             return (codec, nil, nil)
         }

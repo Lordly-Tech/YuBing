@@ -47,6 +47,9 @@ targets:
         INFOPLIST_KEY_UIFileSharingEnabled: true
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: true
         INFOPLIST_KEY_NSAppleMusicUsageDescription: "用于扫描并导入你已下载到设备的本地音乐。"
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "用于在同一 Wi-Fi 下从电脑向鱼饼快速传入文件。"
+        INFOPLIST_KEY_NSBonjourServices:
+          - _yubing._tcp
         INFOPLIST_KEY_CFBundleDocumentTypes:
           - CFBundleTypeName: YuBing Files
             CFBundleTypeRole: Editor
