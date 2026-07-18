@@ -1,6 +1,7 @@
 import AVFoundation
 import Combine
 import MediaPlayer
+import WatchKit
 
 @MainActor
 final class WatchAudioPlayer: ObservableObject {
@@ -13,10 +14,11 @@ final class WatchAudioPlayer: ObservableObject {
     private let player = AVPlayer()
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
+    private var interruptionObserver: NSObjectProtocol?
 
     init() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
         } catch {
             // The route can become available later when headphones connect.
         }
@@ -36,12 +38,28 @@ final class WatchAudioPlayer: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in self?.next() }
         }
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let info = notification.userInfo,
+                  let type = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  type == AVAudioSession.InterruptionType.ended.rawValue
+            else { return }
+            try? AVAudioSession.sharedInstance().setActive(true)
+            Task { @MainActor [weak self] in
+                guard let self, self.isPlaying else { return }
+                self.player.play()
+            }
+        }
         configureRemoteCommands()
     }
 
     deinit {
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        if let interruptionObserver { NotificationCenter.default.removeObserver(interruptionObserver) }
     }
 
     func play(_ item: WatchLibraryItem, queue: [WatchLibraryItem]) {
@@ -49,18 +67,28 @@ final class WatchAudioPlayer: ObservableObject {
         currentItem = item
         currentTime = 0
         duration = 0
-        try? AVAudioSession.sharedInstance().setActive(true)
+        activateAudioSession()
         let avItem = AVPlayerItem(url: item.url)
         player.replaceCurrentItem(with: avItem)
         player.play()
         isPlaying = true
         updateNowPlaying()
+        WKExtension.shared().isFrontmostTimeoutExtended = true
 
         Task {
             if let loaded = try? await avItem.asset.load(.duration) {
                 duration = loaded.seconds.isFinite ? loaded.seconds : 0
                 updateNowPlaying()
             }
+        }
+    }
+
+    private func activateAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            // watchOS may defer activation; playback still works.
         }
     }
 
