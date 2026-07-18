@@ -250,6 +250,7 @@ struct NovelReaderView: View {
                 onToggleControls: toggleReaderControls
             )
             .id("\(chapterIndex)-\(transitionMode.rawValue)")
+            .ignoresSafeArea()
         }
         #else
         scrollingChapterContent(book: book, chapter: chapter)
@@ -416,15 +417,6 @@ struct NovelReaderView: View {
                     ReaderValueSlider(title: "上下边距", value: $verticalMargin, range: 12...100, step: 2, suffix: " pt")
                 }
 
-                Section("自动翻页") {
-                    Toggle("开启自动翻页", isOn: $autoTurnEnabled)
-                    ReaderValueSlider(title: "间隔", value: $autoTurnInterval, range: 2...30, step: 1, suffix: " 秒")
-                    ReaderValueSlider(title: "每次移动", value: $autoTurnDistance, range: 20...100, step: 10, suffix: "% 屏")
-                    Text("到达章节末尾后会自动进入下一章。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
                 #if os(iOS)
                 Section("翻页效果") {
                     Picker("翻页方式", selection: $transitionModeRaw) {
@@ -437,6 +429,15 @@ struct NovelReaderView: View {
                         .foregroundStyle(.secondary)
                 }
                 #endif
+
+                Section("自动翻页") {
+                    Toggle("开启自动翻页", isOn: $autoTurnEnabled)
+                    ReaderValueSlider(title: "间隔", value: $autoTurnInterval, range: 2...30, step: 1, suffix: " 秒")
+                    ReaderValueSlider(title: "每次移动", value: $autoTurnDistance, range: 20...100, step: 10, suffix: "% 屏")
+                    Text("到达章节末尾后会自动进入下一章。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Section("屏幕") {
                     Toggle("常驻亮屏", isOn: $keepAwake)
@@ -728,7 +729,8 @@ private struct ReaderPagedChapterContent: UIViewControllerRepresentable {
                 verticalMargin: verticalMargin,
                 appearance: appearance
             ),
-            targetProgress: scrollRequest.progress,
+            currentProgress: progress,
+            requestedProgress: scrollRequest.progress,
             requestID: scrollRequest.id,
             autoTurnPulse: autoTurnPulse
         )
@@ -801,6 +803,8 @@ private final class ReaderPagesViewController: UIViewController,
     private var pendingTargetProgress = 0.0
     private var pager: UIPageViewController?
     private var fadePageController: ReaderTextPageController?
+    private var repaginationWorkItem: DispatchWorkItem?
+    private var isPageTransitioning = false
 
     init(mode: ReaderTransitionMode) {
         self.mode = mode
@@ -852,8 +856,11 @@ private final class ReaderPagesViewController: UIViewController,
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         let size = view.bounds.size
-        guard size.width > 80, size.height > 120,
-              abs(size.width - lastLayoutSize.width) > 1 || abs(size.height - lastLayoutSize.height) > 1 else { return }
+        guard size.width > 80, size.height > 120, !isPageTransitioning else { return }
+        let isInitialLayout = lastLayoutSize == .zero
+        let widthChanged = abs(size.width - lastLayoutSize.width) > 1
+        let majorHeightChange = abs(size.height - lastLayoutSize.height) > 180
+        guard isInitialLayout || widthChanged || majorHeightChange else { return }
         let target = pages.isEmpty ? pendingTargetProgress : currentProgress
         lastLayoutSize = size
         rebuildPages(targetProgress: target)
@@ -861,31 +868,57 @@ private final class ReaderPagesViewController: UIViewController,
 
     func configure(
         _ configuration: ReaderPagesConfiguration,
-        targetProgress: Double,
+        currentProgress: Double,
+        requestedProgress: Double,
         requestID: UUID,
         autoTurnPulse: UUID
     ) {
+        let isInitialConfiguration = configurationKey.isEmpty || pages.isEmpty
         self.configuration = configuration
         view.backgroundColor = configuration.backgroundColor
 
         if configuration.key != configurationKey {
             configurationKey = configuration.key
-            pendingTargetProgress = targetProgress
-            lastRequestID = requestID
+            let preservedProgress = isInitialConfiguration ? requestedProgress : currentProgress
+            pendingTargetProgress = preservedProgress
+            if lastRequestID == nil { lastRequestID = requestID }
             lastAutoTurnPulse = autoTurnPulse
-            rebuildPages(targetProgress: targetProgress)
+            scheduleRepagination(
+                targetProgress: preservedProgress,
+                immediately: isInitialConfiguration
+            )
             return
         }
 
         if lastRequestID != requestID {
+            repaginationWorkItem?.cancel()
             lastRequestID = requestID
-            pendingTargetProgress = targetProgress
-            showPage(at: pageIndex(for: targetProgress), animated: false, direction: .forward)
+            pendingTargetProgress = requestedProgress
+            showPage(at: pageIndex(for: requestedProgress), animated: false, direction: .forward)
         }
 
         if lastAutoTurnPulse != autoTurnPulse {
             if lastAutoTurnPulse != nil { advancePage() }
             lastAutoTurnPulse = autoTurnPulse
+        }
+    }
+
+    private func scheduleRepagination(targetProgress: Double, immediately: Bool) {
+        repaginationWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if self.isPageTransitioning {
+                self.scheduleRepagination(targetProgress: targetProgress, immediately: false)
+                return
+            }
+            self.repaginationWorkItem = nil
+            self.rebuildPages(targetProgress: targetProgress)
+        }
+        repaginationWorkItem = workItem
+        if immediately {
+            workItem.perform()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
         }
     }
 
@@ -1021,12 +1054,12 @@ private final class ReaderPagesViewController: UIViewController,
     }
 
     private func advancePage() {
-        guard currentIndex + 1 < pages.count else { return }
+        guard !isPageTransitioning, repaginationWorkItem == nil, currentIndex + 1 < pages.count else { return }
         showPage(at: currentIndex + 1, animated: true, direction: .forward)
     }
 
     private func retreatPage() {
-        guard currentIndex > 0 else { return }
+        guard !isPageTransitioning, repaginationWorkItem == nil, currentIndex > 0 else { return }
         showPage(at: currentIndex - 1, animated: true, direction: .reverse)
     }
 
@@ -1073,12 +1106,19 @@ private final class ReaderPagesViewController: UIViewController,
 
     func pageViewController(
         _ pageViewController: UIPageViewController,
+        willTransitionTo pendingViewControllers: [UIViewController]
+    ) {
+        isPageTransitioning = true
+    }
+
+    func pageViewController(
+        _ pageViewController: UIPageViewController,
         didFinishAnimating finished: Bool,
         previousViewControllers: [UIViewController],
         transitionCompleted completed: Bool
     ) {
-        guard completed,
-              let page = pageViewController.viewControllers?.first as? ReaderTextPageController else { return }
+        isPageTransitioning = false
+        guard let page = pageViewController.viewControllers?.first as? ReaderTextPageController else { return }
         currentIndex = page.pageIndex
         onProgress(currentProgress)
     }

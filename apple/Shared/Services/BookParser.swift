@@ -173,10 +173,10 @@ private enum BookChapterDetector {
             if let first = boundaries.first, first.offset > 300 {
                 boundaries.insert((0, "开始"), at: 0)
             }
-            return build(text: source, boundaries: boundaries)
+            return validated(build(text: source, boundaries: boundaries))
         }
 
-        return smartChapters(text: source, fallbackTitle: fallbackTitle)
+        return validated(smartChapters(text: source, fallbackTitle: fallbackTitle))
     }
 
     static func chapters(from sections: [(title: String, text: String)]) -> [BookChapter] {
@@ -207,7 +207,7 @@ private enum BookChapterDetector {
         if result.isEmpty {
             return [BookChapter(index: 0, title: "全文", text: "（没有可显示的文字）", startOffset: 0, length: 1)]
         }
-        return result
+        return validated(result)
     }
 
     private static func build(text: NSString, boundaries: [(offset: Int, title: String)]) -> [BookChapter] {
@@ -227,6 +227,86 @@ private enum BookChapterDetector {
             ))
         }
         return chapters
+    }
+
+    private static func validated(_ chapters: [BookChapter]) -> [BookChapter] {
+        guard chapters.count > 1 else { return chapters }
+
+        var result: [BookChapter] = []
+        var seenBodies = Set<String>()
+
+        for chapter in chapters {
+            let bodyKey = bodyFingerprint(for: chapter)
+            if seenBodies.contains(bodyKey) {
+                // EPUB spines and paginated text exports sometimes contain the
+                // same section twice. Keep the first complete body only.
+                continue
+            }
+
+            if let previous = result.last,
+               canonicalTitle(previous.title) == canonicalTitle(chapter.title),
+               !canonicalTitle(chapter.title).isEmpty {
+                let continuation = bodyWithoutHeading(chapter.text, title: chapter.title)
+                if !continuation.isEmpty {
+                    let mergedText = BookParser.normalize(previous.text + "\n\n" + continuation)
+                    let end = max(
+                        previous.startOffset + previous.length,
+                        chapter.startOffset + chapter.length
+                    )
+                    result[result.count - 1] = BookChapter(
+                        index: previous.index,
+                        title: previous.title,
+                        text: mergedText,
+                        startOffset: previous.startOffset,
+                        length: max(end - previous.startOffset, 1)
+                    )
+                    seenBodies.insert(bodyFingerprint(for: result[result.count - 1]))
+                    continue
+                }
+            }
+
+            result.append(chapter)
+            seenBodies.insert(bodyKey)
+        }
+
+        return result.enumerated().map { index, chapter in
+            BookChapter(
+                index: index,
+                title: chapter.title,
+                text: chapter.text,
+                startOffset: chapter.startOffset,
+                length: chapter.length
+            )
+        }
+    }
+
+    private static func bodyFingerprint(for chapter: BookChapter) -> String {
+        let body = bodyWithoutHeading(chapter.text, title: chapter.title)
+        let compact = body
+            .replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: .current)
+        let length = compact.count
+        guard length > 1_600 else { return "\(length)|\(compact)" }
+        let head = String(compact.prefix(800))
+        let tail = String(compact.suffix(800))
+        return "\(length)|\(head)|\(tail)"
+    }
+
+    private static func canonicalTitle(_ title: String) -> String {
+        title
+            .replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"[\p{P}\p{S}]"#, with: "", options: .regularExpression)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: .current)
+    }
+
+    private static func bodyWithoutHeading(_ text: String, title: String) -> String {
+        let normalized = BookParser.normalize(text)
+        let lines = normalized.components(separatedBy: "\n")
+        guard let first = lines.first,
+              canonicalTitle(first) == canonicalTitle(title) else {
+            return normalized
+        }
+        return BookParser.normalize(lines.dropFirst().joined(separator: "\n"))
     }
 
     private static func smartChapters(text: NSString, fallbackTitle: String) -> [BookChapter] {
