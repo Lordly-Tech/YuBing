@@ -23,7 +23,11 @@ struct YuBingApp: App {
                 .onAppear { watchTransfer.attach(readingStore: readingStore) }
                 #endif
                 .onOpenURL { url in
-                    store.importFiles([url])
+                    if url.scheme == "yubing", let section = url.host.flatMap(AppSection.init(rawValue:)) {
+                        NotificationCenter.default.post(name: .yuBingOpenSection, object: section)
+                    } else {
+                        store.importFiles([url])
+                    }
                 }
         }
         #if os(macOS)

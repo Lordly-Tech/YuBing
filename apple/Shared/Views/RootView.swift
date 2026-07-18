@@ -1,6 +1,10 @@
 import Combine
 import SwiftUI
 
+extension Notification.Name {
+    static let yuBingOpenSection = Notification.Name("YuBingOpenSection")
+}
+
 struct RootView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
@@ -55,6 +59,9 @@ private struct CompactRootView: View {
             selection = .home
         }
         #endif
+        .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
+            if let section = notification.object as? AppSection { selection = section }
+        }
     }
 
     private func compactTab<Content: View>(
@@ -101,6 +108,9 @@ private struct SplitRootView: View {
             selection = .home
         }
         #endif
+        .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
+            if let section = notification.object as? AppSection { selection = section }
+        }
     }
 }
 

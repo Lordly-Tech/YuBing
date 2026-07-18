@@ -58,6 +58,10 @@ targets:
               - public.data
               - public.content
               - public.audiovisual-content
+        INFOPLIST_KEY_CFBundleURLTypes:
+          - CFBundleURLName: top.lordly.yubing
+            CFBundleURLSchemes:
+              - yubing
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -111,3 +115,18 @@ targets:
         INFOPLIST_KEY_UIBackgroundModes: audio
         TARGETED_DEVICE_FAMILY: "4"
         PROVISIONING_PROFILE_SPECIFIER: $(WATCH_PROFILE_NAME)
+  YuBingWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: top.lordly.yubing.widget
+        PRODUCT_NAME: YuBing Widget
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_CFBundleDisplayName: "鱼饼"
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
+        INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        SKIP_INSTALL: true
+        TARGETED_DEVICE_FAMILY: "1,2"
