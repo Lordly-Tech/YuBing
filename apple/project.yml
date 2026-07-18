@@ -15,9 +15,9 @@ settings:
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
 packages:
-  FFmpegSwift:
-    url: https://github.com/wendylabsinc/ffmpeg-swift.git
-    exactVersion: 0.0.3
+  FFmpegLibav:
+    url: https://github.com/tylerjonesio/ffmpeg-libav-spm.git
+    revision: 70acff8279dc8a8e87cce5eb53fc52104aa47703
 targets:
   YuBing:
     type: application
@@ -27,7 +27,7 @@ targets:
     dependencies:
       - target: YuBingWatch
         embed: true
-      - package: FFmpegSwift
+      - package: FFmpegLibav
         product: FFmpeg
     entitlements:
       path: Config/YuBing.entitlements
@@ -52,6 +52,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: false
+        SWIFT_OBJC_BRIDGING_HEADER: Shared/AudioCodecBridge/YuBingAudioCodec.h
         PROVISIONING_PROFILE_SPECIFIER: $(IOS_PROFILE_NAME)
   YuBingMac:
     type: application
@@ -59,7 +60,7 @@ targets:
     sources:
       - path: Shared
     dependencies:
-      - package: FFmpegSwift
+      - package: FFmpegLibav
         product: FFmpeg
     entitlements:
       path: Config/YuBingMac.entitlements
@@ -72,6 +73,7 @@ targets:
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         ENABLE_HARDENED_RUNTIME: true
+        SWIFT_OBJC_BRIDGING_HEADER: Shared/AudioCodecBridge/YuBingAudioCodec.h
   YuBingWatch:
     type: application
     platform: watchOS

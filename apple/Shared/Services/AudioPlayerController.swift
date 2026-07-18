@@ -12,79 +12,218 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
     var title: String?
     var artist: String?
     var album: String?
+    var albumArtist: String?
+    var genre: String?
     var year: String?
+    var trackNumber: String?
+    var discNumber: String?
+    var codec: String?
+    var sampleRate: Int?
+    var bitDepth: Int?
+    var isLossless: Bool
     var artworkData: Data?
+    var lyrics: TimedLyrics?
 
-    static let empty = EmbeddedAudioMetadata(title: nil, artist: nil, album: nil, year: nil, artworkData: nil)
+    static let empty = EmbeddedAudioMetadata(
+        title: nil,
+        artist: nil,
+        album: nil,
+        albumArtist: nil,
+        genre: nil,
+        year: nil,
+        trackNumber: nil,
+        discNumber: nil,
+        codec: nil,
+        sampleRate: nil,
+        bitDepth: nil,
+        isLossless: false,
+        artworkData: nil,
+        lyrics: nil
+    )
 
     var hasDetails: Bool {
-        [title, artist, album, year].contains { value in
+        [title, artist, album, albumArtist, genre, year].contains { value in
             guard let value else { return false }
             return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         } || artworkData != nil
     }
 
+    var hasAlbum: Bool {
+        guard let album else { return false }
+        return !album.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var qualityDescription: String {
+        var details: [String] = []
+        if isLossless { details.append("Lossless") }
+        if let sampleRate {
+            let value = Double(sampleRate) / 1000
+            details.append(value.rounded() == value ? "\(Int(value)) kHz" : String(format: "%.1f kHz", value))
+        }
+        if let bitDepth, bitDepth > 0 { details.append("\(bitDepth)-bit") }
+        if let codec, !codec.isEmpty { details.append(codec.uppercased()) }
+        return details.joined(separator: " · ")
+    }
+
     static func load(from url: URL) async -> EmbeddedAudioMetadata {
         let asset = AVURLAsset(url: url)
-        guard let items = try? await asset.load(.commonMetadata) else { return .empty }
-
-        let title = await stringValue(in: items, identifier: .commonIdentifierTitle)
-        let artist = await stringValue(in: items, identifier: .commonIdentifierArtist)
-        let album = await stringValue(in: items, identifier: .commonIdentifierAlbumName)
-        let year = await stringValue(in: items, identifier: .commonIdentifierCreationDate)
-        let artworkItem = AVMetadataItem.metadataItems(
-            from: items,
-            filteredByIdentifier: .commonIdentifierArtwork
-        ).first
-        let artworkData: Data?
-        if let artworkItem {
-            artworkData = try? await artworkItem.load(.dataValue)
-        } else {
-            artworkData = nil
+        let commonItems = (try? await asset.load(.commonMetadata)) ?? []
+        var allItems = commonItems
+        let formats = (try? await asset.load(.availableMetadataFormats)) ?? []
+        for format in formats {
+            if let items = try? await asset.loadMetadata(for: format) {
+                allItems.append(contentsOf: items)
+            }
         }
+
+        let title = await stringValue(in: allItems, identifiers: [.commonIdentifierTitle], hints: ["title"])
+        let artist = await stringValue(in: allItems, identifiers: [.commonIdentifierArtist], hints: ["artist", "performer"])
+        let album = await stringValue(in: allItems, identifiers: [.commonIdentifierAlbumName], hints: ["album"])
+        let albumArtist = await stringValue(in: allItems, identifiers: [], hints: ["albumartist", "album_artist"])
+        let genre = await stringValue(in: allItems, identifiers: [], hints: ["genre", "contenttype"])
+        let rawYear = await stringValue(in: allItems, identifiers: [.commonIdentifierCreationDate], hints: ["year", "date"])
+        let year = rawYear.flatMap { value in
+            let digits = value.filter(\.isNumber)
+            return digits.count >= 4 ? String(digits.prefix(4)) : value
+        }
+        let trackNumber = await stringValue(in: allItems, identifiers: [], hints: ["tracknumber", "track_number"])
+        let discNumber = await stringValue(in: allItems, identifiers: [], hints: ["discnumber", "disc_number"])
+        let embeddedLyrics = await stringValue(in: allItems, identifiers: [], hints: ["lyric", "unsynchronizedlyric"])
+        let artworkData = await dataValue(in: allItems, identifier: .commonIdentifierArtwork, hints: ["artwork", "picture", "cover"])
+        let properties = await audioProperties(from: asset)
+        let ext = url.pathExtension.lowercased()
+        let losslessExtensions: Set<String> = [
+            "flac", "alac", "wav", "aif", "aiff", "caf", "dsd", "dsf", "dff", "ape"
+        ]
+        let isLossless = losslessExtensions.contains(ext) ||
+            (properties.codec?.localizedCaseInsensitiveContains("alac") ?? false) ||
+            (properties.codec?.localizedCaseInsensitiveContains("flac") ?? false) ||
+            (properties.codec?.localizedCaseInsensitiveContains("wmal") ?? false)
 
         return EmbeddedAudioMetadata(
             title: title,
             artist: artist,
             album: album,
+            albumArtist: albumArtist,
+            genre: genre,
             year: year,
-            artworkData: artworkData
+            trackNumber: trackNumber,
+            discNumber: discNumber,
+            codec: properties.codec ?? ext,
+            sampleRate: properties.sampleRate,
+            bitDepth: properties.bitDepth,
+            isLossless: isLossless,
+            artworkData: artworkData,
+            lyrics: AudioLyricsLoader.load(sidecarFor: url, embeddedText: embeddedLyrics)
         )
     }
 
     private static func stringValue(
         in items: [AVMetadataItem],
-        identifier: AVMetadataIdentifier
+        identifiers: [AVMetadataIdentifier],
+        hints: [String]
     ) async -> String? {
-        guard let item = AVMetadataItem.metadataItems(
-            from: items,
-            filteredByIdentifier: identifier
-        ).first else { return nil }
-        return try? await item.load(.stringValue)
+        for item in items {
+            let identifier = item.identifier?.rawValue.lowercased() ?? ""
+            guard identifiers.contains(where: { item.identifier == $0 }) ||
+                    hints.contains(where: { identifier.contains($0) }) else { continue }
+            if let value = try? await item.load(.stringValue) {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+        }
+        return nil
     }
 
+    private static func dataValue(
+        in items: [AVMetadataItem],
+        identifier: AVMetadataIdentifier,
+        hints: [String]
+    ) async -> Data? {
+        for item in items {
+            let rawIdentifier = item.identifier?.rawValue.lowercased() ?? ""
+            guard item.identifier == identifier || hints.contains(where: { rawIdentifier.contains($0) }) else { continue }
+            if let data = try? await item.load(.dataValue), !data.isEmpty { return data }
+        }
+        return nil
+    }
+
+    private static func audioProperties(from asset: AVURLAsset) async -> (codec: String?, sampleRate: Int?, bitDepth: Int?) {
+        guard let track = try? await asset.loadTracks(withMediaType: .audio).first,
+              let descriptions = try? await track.load(.formatDescriptions),
+              let description = descriptions.first else {
+            return (nil, nil, nil)
+        }
+        let subtype = CMFormatDescriptionGetMediaSubType(description)
+        let codec = String(bytes: [
+            UInt8((subtype >> 24) & 0xff),
+            UInt8((subtype >> 16) & 0xff),
+            UInt8((subtype >> 8) & 0xff),
+            UInt8(subtype & 0xff)
+        ].filter { $0 >= 32 && $0 < 127 }, encoding: .ascii)
+        guard let basic = CMAudioFormatDescriptionGetStreamBasicDescription(description) else {
+            return (codec, nil, nil)
+        }
+        let sampleRate = basic.pointee.mSampleRate > 0 ? Int(basic.pointee.mSampleRate.rounded()) : nil
+        let bitDepth = basic.pointee.mBitsPerChannel > 0 ? Int(basic.pointee.mBitsPerChannel) : nil
+        return (codec, sampleRate, bitDepth)
+    }
+}
+
+enum AudioRepeatMode: String, CaseIterable, Identifiable {
+    case off
+    case all
+    case one
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: "顺序播放"
+        case .all: "列表循环"
+        case .one: "单曲循环"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .off: "repeat"
+        case .all: "repeat"
+        case .one: "repeat.1"
+        }
+    }
 }
 
 @MainActor
 final class AudioPlayerController: ObservableObject {
     @Published private(set) var currentItem: LibraryItem?
     @Published private(set) var isPlaying = false
+    @Published private(set) var isPreparing = false
     @Published private(set) var currentTime: TimeInterval = 0
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var queue: [LibraryItem] = []
     @Published private(set) var currentMetadata = EmbeddedAudioMetadata.empty
     @Published private(set) var metadataByPath: [String: EmbeddedAudioMetadata] = [:]
+    @Published private(set) var playbackRate: Float = 1
+    @Published private(set) var repeatMode: AudioRepeatMode = .off
+    @Published private(set) var isShuffleEnabled = false
+    @Published private(set) var sleepTimerEnd: Date?
+    @Published private(set) var stopAfterCurrentTrack = false
+    @Published var playbackError: String?
 
     private let player = AVPlayer()
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
+    private var preparationTask: Task<Void, Never>?
+    private var sleepTask: Task<Void, Never>?
+    private var playbackGeneration = UUID()
 
     init() {
         configureAudioSession()
         configureRemoteCommands()
         player.automaticallyWaitsToMinimizeStalling = true
         timeObserver = player.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 1, preferredTimescale: 600),
+            forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
             queue: .main
         ) { [weak self] time in
             Task { @MainActor in
@@ -97,11 +236,13 @@ final class AudioPlayerController: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.playNext() }
+            Task { @MainActor in self?.handlePlaybackEnded() }
         }
     }
 
     deinit {
+        preparationTask?.cancel()
+        sleepTask?.cancel()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
     }
@@ -113,32 +254,34 @@ final class AudioPlayerController: ObservableObject {
             queue = [item]
         }
 
+        preparationTask?.cancel()
+        let generation = UUID()
+        playbackGeneration = generation
         currentItem = item
         currentMetadata = metadataByPath[item.relativePath] ?? .empty
         currentTime = 0
         duration = 0
-        #if os(iOS)
-        try? AVAudioSession.sharedInstance().setActive(true)
-        #endif
-        let playerItem = AVPlayerItem(url: item.url)
-        playerItem.preferredForwardBufferDuration = 15
-        player.replaceCurrentItem(with: playerItem)
-        player.play()
-        isPlaying = true
-        updateNowPlayingInfo()
+        isPlaying = false
+        isPreparing = true
+        playbackError = nil
+        player.pause()
+        player.replaceCurrentItem(with: nil)
 
-        Task {
-            async let loadedDuration = try? await playerItem.asset.load(.duration)
-            async let loadedMetadata = EmbeddedAudioMetadata.load(from: item.url)
-            if let loadedDuration = await loadedDuration {
-                duration = loadedDuration.seconds.isFinite ? loadedDuration.seconds : 0
-                updateNowPlayingInfo()
-            }
-            let metadata = await loadedMetadata
-            metadataByPath[item.relativePath] = metadata
-            if currentItem == item {
-                currentMetadata = metadata
-                updateNowPlayingInfo()
+        preparationTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                async let preparedURL = UniversalAudioSource.playbackURL(for: item.url)
+                async let metadata = EmbeddedAudioMetadata.load(from: item.url)
+                let (url, loadedMetadata) = try await (preparedURL, metadata)
+                guard !Task.isCancelled, self.playbackGeneration == generation else { return }
+                self.metadataByPath[item.relativePath] = loadedMetadata
+                self.currentMetadata = loadedMetadata
+                self.startPlayback(url: url, sourceItem: item)
+            } catch {
+                guard !Task.isCancelled, self.playbackGeneration == generation else { return }
+                self.isPreparing = false
+                self.playbackError = error.localizedDescription
+                self.updateNowPlayingInfo()
             }
         }
     }
@@ -155,16 +298,17 @@ final class AudioPlayerController: ObservableObject {
     }
 
     func togglePlayback() {
-        guard currentItem != nil else {
-            if let first = queue.first { play(first, in: queue) }
+        guard currentItem != nil, !isPreparing else {
+            if currentItem == nil, let first = queue.first { play(first, in: queue) }
             return
         }
         if isPlaying {
             player.pause()
+            isPlaying = false
         } else {
-            player.play()
+            player.playImmediately(atRate: playbackRate)
+            isPlaying = true
         }
-        isPlaying.toggle()
         updateNowPlayingInfo()
     }
 
@@ -181,11 +325,70 @@ final class AudioPlayerController: ObservableObject {
         updateNowPlayingElapsedTime()
     }
 
+    func setPlaybackRate(_ rate: Float) {
+        playbackRate = min(max(rate, 0.5), 3)
+        player.defaultRate = playbackRate
+        if isPlaying { player.rate = playbackRate }
+        updateNowPlayingInfo()
+    }
+
+    func cycleRepeatMode() {
+        switch repeatMode {
+        case .off: repeatMode = .all
+        case .all: repeatMode = .one
+        case .one: repeatMode = .off
+        }
+    }
+
+    func toggleShuffle() {
+        isShuffleEnabled.toggle()
+    }
+
+    func setSleepTimer(minutes: Int?) {
+        sleepTask?.cancel()
+        stopAfterCurrentTrack = false
+        guard let minutes else {
+            sleepTimerEnd = nil
+            return
+        }
+        let end = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        sleepTimerEnd = end
+        sleepTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(TimeInterval(minutes * 60)))
+            } catch {
+                return
+            }
+            guard let self, self.sleepTimerEnd == end else { return }
+            self.pause()
+            self.sleepTimerEnd = nil
+        }
+    }
+
+    func sleepAfterCurrentTrack() {
+        sleepTask?.cancel()
+        sleepTimerEnd = nil
+        stopAfterCurrentTrack = true
+    }
+
+    func cancelSleepTimer() {
+        sleepTask?.cancel()
+        sleepTimerEnd = nil
+        stopAfterCurrentTrack = false
+    }
+
     func playNext() {
-        guard let currentItem,
-              let index = queue.firstIndex(of: currentItem),
-              !queue.isEmpty else {
+        guard !queue.isEmpty else {
             isPlaying = false
+            return
+        }
+        if isShuffleEnabled, queue.count > 1 {
+            let candidates = queue.filter { $0 != currentItem }
+            if let next = candidates.randomElement() { play(next, in: queue) }
+            return
+        }
+        guard let currentItem, let index = queue.firstIndex(of: currentItem) else {
+            play(queue[0], in: queue)
             return
         }
         play(queue[(index + 1) % queue.count], in: queue)
@@ -202,12 +405,62 @@ final class AudioPlayerController: ObservableObject {
         play(queue[(index - 1 + queue.count) % queue.count], in: queue)
     }
 
+    private func startPlayback(url: URL, sourceItem: LibraryItem) {
+        guard currentItem == sourceItem else { return }
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setActive(true)
+        #endif
+        let playerItem = AVPlayerItem(url: url)
+        playerItem.preferredForwardBufferDuration = 20
+        playerItem.audioTimePitchAlgorithm = .timeDomain
+        player.replaceCurrentItem(with: playerItem)
+        player.defaultRate = playbackRate
+        player.playImmediately(atRate: playbackRate)
+        isPreparing = false
+        isPlaying = true
+        updateNowPlayingInfo()
+
+        Task { [weak self, weak playerItem] in
+            guard let self, let playerItem else { return }
+            if let loadedDuration = try? await playerItem.asset.load(.duration),
+               self.currentItem == sourceItem {
+                self.duration = loadedDuration.seconds.isFinite ? loadedDuration.seconds : 0
+                self.updateNowPlayingInfo()
+            }
+        }
+    }
+
+    private func handlePlaybackEnded() {
+        if stopAfterCurrentTrack {
+            stopAfterCurrentTrack = false
+            pause()
+            seek(to: 0)
+            return
+        }
+        if repeatMode == .one {
+            seek(to: 0)
+            player.playImmediately(atRate: playbackRate)
+            isPlaying = true
+            return
+        }
+        guard let currentItem,
+              let index = queue.firstIndex(of: currentItem) else {
+            pause()
+            return
+        }
+        if repeatMode == .off, index == queue.count - 1, !isShuffleEnabled {
+            pause()
+            return
+        }
+        playNext()
+    }
+
     private func configureAudioSession() {
         #if os(iOS)
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
         } catch {
-            // Playback still works in the foreground when session activation fails.
+            // Foreground playback can still work when a route is temporarily unavailable.
         }
         #endif
     }
@@ -219,6 +472,10 @@ final class AudioPlayerController: ObservableObject {
         commands.nextTrackCommand.isEnabled = true
         commands.previousTrackCommand.isEnabled = true
         commands.changePlaybackPositionCommand.isEnabled = true
+        commands.changePlaybackRateCommand.isEnabled = true
+        commands.changePlaybackRateCommand.supportedPlaybackRates = [0.5, 0.75, 1, 1.25, 1.5, 2, 3].map {
+            NSNumber(value: $0)
+        }
         commands.playCommand.addTarget { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
@@ -243,6 +500,11 @@ final class AudioPlayerController: ObservableObject {
             Task { @MainActor in self?.seek(to: event.positionTime) }
             return .success
         }
+        commands.changePlaybackRateCommand.addTarget { [weak self] event in
+            guard let event = event as? MPChangePlaybackRateCommandEvent else { return .commandFailed }
+            Task { @MainActor in self?.setPlaybackRate(event.playbackRate) }
+            return .success
+        }
     }
 
     private func updateNowPlayingInfo() {
@@ -255,10 +517,13 @@ final class AudioPlayerController: ObservableObject {
             MPMediaItemPropertyAlbumTitle: currentMetadata.album ?? "鱼饼",
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? playbackRate : 0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: playbackRate,
             MPNowPlayingInfoPropertyAssetURL: currentItem.url
         ]
         if let artist = currentMetadata.artist { info[MPMediaItemPropertyArtist] = artist }
+        if let albumArtist = currentMetadata.albumArtist { info[MPMediaItemPropertyAlbumArtist] = albumArtist }
+        if let genre = currentMetadata.genre { info[MPMediaItemPropertyGenre] = genre }
         if let year = currentMetadata.year { info[MPMediaItemPropertyReleaseDate] = year }
         if let artwork = mediaArtwork(from: currentMetadata.artworkData) {
             info[MPMediaItemPropertyArtwork] = artwork
@@ -269,7 +534,7 @@ final class AudioPlayerController: ObservableObject {
     private func updateNowPlayingElapsedTime() {
         guard var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
-        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? playbackRate : 0
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 

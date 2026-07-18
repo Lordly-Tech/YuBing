@@ -107,6 +107,15 @@ final class WatchTransferService: NSObject, ObservableObject {
                         let transfer = try await self.makeWatchBookTransfer(for: item)
                         let fileTransfer = session.transferFile(transfer.url, metadata: transfer.metadata)
                         self.track(fileTransfer, name: transfer.metadata["name"] as? String ?? item.name, byteCount: transfer.metadata["byteCount"] as? Int64 ?? item.byteCount)
+                    } else if item.kind == .music {
+                        self.lastStatus = "正在为 Watch 准备《\(item.displayName)》"
+                        let transfer = try await self.makeWatchAudioTransfer(for: item)
+                        let fileTransfer = session.transferFile(transfer.url, metadata: transfer.metadata)
+                        self.track(
+                            fileTransfer,
+                            name: transfer.metadata["name"] as? String ?? item.name,
+                            byteCount: transfer.metadata["byteCount"] as? Int64 ?? item.byteCount
+                        )
                     } else {
                         let fileTransfer = session.transferFile(item.url, metadata: self.metadata(for: item))
                         self.track(fileTransfer, name: item.name, byteCount: item.byteCount)
@@ -134,6 +143,28 @@ final class WatchTransferService: NSObject, ObservableObject {
             "relativePath": item.relativePath,
             "byteCount": item.byteCount
         ]
+    }
+
+    private func makeWatchAudioTransfer(for item: LibraryItem) async throws -> (url: URL, metadata: [String: Any]) {
+        let preparedURL = try await UniversalAudioSource.watchTransferURL(for: item.url)
+        guard preparedURL != item.url else {
+            return (item.url, metadata(for: item))
+        }
+        let fileName = "\(item.displayName).m4a"
+        let relativeStem = (item.relativePath as NSString).deletingPathExtension
+        let byteCount = Int64(
+            (try? preparedURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        )
+        return (
+            preparedURL,
+            [
+                "name": fileName,
+                "kind": LibraryKind.music.rawValue,
+                "relativePath": "\(relativeStem).m4a",
+                "byteCount": byteCount,
+                "sourceExtension": item.fileExtension
+            ]
+        )
     }
 
     private func makeWatchBookTransfer(for item: LibraryItem) async throws -> (url: URL, metadata: [String: Any]) {
