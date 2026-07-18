@@ -13,7 +13,7 @@ enum WatchLibraryKind: String, Codable, CaseIterable {
         switch self {
         case .novel: "小说"
         case .comic: "漫画"
-        case .music: "影音"
+        case .music: "音乐"
         case .video: "视频"
         case .photo: "图片"
         case .folder: "文件夹"
@@ -48,7 +48,10 @@ struct WatchLibraryItem: Identifiable, Codable, Hashable {
     var displayName: String { isDirectory ? name : url.deletingPathExtension().lastPathComponent }
 
     static let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "heic", "heif", "gif", "tif", "tiff", "webp"]
-    static let audioExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "aif", "aiff", "caf", "flac", "alac"]
+    static let audioExtensions: Set<String> = [
+        "mp3", "m4a", "aac", "wav", "aif", "aiff", "caf", "flac", "alac",
+        "dsd", "dsf", "dff", "ape", "ogg", "oga", "opus", "wma"
+    ]
     static let videoExtensions: Set<String> = ["mp4", "m4v", "mov", "qt", "avi", "hevc"]
 
     static func classify(url: URL, isDirectory: Bool) -> WatchLibraryKind {

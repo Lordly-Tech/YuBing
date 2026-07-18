@@ -8,7 +8,7 @@ struct WatchMusicLibraryView: View {
     @State private var query = ""
 
     private var mediaItems: [WatchLibraryItem] {
-        store.items(of: [.music, .video])
+        store.items(of: [.music])
             .filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
     }
 
@@ -19,52 +19,35 @@ struct WatchMusicLibraryView: View {
     var body: some View {
         Group {
             if mediaItems.isEmpty {
-                ContentUnavailableView("还没有影音", systemImage: "play.rectangle", description: Text("从 iPhone 传入影音文件后可离线播放。"))
+                ContentUnavailableView("还没有音乐", systemImage: "music.note.list", description: Text("从 iPhone 传入音乐后可离线播放。"))
             } else {
                 List(mediaItems) { item in
-                    if item.kind == .music {
-                        Button {
-                            player.play(item, queue: audioTracks)
-                            store.markOpened(item)
-                        } label: {
-                            HStack(spacing: 8) {
-                                WatchAudioArtwork(
-                                    data: player.metadataByPath[item.relativePath]?.artworkData,
-                                    size: 42
-                                )
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(player.metadataByPath[item.relativePath]?.title ?? item.displayName)
-                                        .lineLimit(1)
-                                    Text(audioDetail(for: item))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer(minLength: 0)
-                                Image(systemName: player.currentItem == item && player.isPlaying ? "speaker.wave.2.fill" : "play.circle.fill")
-                                    .foregroundStyle(.pink)
+                    Button {
+                        player.play(item, queue: audioTracks)
+                        store.markOpened(item)
+                    } label: {
+                        HStack(spacing: 8) {
+                            WatchAudioArtwork(
+                                data: player.metadataByPath[item.relativePath]?.artworkData,
+                                size: 42
+                            )
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(player.metadataByPath[item.relativePath]?.title ?? item.displayName)
+                                    .lineLimit(1)
+                                Text(audioDetail(for: item))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
-                        }
-                        .task { _ = await player.loadMetadata(for: item) }
-                    } else {
-                        NavigationLink {
-                            WatchVideoPlayerView(item: item)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "play.rectangle.fill")
-                                    .foregroundStyle(.purple)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.displayName).lineLimit(1)
-                                    Text(item.byteCount.watchFormattedFileSize)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
+                            Spacer(minLength: 0)
+                            Image(systemName: player.currentItem == item && player.isPlaying ? "speaker.wave.2.fill" : "play.circle.fill")
+                                .foregroundStyle(.pink)
                         }
                     }
+                    .task { _ = await player.loadMetadata(for: item) }
                 }
             }
         }
-        .navigationTitle("影音")
+        .navigationTitle("音乐")
         .searchable(text: $query, prompt: "搜索")
         .toolbar {
             if let item = player.currentItem {
@@ -93,6 +76,35 @@ struct WatchNowPlayingView: View {
                 store.markOpened(startingItem)
             }
             .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+struct WatchGalleryView: View {
+    @EnvironmentObject private var store: WatchLibraryStore
+
+    private var mediaItems: [WatchLibraryItem] {
+        store.items(of: [.photo, .video])
+    }
+
+    var body: some View {
+        Group {
+            if mediaItems.isEmpty {
+                ContentUnavailableView(
+                    "图库是空的",
+                    systemImage: "photo.on.rectangle.angled",
+                    description: Text("从 iPhone 传入照片或视频后可离线查看。")
+                )
+            } else {
+                List(mediaItems) { item in
+                    NavigationLink {
+                        WatchItemDestination(item: item)
+                    } label: {
+                        WatchFileRow(item: item)
+                    }
+                }
+            }
+        }
+        .navigationTitle("图库")
     }
 }
 

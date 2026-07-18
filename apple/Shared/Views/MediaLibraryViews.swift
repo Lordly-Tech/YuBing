@@ -268,24 +268,25 @@ struct GalleryView: View {
     @EnvironmentObject private var store: LibraryStore
     @State private var query = ""
 
-    private var photos: [LibraryItem] {
-        store.items(of: .photo)
+    private var media: [LibraryItem] {
+        store.items
+            .filter { $0.kind == .photo || $0.kind == .video }
             .filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
             .sorted(by: .date)
     }
 
     var body: some View {
         LibraryGridContent(
-            items: photos,
+            items: media,
             emptyTitle: "图库是空的",
-            emptyMessage: "从系统照片或文件中选择图片。",
+            emptyMessage: "从系统相册或文件中选择照片与视频。",
             emptySymbol: "photo.on.rectangle.angled",
-            importAction: AnyView(LibraryImportMenu(title: "添加照片", photoScope: .images, prominent: true))
+            importAction: AnyView(LibraryImportMenu(title: "添加照片或视频", photoScope: .media, prominent: true))
         )
         .navigationTitle("图库")
-        .searchable(text: $query, prompt: "搜索照片")
+        .searchable(text: $query, prompt: "搜索照片或视频")
         .toolbar {
-            LibraryImportMenu(title: "添加", photoScope: .images)
+            LibraryImportMenu(title: "添加", photoScope: .media)
                 .labelStyle(.iconOnly)
         }
     }

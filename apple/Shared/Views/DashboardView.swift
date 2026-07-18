@@ -66,7 +66,7 @@ struct DashboardView: View {
     private var metrics: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), spacing: 10)], spacing: 10) {
             MetricTile(title: "小说与漫画", value: "\(store.items(of: .novel).count + store.items(of: .comic).count)", symbol: "books.vertical", tint: .blue)
-            MetricTile(title: "影音", value: "\(mediaCount)", symbol: "play.rectangle", tint: .pink)
+            MetricTile(title: "媒体", value: "\(mediaCount)", symbol: "play.rectangle", tint: .pink)
             MetricTile(title: "照片", value: "\(store.items(of: .photo).count)", symbol: "photo.on.rectangle", tint: .green)
             MetricTile(title: "已用空间", value: store.totalBytes.formattedFileSize, symbol: "internaldrive", tint: .orange)
         }

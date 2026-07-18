@@ -32,8 +32,11 @@ struct WatchRootView: View {
                     destinationRow("阅读", symbol: "books.vertical", count: store.items(of: [.novel, .comic, .photo]).count) {
                         WatchReadingLibraryView()
                     }
-                    destinationRow("影音", symbol: "play.rectangle", count: store.items(of: [.music, .video]).count) {
+                    destinationRow("音乐", symbol: "music.note.list", count: store.items(of: [.music]).count) {
                         WatchMusicLibraryView()
+                    }
+                    destinationRow("图库", symbol: "photo.on.rectangle.angled", count: store.items(of: [.photo, .video]).count) {
+                        WatchGalleryView()
                     }
                 }
 

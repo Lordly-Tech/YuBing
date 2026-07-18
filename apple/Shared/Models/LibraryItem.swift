@@ -13,7 +13,7 @@ enum LibraryKind: String, Codable, CaseIterable, Sendable {
         switch self {
         case .novel: "小说"
         case .comic: "漫画"
-        case .music: "影音"
+        case .music: "音乐"
         case .video: "视频"
         case .photo: "图库"
         case .folder: "文件夹"
@@ -49,7 +49,10 @@ struct LibraryItem: Identifiable, Codable, Hashable, Sendable {
     }
 
     static let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "heic", "heif", "gif", "tif", "tiff", "webp"]
-    static let musicExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "aif", "aiff", "caf", "flac", "alac"]
+    static let musicExtensions: Set<String> = [
+        "mp3", "m4a", "aac", "wav", "aif", "aiff", "caf", "flac", "alac",
+        "dsd", "dsf", "dff", "ape", "ogg", "oga", "opus", "wma"
+    ]
     static let videoExtensions: Set<String> = ["mp4", "m4v", "mov", "qt", "avi", "hevc"]
     static let novelExtensions: Set<String> = ["txt", "md", "markdown", "epub", "mobi", "azw", "azw3", "doc", "docx"]
     static let comicExtensions: Set<String> = ["pdf", "cbz", "cbr"]

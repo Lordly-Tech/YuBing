@@ -14,6 +14,10 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
+packages:
+  FFmpegSwift:
+    url: https://github.com/wendylabsinc/ffmpeg-swift.git
+    exactVersion: 0.0.3
 targets:
   YuBing:
     type: application
@@ -23,6 +27,8 @@ targets:
     dependencies:
       - target: YuBingWatch
         embed: true
+      - package: FFmpegSwift
+        product: FFmpeg
     entitlements:
       path: Config/YuBing.entitlements
     settings:
@@ -52,6 +58,9 @@ targets:
     platform: macOS
     sources:
       - path: Shared
+    dependencies:
+      - package: FFmpegSwift
+        product: FFmpeg
     entitlements:
       path: Config/YuBingMac.entitlements
     settings:

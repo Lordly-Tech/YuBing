@@ -174,7 +174,7 @@ struct LibraryItemRow: View {
         let details = [audioMetadata?.artist, audioMetadata?.album]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        return details.isEmpty ? "影音 · \(item.byteCount.formattedFileSize)" : details.joined(separator: " · ")
+        return details.isEmpty ? "音乐 · \(item.byteCount.formattedFileSize)" : details.joined(separator: " · ")
     }
 }
 
