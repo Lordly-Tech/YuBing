@@ -2,7 +2,6 @@ import Combine
 import CoreGraphics
 import ImageIO
 import SwiftUI
-import WatchKit
 
 struct WatchReadingLibraryView: View {
     @EnvironmentObject private var store: WatchLibraryStore
@@ -197,7 +196,6 @@ struct WatchNovelReaderView: View {
     @AppStorage("watch.reader.autoTurnEnabled") private var autoTurnEnabled = false
     @AppStorage("watch.reader.autoTurnInterval") private var autoTurnInterval = 8.0
     @AppStorage("watch.reader.autoTurnDistance") private var autoTurnDistance = 80.0
-    @AppStorage("watch.reader.keepAwake") private var keepAwake = false
 
     private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -256,12 +254,10 @@ struct WatchNovelReaderView: View {
             scrollRequest = WatchReaderScrollRequest(progress: progress)
             lastReadingTick = .now
             nextAutoTurn = autoTurnEnabled ? Date().addingTimeInterval(autoTurnInterval) : .distantFuture
-            applyKeepAwake()
         }
         .onDisappear {
             commitReadingTime()
             store.updateReadingProgress(bookID: package.sourceID, chapterIndex: chapterIndex, progress: progress)
-            WKExtension.shared().isFrontmostTimeoutExtended = false
         }
         .onChange(of: progress) { _, value in
             if abs(value - lastPersistedProgress) >= 0.02 {
@@ -275,7 +271,6 @@ struct WatchNovelReaderView: View {
         .onChange(of: autoTurnInterval) { _, value in
             if autoTurnEnabled { nextAutoTurn = Date().addingTimeInterval(value) }
         }
-        .onChange(of: keepAwake) { _, _ in applyKeepAwake() }
         .onReceive(clock) { now in
             if now.timeIntervalSince(lastReadingTick) >= 30 { commitReadingTime(now: now) }
             if autoTurnEnabled, now >= nextAutoTurn {
@@ -320,8 +315,7 @@ struct WatchNovelReaderView: View {
                     WatchValueSlider(title: "距离", value: $autoTurnDistance, range: 20...100, step: 10, suffix: "%")
                 }
                 Section("屏幕") {
-                    Toggle("延长亮屏", isOn: $keepAwake)
-                    Text("watchOS 决定实际亮屏时长与屏幕亮度。")
+                    Text("熄屏时长与屏幕亮度由 watchOS 控制。")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -355,9 +349,6 @@ struct WatchNovelReaderView: View {
         lastReadingTick = now
     }
 
-    private func applyKeepAwake() {
-        WKExtension.shared().isFrontmostTimeoutExtended = keepAwake
-    }
 }
 
 private struct WatchReaderScrollRequest: Equatable {
