@@ -190,8 +190,6 @@ struct WatchNovelReaderView: View {
     @State private var autoTurnPulse = UUID()
     @State private var nextAutoTurn = Date.distantFuture
     @State private var lastReadingTick = Date()
-    @State private var isChapterPickerPresented = false
-    @State private var isBookmarkListPresented = false
     @State private var isSettingsPresented = false
 
     @AppStorage("watch.reader.fontSize") private var fontSize = 15.0
@@ -238,40 +236,12 @@ struct WatchNovelReaderView: View {
             }
             .padding(.horizontal, 4)
             .padding(.vertical, 3)
-            .background(.bar)
+            .background(Color.black.opacity(0.82))
         }
         .toolbar {
-            Menu {
-                Button { isChapterPickerPresented = true } label: {
-                    Label("章节", systemImage: "list.number")
-                }
-                Toggle("自动翻页", isOn: $autoTurnEnabled)
-                Toggle("延长亮屏", isOn: $keepAwake)
-                Button { addBookmark() } label: {
-                    Label("添加书签", systemImage: "bookmark.badge.plus")
-                }
-                Button { isBookmarkListPresented = true } label: {
-                    Label("书签管理", systemImage: "bookmark.square")
-                }
-                Button { isSettingsPresented = true } label: {
-                    Label("阅读设置", systemImage: "textformat.size")
-                }
-            } label: {
+            Button { isSettingsPresented = true } label: {
                 Label("阅读菜单", systemImage: "ellipsis.circle")
             }
-        }
-        .sheet(isPresented: $isChapterPickerPresented) {
-            WatchChapterPicker(package: package, currentIndex: chapterIndex) { index in
-                switchChapter(to: index, progress: 0)
-            }
-        }
-        .sheet(isPresented: $isBookmarkListPresented) {
-            WatchBookmarkList(bookID: package.sourceID) { bookmark in
-                chapterIndex = bookmark.chapterIndex
-                progress = bookmark.chapterProgress
-                scrollRequest = WatchReaderScrollRequest(progress: bookmark.chapterProgress)
-            }
-            .environmentObject(store)
         }
         .sheet(isPresented: $isSettingsPresented) { settings }
         .onAppear {
@@ -318,6 +288,28 @@ struct WatchNovelReaderView: View {
     private var settings: some View {
         NavigationStack {
             Form {
+                Section("阅读") {
+                    NavigationLink {
+                        WatchChapterPicker(package: package, currentIndex: chapterIndex) { index in
+                            switchChapter(to: index, progress: 0)
+                        }
+                    } label: {
+                        Label("章节", systemImage: "list.number")
+                    }
+                    Button { addBookmark() } label: {
+                        Label("添加书签", systemImage: "bookmark.badge.plus")
+                    }
+                    NavigationLink {
+                        WatchBookmarkList(bookID: package.sourceID) { bookmark in
+                            chapterIndex = bookmark.chapterIndex
+                            progress = bookmark.chapterProgress
+                            scrollRequest = WatchReaderScrollRequest(progress: bookmark.chapterProgress)
+                        }
+                        .environmentObject(store)
+                    } label: {
+                        Label("书签管理", systemImage: "bookmark.square")
+                    }
+                }
                 Section("文字") {
                     WatchValueSlider(title: "字号", value: $fontSize, range: 12...24, step: 1, suffix: "")
                     WatchValueSlider(title: "上下边距", value: $verticalMargin, range: 2...30, step: 2, suffix: "")
@@ -329,7 +321,7 @@ struct WatchNovelReaderView: View {
                 }
                 Section("屏幕") {
                     Toggle("延长亮屏", isOn: $keepAwake)
-                    Text("屏幕亮度由 watchOS 控制。")
+                    Text("watchOS 决定实际亮屏时长与屏幕亮度。")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
