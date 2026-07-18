@@ -3,14 +3,31 @@ import Combine
 import MediaPlayer
 import WatchKit
 
+enum WatchRepeatMode: String, CaseIterable, Identifiable {
+    case off
+    case all
+    case one
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: "顺序播放"
+        case .all: "列表循环"
+        case .one: "单曲循环"
+        }
+    }
+}
+
 struct WatchEmbeddedAudioMetadata: Equatable, Sendable {
     var title: String?
     var artist: String?
     var album: String?
     var year: String?
     var artworkData: Data?
+    var lyrics: TimedLyrics?
 
-    static let empty = WatchEmbeddedAudioMetadata(title: nil, artist: nil, album: nil, year: nil, artworkData: nil)
+    static let empty = WatchEmbeddedAudioMetadata(title: nil, artist: nil, album: nil, year: nil, artworkData: nil, lyrics: nil)
 
     static func load(from url: URL) async -> WatchEmbeddedAudioMetadata {
         let asset = AVURLAsset(url: url)
@@ -29,12 +46,25 @@ struct WatchEmbeddedAudioMetadata: Equatable, Sendable {
         } else {
             artworkData = nil
         }
+        let formats = (try? await asset.load(.availableMetadataFormats)) ?? []
+        var embeddedLyrics: String?
+        for format in formats {
+            guard let metadata = try? await asset.loadMetadata(for: format) else { continue }
+            for item in metadata {
+                guard item.identifier?.rawValue.lowercased().contains("lyric") == true else { continue }
+                if let value = try? await item.load(.stringValue), !value.isEmpty {
+                    embeddedLyrics = value
+                    break
+                }
+            }
+        }
         return WatchEmbeddedAudioMetadata(
             title: title,
             artist: artist,
             album: album,
             year: year,
-            artworkData: artworkData
+            artworkData: artworkData,
+            lyrics: AudioLyricsLoader.load(sidecarFor: url, embeddedText: embeddedLyrics)
         )
     }
 
@@ -59,12 +89,17 @@ final class WatchAudioPlayer: ObservableObject {
     @Published private(set) var queue: [WatchLibraryItem] = []
     @Published private(set) var currentMetadata = WatchEmbeddedAudioMetadata.empty
     @Published private(set) var metadataByPath: [String: WatchEmbeddedAudioMetadata] = [:]
+    @Published private(set) var playbackRate: Float = 1
+    @Published private(set) var repeatMode: WatchRepeatMode = .off
+    @Published private(set) var isShuffleEnabled = false
+    @Published private(set) var sleepTimerEnd: Date?
 
     private let player = AVPlayer()
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
     private var shouldResumeAfterInterruption = false
+    private var sleepTask: Task<Void, Never>?
 
     init() {
         do {
@@ -74,7 +109,7 @@ final class WatchAudioPlayer: ObservableObject {
         }
         player.automaticallyWaitsToMinimizeStalling = true
         timeObserver = player.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 5, preferredTimescale: 600),
+            forInterval: CMTime(seconds: 0.5, preferredTimescale: 600),
             queue: .main
         ) { [weak self] time in
             Task { @MainActor in
@@ -114,6 +149,7 @@ final class WatchAudioPlayer: ObservableObject {
     }
 
     deinit {
+        sleepTask?.cancel()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         if let interruptionObserver { NotificationCenter.default.removeObserver(interruptionObserver) }
@@ -128,6 +164,7 @@ final class WatchAudioPlayer: ObservableObject {
 
         let avItem = AVPlayerItem(url: item.url)
         avItem.preferredForwardBufferDuration = 15
+        avItem.audioTimePitchAlgorithm = .timeDomain
         player.replaceCurrentItem(with: avItem)
         isPlaying = false
         updateNowPlaying()
@@ -146,7 +183,8 @@ final class WatchAudioPlayer: ObservableObject {
             // The system may wait for a Bluetooth route; keep the item ready.
         }
         guard player.currentItem === avItem else { return }
-        player.play()
+        player.defaultRate = playbackRate
+        player.playImmediately(atRate: playbackRate)
         isPlaying = true
         updateNowPlaying()
 
@@ -173,7 +211,8 @@ final class WatchAudioPlayer: ObservableObject {
     private func resumePlayback() async {
         guard currentItem != nil else { return }
         do { try await AVAudioSession.sharedInstance().activate() } catch { return }
-        player.play()
+        player.defaultRate = playbackRate
+        player.playImmediately(atRate: playbackRate)
         isPlaying = true
         updateNowPlaying()
     }
@@ -196,8 +235,64 @@ final class WatchAudioPlayer: ObservableObject {
         updateNowPlaying()
     }
 
+    func setPlaybackRate(_ rate: Float) {
+        playbackRate = min(max(rate, 0.5), 2)
+        player.defaultRate = playbackRate
+        if isPlaying { player.rate = playbackRate }
+        updateNowPlaying()
+    }
+
+    func cycleRepeatMode() {
+        switch repeatMode {
+        case .off: repeatMode = .all
+        case .all: repeatMode = .one
+        case .one: repeatMode = .off
+        }
+    }
+
+    func toggleShuffle() {
+        isShuffleEnabled.toggle()
+    }
+
+    func setSleepTimer(minutes: Int?) {
+        sleepTask?.cancel()
+        guard let minutes else {
+            sleepTimerEnd = nil
+            return
+        }
+        let end = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        sleepTimerEnd = end
+        sleepTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(TimeInterval(minutes * 60)))
+            } catch {
+                return
+            }
+            guard let self, self.sleepTimerEnd == end else { return }
+            self.player.pause()
+            self.isPlaying = false
+            self.sleepTimerEnd = nil
+            self.updateNowPlaying()
+        }
+    }
+
     func next() {
         guard let currentItem, let index = queue.firstIndex(of: currentItem), !queue.isEmpty else { return }
+        if repeatMode == .one {
+            seek(to: 0)
+            Task { @MainActor in await resumePlayback() }
+            return
+        }
+        if isShuffleEnabled, let random = queue.filter({ $0 != currentItem }).randomElement() {
+            play(random, queue: queue)
+            return
+        }
+        if repeatMode == .off, index == queue.count - 1 {
+            player.pause()
+            isPlaying = false
+            updateNowPlaying()
+            return
+        }
         play(queue[(index + 1) % queue.count], queue: queue)
     }
 
@@ -220,6 +315,8 @@ final class WatchAudioPlayer: ObservableObject {
         commands.nextTrackCommand.isEnabled = true
         commands.previousTrackCommand.isEnabled = true
         commands.changePlaybackPositionCommand.isEnabled = true
+        commands.changePlaybackRateCommand.isEnabled = true
+        commands.changePlaybackRateCommand.supportedPlaybackRates = [0.5, 0.75, 1, 1.25, 1.5, 2].map { NSNumber(value: $0) }
         commands.playCommand.addTarget { [weak self] _ in
             Task { @MainActor in if self?.isPlaying == false { self?.toggle() } }
             return .success
@@ -241,6 +338,11 @@ final class WatchAudioPlayer: ObservableObject {
             Task { @MainActor in self?.seek(to: event.positionTime) }
             return .success
         }
+        commands.changePlaybackRateCommand.addTarget { [weak self] event in
+            guard let event = event as? MPChangePlaybackRateCommandEvent else { return .commandFailed }
+            Task { @MainActor in self?.setPlaybackRate(event.playbackRate) }
+            return .success
+        }
     }
 
     private func updateNowPlaying() {
@@ -250,7 +352,8 @@ final class WatchAudioPlayer: ObservableObject {
             MPMediaItemPropertyAlbumTitle: currentMetadata.album ?? "鱼饼 Watch",
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? playbackRate : 0.0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: playbackRate,
             MPNowPlayingInfoPropertyAssetURL: currentItem.url
         ]
         if let artist = currentMetadata.artist { info[MPMediaItemPropertyArtist] = artist }

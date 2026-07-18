@@ -1,6 +1,6 @@
 #include "YuBingAudioCodec.h"
 
-#include <FFmpeg/FFmpeg.h>
+#include <FFmpeg.h>
 #include <stdio.h>
 #include <string.h>
 

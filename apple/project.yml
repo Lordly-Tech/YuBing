@@ -93,6 +93,7 @@ targets:
     platform: watchOS
     sources:
       - path: Watch
+      - path: Shared/Models/AudioLyrics.swift
     entitlements:
       path: Config/YuBingWatch.entitlements
     settings:

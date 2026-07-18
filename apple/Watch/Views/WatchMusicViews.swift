@@ -75,7 +75,82 @@ struct WatchNowPlayingView: View {
                 }
                 store.markOpened(startingItem)
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        NavigationLink {
+                            WatchLyricsView()
+                        } label: {
+                            Label("歌词", systemImage: "quote.bubble")
+                        }
+                        Section("倍速") {
+                            ForEach([0.5, 0.75, 1, 1.25, 1.5, 2], id: \.self) { rate in
+                                Button {
+                                    player.setPlaybackRate(Float(rate))
+                                } label: {
+                                    Label("\(rate.formatted())x", systemImage: player.playbackRate == Float(rate) ? "checkmark" : "speedometer")
+                                }
+                            }
+                        }
+                        Section("播放模式") {
+                            Button {
+                                player.toggleShuffle()
+                            } label: {
+                                Label("随机播放", systemImage: player.isShuffleEnabled ? "checkmark" : "shuffle")
+                            }
+                            Button {
+                                player.cycleRepeatMode()
+                            } label: {
+                                Label(player.repeatMode.title, systemImage: player.repeatMode == .one ? "repeat.1" : "repeat")
+                            }
+                        }
+                        Section("定时关闭") {
+                            ForEach([15, 30, 60], id: \.self) { minutes in
+                                Button("\(minutes) 分钟") { player.setSleepTimer(minutes: minutes) }
+                            }
+                            Button("取消定时") { player.setSleepTimer(minutes: nil) }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+    }
+}
+
+struct WatchLyricsView: View {
+    @EnvironmentObject private var player: WatchAudioPlayer
+
+    private var activeIndex: Int? {
+        player.currentMetadata.lyrics?.lineIndex(at: player.currentTime)
+    }
+
+    var body: some View {
+        Group {
+            if let lyrics = player.currentMetadata.lyrics, !lyrics.lines.isEmpty {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 14) {
+                            ForEach(Array(lyrics.lines.enumerated()), id: \.element.id) { index, line in
+                                Text(line.text)
+                                    .font(index == activeIndex ? .headline.bold() : .body)
+                                    .foregroundStyle(index == activeIndex ? .primary : .secondary)
+                                    .id(line.id)
+                                    .onTapGesture { player.seek(to: line.time) }
+                            }
+                        }
+                        .padding(.vertical, 20)
+                    }
+                    .onChange(of: activeIndex) { _, index in
+                        guard let index, lyrics.lines.indices.contains(index) else { return }
+                        withAnimation { proxy.scrollTo(lyrics.lines[index].id, anchor: .center) }
+                    }
+                }
+            } else {
+                ContentUnavailableView("没有歌词", systemImage: "quote.bubble", description: Text("导入同名 LRC 文件。"))
+            }
+        }
+        .navigationTitle("歌词")
     }
 }
 

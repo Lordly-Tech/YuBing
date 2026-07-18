@@ -116,6 +116,22 @@ final class WatchTransferService: NSObject, ObservableObject {
                             name: transfer.metadata["name"] as? String ?? item.name,
                             byteCount: transfer.metadata["byteCount"] as? Int64 ?? item.byteCount
                         )
+                        if let lyricsURL = self.sidecarLyricsURL(for: item.url) {
+                            let lyricsTransfer = session.transferFile(
+                                lyricsURL,
+                                metadata: [
+                                    "name": lyricsURL.lastPathComponent,
+                                    "kind": LibraryKind.file.rawValue,
+                                    "relativePath": lyricsURL.lastPathComponent,
+                                    "byteCount": Int64((try? lyricsURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+                                ]
+                            )
+                            self.track(
+                                lyricsTransfer,
+                                name: lyricsURL.lastPathComponent,
+                                byteCount: Int64((try? lyricsURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+                            )
+                        }
                     } else {
                         let fileTransfer = session.transferFile(item.url, metadata: self.metadata(for: item))
                         self.track(fileTransfer, name: item.name, byteCount: item.byteCount)
@@ -165,6 +181,22 @@ final class WatchTransferService: NSObject, ObservableObject {
                 "sourceExtension": item.fileExtension
             ]
         )
+    }
+
+    private func sidecarLyricsURL(for audioURL: URL) -> URL? {
+        let exact = audioURL.deletingPathExtension().appendingPathExtension("lrc")
+        if FileManager.default.fileExists(atPath: exact.path) { return exact }
+        return try? FileManager.default.contentsOfDirectory(
+            at: audioURL.deletingLastPathComponent(),
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ).first {
+            $0.pathExtension.lowercased() == "lrc" &&
+            $0.deletingPathExtension().lastPathComponent.compare(
+                audioURL.deletingPathExtension().lastPathComponent,
+                options: .caseInsensitive
+            ) == .orderedSame
+        }
     }
 
     private func makeWatchBookTransfer(for item: LibraryItem) async throws -> (url: URL, metadata: [String: Any]) {
