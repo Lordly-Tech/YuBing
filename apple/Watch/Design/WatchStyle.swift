@@ -6,6 +6,7 @@ extension WatchLibraryKind {
         case .novel: .blue
         case .comic: .orange
         case .music: .pink
+        case .video: .purple
         case .photo: .green
         case .folder: .cyan
         case .file: .secondary
@@ -34,4 +35,3 @@ extension View {
         }
     }
 }
-

@@ -1,6 +1,5 @@
 import Combine
 import SwiftUI
-import UniformTypeIdentifiers
 
 #if os(macOS)
 import AppKit
@@ -66,7 +65,7 @@ struct NovelReaderView: View {
     @State private var isChapterListPresented = false
     @State private var isBookmarkManagerPresented = false
     @State private var isSettingsPresented = false
-    @State private var isCoverImporterPresented = false
+    @State private var areReaderControlsVisible = false
     @State private var bookmarkConfirmation: ReaderBookmark?
     #if os(iOS)
     @State private var originalBrightness: CGFloat?
@@ -128,12 +127,24 @@ struct NovelReaderView: View {
                 ProgressView("正在分析格式与章节")
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.snappy(duration: 0.22)) {
+                areReaderControlsVisible.toggle()
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if areReaderControlsVisible {
+                readerControlOverlay
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .navigationTitle(currentChapter?.title ?? item.displayName)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(areReaderControlsVisible ? .visible : .hidden, for: .navigationBar)
         #endif
         .toolbar { readerToolbar }
-        .safeAreaInset(edge: .bottom, spacing: 0) { progressFooter }
         .sheet(isPresented: $isChapterListPresented) {
             if let book {
                 ReaderChapterPicker(
@@ -151,13 +162,6 @@ struct NovelReaderView: View {
             .environmentObject(readingStore)
         }
         .sheet(isPresented: $isSettingsPresented) { settingsSheet }
-        .fileImporter(
-            isPresented: $isCoverImporterPresented,
-            allowedContentTypes: [.image],
-            allowsMultipleSelection: false
-        ) { result in
-            importCover(result)
-        }
         .alert(item: $bookmarkConfirmation) { bookmark in
             Alert(
                 title: Text("已添加书签"),
@@ -238,9 +242,6 @@ struct NovelReaderView: View {
                 Button { isSettingsPresented = true } label: {
                     Label("阅读与显示设置", systemImage: "textformat.size")
                 }
-                Button { isCoverImporterPresented = true } label: {
-                    Label(readingStore.hasCover(for: item) ? "更换书籍封面" : "设置书籍封面", systemImage: "photo.badge.plus")
-                }
 
                 Divider()
                 Button {} label: {
@@ -267,9 +268,38 @@ struct NovelReaderView: View {
     }
 
     @ViewBuilder
-    private var progressFooter: some View {
+    private var readerControlOverlay: some View {
         if let chapter = currentChapter, let book {
-            VStack(spacing: 5) {
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    Button {
+                        isChapterListPresented = true
+                    } label: {
+                        Label("目录 · \(Int(chapterProgress * 100))%", systemImage: "list.bullet")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { addBookmark() } label: {
+                        Image(systemName: "bookmark")
+                            .frame(width: 36, height: 36)
+                    }
+                    .adaptiveGlassButton()
+
+                    Button { isSettingsPresented = true } label: {
+                        Image(systemName: "textformat.size")
+                            .frame(width: 36, height: 36)
+                    }
+                    .adaptiveGlassButton()
+
+                    ShareLink(item: item.url) {
+                        Image(systemName: "square.and.arrow.up")
+                            .frame(width: 36, height: 36)
+                    }
+                    .adaptiveGlassButton()
+                }
+
                 ProgressView(value: chapterProgress)
                     .progressViewStyle(.linear)
                 HStack(spacing: 8) {
@@ -283,9 +313,10 @@ struct NovelReaderView: View {
                 .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 14)
-            .padding(.top, 6)
-            .padding(.bottom, 5)
-            .background(.bar)
+            .padding(.vertical, 12)
+            .adaptiveGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .padding(.horizontal, 14)
+            .padding(.bottom, 10)
         }
     }
 
@@ -430,13 +461,6 @@ struct NovelReaderView: View {
         #endif
     }
 
-    private func importCover(_ result: Result<[URL], Error>) {
-        guard case .success(let urls) = result, let url = urls.first else { return }
-        let didAccess = url.startAccessingSecurityScopedResource()
-        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url) else { return }
-        readingStore.saveCover(data, for: item)
-    }
 }
 
 private struct ReaderScrollRequest: Equatable {

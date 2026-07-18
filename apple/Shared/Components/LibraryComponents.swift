@@ -3,15 +3,27 @@ import SwiftUI
 struct LibraryItemCard: View {
     @EnvironmentObject private var store: LibraryStore
     let item: LibraryItem
-    var onRename: (() -> Void)?
-    var onMove: (() -> Void)?
-    var onDelete: (() -> Void)?
+    var onEditBook: (() -> Void)? = nil
+    var onRename: (() -> Void)? = nil
+    var onMove: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
+
+    private var thumbnailAspectRatio: CGFloat {
+        switch item.kind {
+        case .novel:
+            return 0.68
+        case .comic:
+            return 0.74
+        default:
+            return 1.18
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             FileThumbnailView(item: item)
                 .frame(maxWidth: .infinity)
-                .aspectRatio(1.18, contentMode: .fit)
+                .aspectRatio(thumbnailAspectRatio, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: YuBingMetrics.compactCornerRadius, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     if store.isFavorite(item) {
@@ -52,6 +64,9 @@ struct LibraryItemCard: View {
         WatchSendContextButton(item: item)
         #endif
         ShareLink(item: item.url)
+        if let onEditBook {
+            Button(action: onEditBook) { Label("编辑书籍资料", systemImage: "book.closed") }
+        }
         if let onRename {
             Button(action: onRename) { Label("重命名", systemImage: "pencil") }
         }
@@ -68,9 +83,10 @@ struct LibraryItemCard: View {
 struct LibraryItemRow: View {
     @EnvironmentObject private var store: LibraryStore
     let item: LibraryItem
-    var onRename: (() -> Void)?
-    var onMove: (() -> Void)?
-    var onDelete: (() -> Void)?
+    var onEditBook: (() -> Void)? = nil
+    var onRename: (() -> Void)? = nil
+    var onMove: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -111,6 +127,9 @@ struct LibraryItemRow: View {
             WatchSendContextButton(item: item)
             #endif
             ShareLink(item: item.url)
+            if let onEditBook {
+                Button(action: onEditBook) { Label("编辑书籍资料", systemImage: "book.closed") }
+            }
             if let onRename {
                 Button(action: onRename) { Label("重命名", systemImage: "pencil") }
             }

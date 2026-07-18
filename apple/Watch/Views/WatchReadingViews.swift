@@ -190,6 +190,7 @@ struct WatchNovelReaderView: View {
     @State private var nextAutoTurn = Date.distantFuture
     @State private var lastReadingTick = Date()
     @State private var isSettingsPresented = false
+    @State private var areReaderControlsVisible = false
 
     @AppStorage("watch.reader.fontSize") private var fontSize = 15.0
     @AppStorage("watch.reader.verticalMargin") private var verticalMargin = 8.0
@@ -223,19 +224,19 @@ struct WatchNovelReaderView: View {
             onPreviousChapter: { switchChapter(to: chapterIndex - 1, progress: 0.98) },
             onNextChapter: { switchChapter(to: chapterIndex + 1, progress: 0) }
         )
-        .navigationTitle(chapter.title)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 2) {
-                ProgressView(value: progress)
-                Text("\(chapter.title) · \(Int(progress * 100))%")
-                    .font(.caption2)
-                    .lineLimit(1)
-                    .foregroundStyle(.secondary)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.snappy(duration: 0.2)) {
+                areReaderControlsVisible.toggle()
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 3)
-            .background(Color.black.opacity(0.82))
         }
+        .overlay(alignment: .bottom) {
+            if areReaderControlsVisible {
+                watchReaderControls
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .navigationTitle(chapter.title)
         .toolbar {
             Button { isSettingsPresented = true } label: {
                 Label("阅读菜单", systemImage: "ellipsis.circle")
@@ -278,6 +279,41 @@ struct WatchNovelReaderView: View {
                 nextAutoTurn = now.addingTimeInterval(autoTurnInterval)
             }
         }
+    }
+
+    private var watchReaderControls: some View {
+        VStack(spacing: 5) {
+            HStack(spacing: 6) {
+                Button {
+                    isChapterListPresented = true
+                } label: {
+                    Label("目录", systemImage: "list.bullet")
+                        .labelStyle(.iconOnly)
+                }
+                Button { addBookmark() } label: {
+                    Label("书签", systemImage: "bookmark")
+                        .labelStyle(.iconOnly)
+                }
+                Button {
+                    areReaderControlsVisible = false
+                } label: {
+                    Label("隐藏", systemImage: "xmark")
+                        .labelStyle(.iconOnly)
+                }
+            }
+            .buttonStyle(.plain)
+
+            ProgressView(value: progress)
+            Text("\(chapter.title) · \(Int(progress * 100))%")
+                .font(.caption2)
+                .lineLimit(1)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .watchGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.horizontal, 4)
+        .padding(.bottom, 3)
     }
 
     private var settings: some View {

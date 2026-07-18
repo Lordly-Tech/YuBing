@@ -4,6 +4,7 @@ enum WatchLibraryKind: String, Codable, CaseIterable {
     case novel
     case comic
     case music
+    case video
     case photo
     case folder
     case file
@@ -12,7 +13,8 @@ enum WatchLibraryKind: String, Codable, CaseIterable {
         switch self {
         case .novel: "小说"
         case .comic: "漫画"
-        case .music: "音乐"
+        case .music: "影音"
+        case .video: "视频"
         case .photo: "图片"
         case .folder: "文件夹"
         case .file: "文件"
@@ -24,6 +26,7 @@ enum WatchLibraryKind: String, Codable, CaseIterable {
         case .novel: "text.book.closed"
         case .comic: "rectangle.stack"
         case .music: "waveform"
+        case .video: "play.rectangle"
         case .photo: "photo"
         case .folder: "folder.fill"
         case .file: "doc"
@@ -46,6 +49,7 @@ struct WatchLibraryItem: Identifiable, Codable, Hashable {
 
     static let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "heic", "heif", "gif", "tif", "tiff", "webp"]
     static let audioExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "aif", "aiff", "caf", "flac", "alac"]
+    static let videoExtensions: Set<String> = ["mp4", "m4v", "mov", "qt", "avi", "hevc"]
 
     static func classify(url: URL, isDirectory: Bool) -> WatchLibraryKind {
         guard !isDirectory else { return .folder }
@@ -53,6 +57,7 @@ struct WatchLibraryItem: Identifiable, Codable, Hashable {
         if ["txt", "md", "markdown", WatchBookPackage.fileExtension].contains(ext) { return .novel }
         if ext == "pdf" { return .comic }
         if audioExtensions.contains(ext) { return .music }
+        if videoExtensions.contains(ext) { return .video }
         if imageExtensions.contains(ext) { return .photo }
         return .file
     }

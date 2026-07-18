@@ -15,7 +15,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .home: "首页"
         case .reading: "阅读"
-        case .music: "音乐"
+        case .music: "影音"
         case .gallery: "图库"
         case .files: "文件"
         case .favorites: "收藏"
@@ -27,7 +27,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         switch self {
         case .home: "square.grid.2x2"
         case .reading: "books.vertical"
-        case .music: "music.note"
+        case .music: "play.rectangle"
         case .gallery: "photo.on.rectangle.angled"
         case .files: "folder"
         case .favorites: "star"
@@ -35,4 +35,3 @@ enum AppSection: String, CaseIterable, Identifiable {
         }
     }
 }
-

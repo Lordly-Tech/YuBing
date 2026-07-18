@@ -1,4 +1,6 @@
+import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 private enum ReadingFilter: String, CaseIterable, Identifiable {
     case all
@@ -30,6 +32,7 @@ struct ReadingLibraryView: View {
     @State private var shelfStyle: ReadingShelfStyle = .covers
     @State private var query = ""
     @State private var isFormatGuidePresented = false
+    @State private var editingBook: LibraryItem?
 
     private var items: [LibraryItem] {
         store.items.filter { item in
@@ -58,7 +61,7 @@ struct ReadingLibraryView: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 145, maximum: 230), spacing: 16)], spacing: 20) {
                         ForEach(items) { item in
                             NavigationLink(value: item) {
-                                LibraryItemCard(item: item)
+                                LibraryItemCard(item: item, onEditBook: { editingBook = item })
                             }
                             .buttonStyle(.plain)
                         }
@@ -72,7 +75,7 @@ struct ReadingLibraryView: View {
                     LazyVStack(spacing: 0) {
                         ForEach(items) { item in
                             NavigationLink(value: item) {
-                                LibraryItemRow(item: item)
+                                LibraryItemRow(item: item, onEditBook: { editingBook = item })
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 6)
                             }
@@ -122,6 +125,93 @@ struct ReadingLibraryView: View {
         .sheet(isPresented: $isFormatGuidePresented) {
             ReaderFormatGuideView()
         }
+        .sheet(item: $editingBook) { item in
+            BookMetadataEditor(item: item)
+        }
+    }
+}
+
+struct BookMetadataEditor: View {
+    @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var readingStore: ReadingStore
+    @Environment(\.dismiss) private var dismiss
+
+    let item: LibraryItem
+
+    @State private var title: String
+    @State private var isCoverFileImporterPresented = false
+    @State private var photoSelection: PhotosPickerItem?
+
+    init(item: LibraryItem) {
+        self.item = item
+        _title = State(initialValue: item.displayName)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("书籍名称") {
+                    TextField("名称", text: $title)
+                    Button("保存名称") {
+                        store.rename(item, to: title)
+                        dismiss()
+                    }
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
+                Section("书籍封面") {
+                    HStack(spacing: 14) {
+                        FileThumbnailView(item: item, size: CGSize(width: 92, height: 136))
+                            .frame(width: 92, height: 136)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        VStack(alignment: .leading, spacing: 10) {
+                            Button {
+                                isCoverFileImporterPresented = true
+                            } label: {
+                                Label("从文件选择封面", systemImage: "folder")
+                            }
+                            PhotosPicker(selection: $photoSelection, matching: .images) {
+                                Label("从相册选择封面", systemImage: "photo")
+                            }
+                        }
+                    }
+                    Text("没有封面时，鱼饼会自动用书名生成一张封面；你补充封面后书架会切换为正式书籍封面。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("编辑书籍资料")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { dismiss() }
+                }
+            }
+            .fileImporter(
+                isPresented: $isCoverFileImporterPresented,
+                allowedContentTypes: [.image],
+                allowsMultipleSelection: false
+            ) { result in
+                importCover(result)
+            }
+            .onChange(of: photoSelection) { _, selection in
+                guard let selection else { return }
+                Task { @MainActor in
+                    if let data = try? await selection.loadTransferable(type: Data.self) {
+                        readingStore.saveCover(data, for: item)
+                    }
+                    photoSelection = nil
+                }
+            }
+        }
+        .frame(minWidth: 380, minHeight: 420)
+    }
+
+    private func importCover(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result, let url = urls.first else { return }
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url) else { return }
+        readingStore.saveCover(data, for: item)
     }
 }
 

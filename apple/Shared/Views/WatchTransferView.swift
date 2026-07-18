@@ -27,6 +27,14 @@ struct WatchTransferView: View {
                         Text("传输会在后台完成，文件随后可在手表上离线使用。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if let progress = transfer.overallProgress {
+                            ProgressView(value: progress)
+                                .tint(.cyan)
+                            Text("\(transfer.activeTransferTitle ?? "正在传输") · \(Int(progress * 100))%")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
                 .padding(.vertical, 4)
@@ -37,7 +45,7 @@ struct WatchTransferView: View {
                     ContentUnavailableView(
                         "没有兼容文件",
                         systemImage: "applewatch",
-                        description: Text("支持 TXT、EPUB、MOBI、AZW3、DOC、DOCX、PDF、图片与音频。")
+                        description: Text("支持 TXT、EPUB、MOBI、AZW3、DOC、DOCX、PDF、图片与影音文件。")
                     )
                 } else {
                     ForEach(compatibleItems) { item in

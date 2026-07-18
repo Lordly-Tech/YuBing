@@ -32,7 +32,7 @@ struct WatchRootView: View {
                     destinationRow("阅读", symbol: "books.vertical", count: store.items(of: [.novel, .comic, .photo]).count) {
                         WatchReadingLibraryView()
                     }
-                    destinationRow("音乐", symbol: "music.note", count: store.items(of: [.music]).count) {
+                    destinationRow("影音", symbol: "play.rectangle", count: store.items(of: [.music, .video]).count) {
                         WatchMusicLibraryView()
                     }
                 }
@@ -50,12 +50,12 @@ struct WatchRootView: View {
                 }
 
                 Section {
-                    HStack {
+                    VStack(alignment: .leading, spacing: 5) {
                         Label(store.transferStatus, systemImage: "iphone.and.arrow.forward")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                        Spacer(minLength: 4)
-                        Text(store.totalBytes.watchFormattedFileSize)
+                            .lineLimit(2)
+                        Label(store.totalBytes.watchFormattedFileSize, systemImage: "internaldrive")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -104,4 +104,3 @@ struct WatchFileRow: View {
         }
     }
 }
-

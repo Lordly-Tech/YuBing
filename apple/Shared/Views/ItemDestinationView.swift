@@ -22,6 +22,8 @@ struct ItemDestinationView: View {
                 }
             case .music:
                 NowPlayingView(startingItem: item)
+            case .video:
+                VideoPlayerScreen(item: item)
             case .photo:
                 PhotoViewer(item: item)
             case .file:

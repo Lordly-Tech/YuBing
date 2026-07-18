@@ -3,11 +3,22 @@ import Combine
 import Foundation
 import WatchConnectivity
 
+extension Notification.Name {
+    static let yuBingWatchTransferDidStart = Notification.Name("YuBingWatchTransferDidStart")
+}
+
 struct WatchManifestItem: Codable, Identifiable, Hashable {
     let id: String
     let name: String
     let kind: String
     let byteCount: Int64
+}
+
+struct WatchTransferProgressItem: Identifiable, Hashable {
+    let id: UUID
+    let name: String
+    let byteCount: Int64
+    var fractionCompleted: Double
 }
 
 @MainActor
@@ -17,10 +28,25 @@ final class WatchTransferService: NSObject, ObservableObject {
     @Published private(set) var pendingCount = 0
     @Published private(set) var lastStatus = "正在连接 Apple Watch"
     @Published private(set) var watchItems: [WatchManifestItem] = []
+    @Published private(set) var activeTransferProgress: [WatchTransferProgressItem] = []
 
     private var session: WCSession?
     private weak var readingStore: ReadingStore?
     private var bufferedReadingStats: [WatchReadingStatPayload] = []
+    private var transferProgressIDs: [ObjectIdentifier: UUID] = [:]
+    private var transferProgressObservations: [ObjectIdentifier: NSKeyValueObservation] = [:]
+
+    var overallProgress: Double? {
+        guard !activeTransferProgress.isEmpty else { return nil }
+        let total = activeTransferProgress.reduce(0) { $0 + min(max($1.fractionCompleted, 0), 1) }
+        return total / Double(activeTransferProgress.count)
+    }
+
+    var activeTransferTitle: String? {
+        guard let first = activeTransferProgress.first else { return nil }
+        if activeTransferProgress.count == 1 { return first.name }
+        return "\(first.name) 等 \(activeTransferProgress.count) 个文件"
+    }
 
     override init() {
         super.init()
@@ -62,6 +88,9 @@ final class WatchTransferService: NSObject, ObservableObject {
             return
         }
 
+        lastStatus = "准备传输 \(compatible.count) 个文件"
+        NotificationCenter.default.post(name: .yuBingWatchTransferDidStart, object: nil)
+
         Task { [weak self] in
             guard let self else { return }
             var enqueued = 0
@@ -71,9 +100,11 @@ final class WatchTransferService: NSObject, ObservableObject {
                     if item.kind == .novel {
                         self.lastStatus = "正在为 Watch 整理《\(item.displayName)》"
                         let transfer = try await self.makeWatchBookTransfer(for: item)
-                        session.transferFile(transfer.url, metadata: transfer.metadata)
+                        let fileTransfer = session.transferFile(transfer.url, metadata: transfer.metadata)
+                        self.track(fileTransfer, name: transfer.metadata["name"] as? String ?? item.name, byteCount: transfer.metadata["byteCount"] as? Int64 ?? item.byteCount)
                     } else {
-                        session.transferFile(item.url, metadata: self.metadata(for: item))
+                        let fileTransfer = session.transferFile(item.url, metadata: self.metadata(for: item))
+                        self.track(fileTransfer, name: item.name, byteCount: item.byteCount)
                     }
                     enqueued += 1
                 } catch {
@@ -159,6 +190,44 @@ final class WatchTransferService: NSObject, ObservableObject {
             lastStatus = "未找到已安装 鱼饼 的配对手表"
         }
     }
+
+    private func track(_ fileTransfer: WCSessionFileTransfer, name: String, byteCount: Int64) {
+        let objectID = ObjectIdentifier(fileTransfer)
+        let id = UUID()
+        transferProgressIDs[objectID] = id
+        activeTransferProgress.append(
+            WatchTransferProgressItem(
+                id: id,
+                name: name,
+                byteCount: byteCount,
+                fractionCompleted: fileTransfer.progress.fractionCompleted
+            )
+        )
+        pendingCount = session?.outstandingFileTransfers.count ?? activeTransferProgress.count
+        let observation = fileTransfer.progress.observe(\.fractionCompleted, options: [.initial, .new]) { [weak self] progress, _ in
+            Task { @MainActor [weak self] in
+                self?.updateTransferProgress(id: id, fraction: progress.fractionCompleted)
+            }
+        }
+        transferProgressObservations[objectID] = observation
+        NotificationCenter.default.post(name: .yuBingWatchTransferDidStart, object: nil)
+    }
+
+    private func updateTransferProgress(id: UUID, fraction: Double) {
+        guard let index = activeTransferProgress.firstIndex(where: { $0.id == id }) else { return }
+        activeTransferProgress[index].fractionCompleted = min(max(fraction, 0), 1)
+        if let progress = overallProgress {
+            lastStatus = "正在传输 \(Int(progress * 100))%"
+        }
+    }
+
+    private func finishTracking(_ fileTransfer: WCSessionFileTransfer) {
+        let objectID = ObjectIdentifier(fileTransfer)
+        if let progressID = transferProgressIDs.removeValue(forKey: objectID) {
+            activeTransferProgress.removeAll { $0.id == progressID }
+        }
+        transferProgressObservations[objectID] = nil
+    }
 }
 
 extension WatchTransferService: WCSessionDelegate {
@@ -196,9 +265,12 @@ extension WatchTransferService: WCSessionDelegate {
             if temporaryURL.pathExtension.lowercased() == WatchBookPackage.fileExtension {
                 try? FileManager.default.removeItem(at: temporaryURL)
             }
+            self?.finishTracking(fileTransfer)
             self?.pendingCount = session.outstandingFileTransfers.count
             if let error {
                 self?.lastStatus = "传输失败：\(error.localizedDescription)"
+            } else if !(self?.activeTransferProgress.isEmpty ?? true) {
+                self?.lastStatus = "还有 \(session.outstandingFileTransfers.count) 个文件正在传输"
             } else if session.outstandingFileTransfers.isEmpty {
                 self?.lastStatus = "文件已传到 Apple Watch"
             }

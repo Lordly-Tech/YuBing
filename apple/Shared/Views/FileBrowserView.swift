@@ -21,6 +21,7 @@ struct FileBrowserView: View {
     @State private var renameText = ""
     @State private var deletingItem: LibraryItem?
     @State private var movingItem: LibraryItem?
+    @State private var editingBook: LibraryItem?
 
     private var currentFolder: URL { folderURL ?? store.libraryURL }
 
@@ -84,6 +85,9 @@ struct FileBrowserView: View {
         .sheet(item: $movingItem) { item in
             MoveDestinationView(item: item)
         }
+        .sheet(item: $editingBook) { item in
+            BookMetadataEditor(item: item)
+        }
     }
 
     private var grid: some View {
@@ -93,6 +97,7 @@ struct FileBrowserView: View {
                     NavigationLink(value: item) {
                         LibraryItemCard(
                             item: item,
+                            onEditBook: item.kind == .novel || item.kind == .comic ? { editingBook = item } : nil,
                             onRename: { beginRename(item) },
                             onMove: { movingItem = item },
                             onDelete: { deletingItem = item }
@@ -114,6 +119,7 @@ struct FileBrowserView: View {
                     NavigationLink(value: item) {
                         LibraryItemRow(
                             item: item,
+                            onEditBook: item.kind == .novel || item.kind == .comic ? { editingBook = item } : nil,
                             onRename: { beginRename(item) },
                             onMove: { movingItem = item },
                             onDelete: { deletingItem = item }

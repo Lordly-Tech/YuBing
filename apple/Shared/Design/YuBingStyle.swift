@@ -6,6 +6,7 @@ extension LibraryKind {
         case .novel: "text.book.closed"
         case .comic: "rectangle.stack"
         case .music: "waveform"
+        case .video: "play.rectangle"
         case .photo: "photo"
         case .folder: "folder.fill"
         case .file: "doc"
@@ -17,6 +18,7 @@ extension LibraryKind {
         case .novel: .blue
         case .comic: .orange
         case .music: .pink
+        case .video: .purple
         case .photo: .green
         case .folder: .cyan
         case .file: .secondary

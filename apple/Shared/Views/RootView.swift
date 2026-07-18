@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 struct RootView: View {
@@ -42,13 +43,18 @@ private struct CompactRootView: View {
             compactTab(.gallery) { GalleryView() }
             compactTab(.files) { FileBrowserView() }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .overlay(alignment: .bottom) {
             if player.currentItem != nil {
                 MiniPlayerView()
                     .padding(.horizontal, 10)
-                    .padding(.bottom, 4)
+                    .padding(.bottom, 62)
             }
         }
+        #if os(iOS)
+        .onReceive(NotificationCenter.default.publisher(for: .yuBingWatchTransferDidStart)) { _ in
+            selection = .home
+        }
+        #endif
     }
 
     private func compactTab<Content: View>(
@@ -90,6 +96,11 @@ private struct SplitRootView: View {
                 }
             }
         }
+        #if os(iOS)
+        .onReceive(NotificationCenter.default.publisher(for: .yuBingWatchTransferDidStart)) { _ in
+            selection = .home
+        }
+        #endif
     }
 }
 
@@ -165,4 +176,3 @@ private extension View {
         }
     }
 }
-

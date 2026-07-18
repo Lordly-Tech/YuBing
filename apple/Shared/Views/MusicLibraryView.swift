@@ -5,20 +5,25 @@ struct MusicLibraryView: View {
     @EnvironmentObject private var player: AudioPlayerController
     @State private var query = ""
 
-    private var tracks: [LibraryItem] {
-        store.items(of: .music)
+    private var mediaItems: [LibraryItem] {
+        store.items
+            .filter { $0.kind == .music || $0.kind == .video }
             .filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
             .sorted(by: .name)
     }
 
+    private var audioTracks: [LibraryItem] {
+        store.items(of: .music).sorted(by: .name)
+    }
+
     var body: some View {
         Group {
-            if tracks.isEmpty {
+            if mediaItems.isEmpty {
                 ContentUnavailablePanel(
-                    title: "还没有音乐",
-                    message: "导入 MP3、M4A、AAC、WAV、FLAC 或 ALAC。",
-                    symbol: "music.note.list",
-                    action: AnyView(FileImportButton(title: "导入音乐", prominent: true))
+                    title: "还没有影音",
+                    message: "导入 MP3、M4A、AAC、WAV、FLAC、MP4、M4V 或 MOV。",
+                    symbol: "play.rectangle",
+                    action: AnyView(FileImportButton(title: "导入影音", prominent: true))
                 )
             } else {
                 ScrollView {
@@ -28,24 +33,30 @@ struct MusicLibraryView: View {
                                 .padding(.bottom, 18)
                         }
 
-                        Text("歌曲 · \(tracks.count)")
+                        Text("影音 · \(mediaItems.count)")
                             .font(.headline)
                             .padding(.horizontal, 16)
                             .padding(.bottom, 8)
 
-                        ForEach(tracks) { track in
+                        ForEach(mediaItems) { item in
                             HStack(spacing: 10) {
-                                Button {
-                                    player.play(track, in: tracks)
-                                    store.markOpened(track)
-                                } label: {
-                                    Image(systemName: player.currentItem == track && player.isPlaying ? "pause.fill" : "play.fill")
+                                if item.kind == .music {
+                                    Button {
+                                        player.play(item, in: audioTracks)
+                                        store.markOpened(item)
+                                    } label: {
+                                        Image(systemName: player.currentItem == item && player.isPlaying ? "pause.fill" : "play.fill")
+                                            .frame(width: 34, height: 34)
+                                    }
+                                    .adaptiveGlassButton()
+                                } else {
+                                    Image(systemName: "play.rectangle.fill")
+                                        .foregroundStyle(.purple)
                                         .frame(width: 34, height: 34)
                                 }
-                                .adaptiveGlassButton()
 
-                                NavigationLink(value: track) {
-                                    LibraryItemRow(item: track)
+                                NavigationLink(value: item) {
+                                    LibraryItemRow(item: item)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -60,8 +71,8 @@ struct MusicLibraryView: View {
                 }
             }
         }
-        .navigationTitle("音乐")
-        .searchable(text: $query, prompt: "搜索音乐")
+        .navigationTitle("影音")
+        .searchable(text: $query, prompt: "搜索影音")
         .toolbar { FileImportButton(title: "导入").labelStyle(.iconOnly) }
     }
 
@@ -222,4 +233,3 @@ struct NowPlayingView: View {
         }
     }
 }
-
