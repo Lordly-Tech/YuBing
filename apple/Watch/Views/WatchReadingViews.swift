@@ -190,6 +190,7 @@ struct WatchNovelReaderView: View {
     @State private var nextAutoTurn = Date.distantFuture
     @State private var lastReadingTick = Date()
     @State private var isSettingsPresented = false
+    @State private var isChapterListPresented = false
     @State private var areReaderControlsVisible = false
 
     @AppStorage("watch.reader.fontSize") private var fontSize = 15.0
@@ -243,6 +244,19 @@ struct WatchNovelReaderView: View {
             }
         }
         .sheet(isPresented: $isSettingsPresented) { settings }
+        .sheet(isPresented: $isChapterListPresented) {
+            NavigationStack {
+                WatchChapterPicker(package: package, currentIndex: chapterIndex) { index in
+                    switchChapter(to: index, progress: 0)
+                    isChapterListPresented = false
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("关闭") { isChapterListPresented = false }
+                    }
+                }
+            }
+        }
         .onAppear {
             let record = store.readingRecord(
                 bookID: package.sourceID,
