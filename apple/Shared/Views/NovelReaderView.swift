@@ -70,6 +70,20 @@ private enum ReaderTransitionMode: String, CaseIterable, Identifiable {
     }
 }
 
+private struct ReaderSettingsValues {
+    var fontSize: Double
+    var lineSpacing: Double
+    var verticalMargin: Double
+    var appearanceRaw: String
+    var transitionModeRaw: String
+    var autoTurnEnabled: Bool
+    var autoTurnInterval: Double
+    var autoTurnDistance: Double
+    var keepAwake: Bool
+    var followsSystemBrightness: Bool
+    var customBrightness: Double
+}
+
 struct NovelReaderView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var readingStore: ReadingStore
@@ -94,6 +108,7 @@ struct NovelReaderView: View {
     @State private var isSettingsPresented = false
     @State private var areReaderControlsVisible = false
     @State private var bookmarkConfirmation: ReaderBookmark?
+    @State private var readerLayoutRevision = UUID()
     #if os(iOS)
     @State private var originalBrightness: CGFloat?
     #endif
@@ -249,8 +264,7 @@ struct NovelReaderView: View {
                 onNextChapter: { switchChapter(to: chapterIndex + 1, progress: 0) },
                 onToggleControls: toggleReaderControls
             )
-            .id("\(chapterIndex)-\(transitionMode.rawValue)")
-            .ignoresSafeArea()
+            .id("\(chapterIndex)-\(transitionMode.rawValue)-\(readerLayoutRevision.uuidString)")
         }
         #else
         scrollingChapterContent(book: book, chapter: chapter)
@@ -304,14 +318,6 @@ struct NovelReaderView: View {
                     Label("常驻亮屏", systemImage: "sun.max")
                 }
 
-                #if os(iOS)
-                Picker("翻页效果", selection: $transitionModeRaw) {
-                    ForEach(ReaderTransitionMode.allCases) { option in
-                        Label(option.title, systemImage: option.symbol).tag(option.rawValue)
-                    }
-                }
-                #endif
-
                 Divider()
                 Button { addBookmark() } label: {
                     Label("在当前位置添加书签", systemImage: "bookmark.badge.plus")
@@ -321,7 +327,7 @@ struct NovelReaderView: View {
                 }
 
                 Divider()
-                Button { isSettingsPresented = true } label: {
+                Button { presentSettings() } label: {
                     Label("阅读与显示设置", systemImage: "textformat.size")
                 }
 
@@ -369,7 +375,7 @@ struct NovelReaderView: View {
                     }
                     .adaptiveGlassButton()
 
-                    Button { isSettingsPresented = true } label: {
+                    Button { presentSettings() } label: {
                         Image(systemName: "textformat.size")
                             .frame(width: 36, height: 36)
                     }
@@ -403,63 +409,42 @@ struct NovelReaderView: View {
     }
 
     private var settingsSheet: some View {
-        NavigationStack {
-            Form {
-                Section("文字") {
-                    Picker("外观", selection: $appearanceRaw) {
-                        ForEach(ReaderAppearance.allCases) { option in
-                            Text(option.title).tag(option.rawValue)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    ReaderValueSlider(title: "字号", value: $fontSize, range: 14...32, step: 1, suffix: "")
-                    ReaderValueSlider(title: "行距", value: $lineSpacing, range: 2...16, step: 1, suffix: "")
-                    ReaderValueSlider(title: "上下边距", value: $verticalMargin, range: 12...100, step: 2, suffix: " pt")
-                }
+        ReaderSettingsSheet(
+            initial: ReaderSettingsValues(
+                fontSize: fontSize,
+                lineSpacing: lineSpacing,
+                verticalMargin: verticalMargin,
+                appearanceRaw: appearanceRaw,
+                transitionModeRaw: transitionModeRaw,
+                autoTurnEnabled: autoTurnEnabled,
+                autoTurnInterval: autoTurnInterval,
+                autoTurnDistance: autoTurnDistance,
+                keepAwake: keepAwake,
+                followsSystemBrightness: followsSystemBrightness,
+                customBrightness: customBrightness
+            ),
+            onApply: { values in
+                fontSize = values.fontSize
+                lineSpacing = values.lineSpacing
+                verticalMargin = values.verticalMargin
+                appearanceRaw = values.appearanceRaw
+                transitionModeRaw = values.transitionModeRaw
+                autoTurnEnabled = values.autoTurnEnabled
+                autoTurnInterval = values.autoTurnInterval
+                autoTurnDistance = values.autoTurnDistance
+                keepAwake = values.keepAwake
+                followsSystemBrightness = values.followsSystemBrightness
+                customBrightness = values.customBrightness
+                scrollRequest = ReaderScrollRequest(progress: chapterProgress)
+                readerLayoutRevision = UUID()
+                isSettingsPresented = false
+            },
+            onCancel: { isSettingsPresented = false }
+        )
+    }
 
-                #if os(iOS)
-                Section("翻页效果") {
-                    Picker("翻页方式", selection: $transitionModeRaw) {
-                        ForEach(ReaderTransitionMode.allCases) { option in
-                            Label(option.title, systemImage: option.symbol).tag(option.rawValue)
-                        }
-                    }
-                    Text(transitionMode == .scroll ? "连续上下滚动阅读。" : "左右翻页，章节内容会自动排成适合当前屏幕的页面。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                #endif
-
-                Section("自动翻页") {
-                    Toggle("开启自动翻页", isOn: $autoTurnEnabled)
-                    ReaderValueSlider(title: "间隔", value: $autoTurnInterval, range: 2...30, step: 1, suffix: " 秒")
-                    ReaderValueSlider(title: "每次移动", value: $autoTurnDistance, range: 20...100, step: 10, suffix: "% 屏")
-                    Text("到达章节末尾后会自动进入下一章。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("屏幕") {
-                    Toggle("常驻亮屏", isOn: $keepAwake)
-                    #if os(iOS)
-                    Toggle("亮度跟随系统", isOn: $followsSystemBrightness)
-                    if !followsSystemBrightness {
-                        ReaderValueSlider(title: "阅读亮度", value: $customBrightness, range: 0.05...1, step: 0.05, suffix: "")
-                    }
-                    #else
-                    Text("Mac 的亮度继续由系统控制。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    #endif
-                }
-            }
-            .navigationTitle("阅读设置")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { isSettingsPresented = false }
-                }
-            }
-        }
+    private func presentSettings() {
+        isSettingsPresented = true
     }
 
     private func loadBook() async {
@@ -1395,6 +1380,87 @@ private struct ReaderBookmarkManager: View {
 
     private var editPresented: Binding<Bool> {
         Binding(get: { editingBookmark != nil }, set: { if !$0 { editingBookmark = nil } })
+    }
+}
+
+private struct ReaderSettingsSheet: View {
+    let onApply: (ReaderSettingsValues) -> Void
+    let onCancel: () -> Void
+    @State private var values: ReaderSettingsValues
+
+    init(
+        initial: ReaderSettingsValues,
+        onApply: @escaping (ReaderSettingsValues) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.onApply = onApply
+        self.onCancel = onCancel
+        _values = State(initialValue: initial)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("文字") {
+                    Picker("外观", selection: $values.appearanceRaw) {
+                        ForEach(ReaderAppearance.allCases) { option in
+                            Text(option.title).tag(option.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    ReaderValueSlider(title: "字号", value: $values.fontSize, range: 14...32, step: 1, suffix: "")
+                    ReaderValueSlider(title: "行距", value: $values.lineSpacing, range: 2...16, step: 1, suffix: "")
+                    ReaderValueSlider(title: "上下边距", value: $values.verticalMargin, range: 12...100, step: 2, suffix: " pt")
+                }
+
+                #if os(iOS)
+                Section("翻页效果") {
+                    Picker("翻页方式", selection: $values.transitionModeRaw) {
+                        ForEach(ReaderTransitionMode.allCases) { option in
+                            Label(option.title, systemImage: option.symbol).tag(option.rawValue)
+                        }
+                    }
+                    Text(values.transitionModeRaw == ReaderTransitionMode.scroll.rawValue
+                         ? "连续上下滚动阅读。"
+                         : "左右翻页，章节内容会自动排成适合当前屏幕的页面。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                #endif
+
+                Section("自动翻页") {
+                    Toggle("开启自动翻页", isOn: $values.autoTurnEnabled)
+                    ReaderValueSlider(title: "间隔", value: $values.autoTurnInterval, range: 2...30, step: 1, suffix: " 秒")
+                    ReaderValueSlider(title: "每次移动", value: $values.autoTurnDistance, range: 20...100, step: 10, suffix: "% 屏")
+                    Text("到达章节末尾后会自动进入下一章。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("屏幕") {
+                    Toggle("常驻亮屏", isOn: $values.keepAwake)
+                    #if os(iOS)
+                    Toggle("亮度跟随系统", isOn: $values.followsSystemBrightness)
+                    if !values.followsSystemBrightness {
+                        ReaderValueSlider(title: "阅读亮度", value: $values.customBrightness, range: 0.05...1, step: 0.05, suffix: "")
+                    }
+                    #else
+                    Text("Mac 的亮度继续由系统控制。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    #endif
+                }
+            }
+            .navigationTitle("阅读设置")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { onApply(values) }
+                }
+            }
+        }
     }
 }
 

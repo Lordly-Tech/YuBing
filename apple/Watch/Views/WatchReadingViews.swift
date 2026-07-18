@@ -192,8 +192,10 @@ struct WatchNovelReaderView: View {
     @State private var isSettingsPresented = false
     @State private var isChapterListPresented = false
     @State private var areReaderControlsVisible = false
+    @State private var readerLayoutRevision = UUID()
 
     @AppStorage("watch.reader.fontSize") private var fontSize = 15.0
+    @AppStorage("watch.reader.lineSpacing") private var lineSpacing = 4.0
     @AppStorage("watch.reader.verticalMargin") private var verticalMargin = 8.0
     @AppStorage("watch.reader.autoTurnEnabled") private var autoTurnEnabled = false
     @AppStorage("watch.reader.autoTurnInterval") private var autoTurnInterval = 8.0
@@ -217,6 +219,7 @@ struct WatchNovelReaderView: View {
             chapterIndex: chapterIndex,
             chapterCount: package.chapters.count,
             fontSize: fontSize,
+            lineSpacing: lineSpacing,
             verticalMargin: verticalMargin,
             progress: $progress,
             scrollRequest: scrollRequest,
@@ -225,6 +228,7 @@ struct WatchNovelReaderView: View {
             onPreviousChapter: { switchChapter(to: chapterIndex - 1, progress: 0.98) },
             onNextChapter: { switchChapter(to: chapterIndex + 1, progress: 0) }
         )
+        .id("\(chapterIndex)-\(readerLayoutRevision.uuidString)")
         .contentShape(Rectangle())
         .onTapGesture {
             withAnimation(.snappy(duration: 0.2)) {
@@ -331,48 +335,40 @@ struct WatchNovelReaderView: View {
     }
 
     private var settings: some View {
-        NavigationStack {
-            Form {
-                Section("阅读") {
-                    NavigationLink {
-                        WatchChapterPicker(package: package, currentIndex: chapterIndex) { index in
-                            switchChapter(to: index, progress: 0)
-                        }
-                    } label: {
-                        Label("章节", systemImage: "list.number")
-                    }
-                    Button { addBookmark() } label: {
-                        Label("添加书签", systemImage: "bookmark.badge.plus")
-                    }
-                    NavigationLink {
-                        WatchBookmarkList(bookID: package.sourceID) { bookmark in
-                            chapterIndex = bookmark.chapterIndex
-                            progress = bookmark.chapterProgress
-                            scrollRequest = WatchReaderScrollRequest(progress: bookmark.chapterProgress)
-                        }
-                        .environmentObject(store)
-                    } label: {
-                        Label("书签管理", systemImage: "bookmark.square")
-                    }
-                }
-                Section("文字") {
-                    WatchValueSlider(title: "字号", value: $fontSize, range: 12...24, step: 1, suffix: "")
-                    WatchValueSlider(title: "上下边距", value: $verticalMargin, range: 2...30, step: 2, suffix: "")
-                }
-                Section("自动翻页") {
-                    Toggle("开启", isOn: $autoTurnEnabled)
-                    WatchValueSlider(title: "间隔", value: $autoTurnInterval, range: 2...30, step: 1, suffix: " 秒")
-                    WatchValueSlider(title: "距离", value: $autoTurnDistance, range: 20...100, step: 10, suffix: "%")
-                }
-                Section("屏幕") {
-                    Text("熄屏时长与屏幕亮度由 watchOS 控制。")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("阅读设置")
-            .toolbar { Button("完成") { isSettingsPresented = false } }
-        }
+        WatchReaderSettingsSheet(
+            initial: WatchReaderSettingsValues(
+                fontSize: fontSize,
+                lineSpacing: lineSpacing,
+                verticalMargin: verticalMargin,
+                autoTurnEnabled: autoTurnEnabled,
+                autoTurnInterval: autoTurnInterval,
+                autoTurnDistance: autoTurnDistance
+            ),
+            package: package,
+            currentChapterIndex: chapterIndex,
+            bookID: package.sourceID,
+            onSelectChapter: { index in switchChapter(to: index, progress: 0) },
+            onAddBookmark: addBookmark,
+            onSelectBookmark: { bookmark in
+                chapterIndex = bookmark.chapterIndex
+                progress = bookmark.chapterProgress
+                scrollRequest = WatchReaderScrollRequest(progress: bookmark.chapterProgress)
+            },
+            onApply: { values in
+                let currentProgress = progress
+                fontSize = values.fontSize
+                lineSpacing = values.lineSpacing
+                verticalMargin = values.verticalMargin
+                autoTurnEnabled = values.autoTurnEnabled
+                autoTurnInterval = values.autoTurnInterval
+                autoTurnDistance = values.autoTurnDistance
+                scrollRequest = WatchReaderScrollRequest(progress: currentProgress)
+                readerLayoutRevision = UUID()
+                isSettingsPresented = false
+            },
+            onCancel: { isSettingsPresented = false }
+        )
+        .environmentObject(store)
     }
 
     private func switchChapter(to index: Int, progress newProgress: Double) {
@@ -406,11 +402,21 @@ private struct WatchReaderScrollRequest: Equatable {
     let progress: Double
 }
 
+private struct WatchReaderSettingsValues {
+    var fontSize: Double
+    var lineSpacing: Double
+    var verticalMargin: Double
+    var autoTurnEnabled: Bool
+    var autoTurnInterval: Double
+    var autoTurnDistance: Double
+}
+
 private struct WatchReaderChapterContent: View {
     let chapter: WatchBookChapter
     let chapterIndex: Int
     let chapterCount: Int
     let fontSize: Double
+    let lineSpacing: Double
     let verticalMargin: Double
     @Binding var progress: Double
     let scrollRequest: WatchReaderScrollRequest
@@ -452,7 +458,7 @@ private struct WatchReaderChapterContent: View {
                         ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
                             Text(paragraph)
                                 .font(.system(size: fontSize, design: .serif))
-                                .lineSpacing(4)
+                                .lineSpacing(lineSpacing)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .id("watch-paragraph-\(index)")
                         }
@@ -616,6 +622,93 @@ private struct WatchBookmarkEditor: View {
             }
         }
         .navigationTitle("书签名称")
+    }
+}
+
+private struct WatchReaderSettingsSheet: View {
+    @EnvironmentObject private var store: WatchLibraryStore
+    let package: WatchBookPackage
+    let currentChapterIndex: Int
+    let bookID: String
+    let onSelectChapter: (Int) -> Void
+    let onAddBookmark: () -> Void
+    let onSelectBookmark: (WatchReaderBookmark) -> Void
+    let onApply: (WatchReaderSettingsValues) -> Void
+    let onCancel: () -> Void
+    @State private var values: WatchReaderSettingsValues
+
+    init(
+        initial: WatchReaderSettingsValues,
+        package: WatchBookPackage,
+        currentChapterIndex: Int,
+        bookID: String,
+        onSelectChapter: @escaping (Int) -> Void,
+        onAddBookmark: @escaping () -> Void,
+        onSelectBookmark: @escaping (WatchReaderBookmark) -> Void,
+        onApply: @escaping (WatchReaderSettingsValues) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.package = package
+        self.currentChapterIndex = currentChapterIndex
+        self.bookID = bookID
+        self.onSelectChapter = onSelectChapter
+        self.onAddBookmark = onAddBookmark
+        self.onSelectBookmark = onSelectBookmark
+        self.onApply = onApply
+        self.onCancel = onCancel
+        _values = State(initialValue: initial)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("阅读") {
+                    NavigationLink {
+                        WatchChapterPicker(package: package, currentIndex: currentChapterIndex) { index in
+                            onSelectChapter(index)
+                        }
+                    } label: {
+                        Label("章节", systemImage: "list.number")
+                    }
+                    Button(action: onAddBookmark) {
+                        Label("添加书签", systemImage: "bookmark.badge.plus")
+                    }
+                    NavigationLink {
+                        WatchBookmarkList(bookID: bookID, onSelect: onSelectBookmark)
+                            .environmentObject(store)
+                    } label: {
+                        Label("书签管理", systemImage: "bookmark.square")
+                    }
+                }
+
+                Section("文字") {
+                    WatchValueSlider(title: "字号", value: $values.fontSize, range: 12...24, step: 1, suffix: "")
+                    WatchValueSlider(title: "行距", value: $values.lineSpacing, range: 0...12, step: 1, suffix: "")
+                    WatchValueSlider(title: "上下边距", value: $values.verticalMargin, range: 2...30, step: 2, suffix: "")
+                }
+
+                Section("自动翻页") {
+                    Toggle("开启", isOn: $values.autoTurnEnabled)
+                    WatchValueSlider(title: "间隔", value: $values.autoTurnInterval, range: 2...30, step: 1, suffix: " 秒")
+                    WatchValueSlider(title: "距离", value: $values.autoTurnDistance, range: 20...100, step: 10, suffix: "%")
+                }
+
+                Section("屏幕") {
+                    Text("熄屏时长与屏幕亮度由 watchOS 控制。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("阅读设置")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { onApply(values) }
+                }
+            }
+        }
     }
 }
 
