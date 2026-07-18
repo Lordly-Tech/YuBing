@@ -76,42 +76,30 @@ struct WatchNowPlayingView: View {
                 store.markOpened(startingItem)
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        NavigationLink {
-                            WatchLyricsView()
-                        } label: {
-                            Label("歌词", systemImage: "quote.bubble")
-                        }
-                        Section("倍速") {
-                            ForEach([0.5, 0.75, 1, 1.25, 1.5, 2], id: \.self) { rate in
-                                Button {
-                                    player.setPlaybackRate(Float(rate))
-                                } label: {
-                                    Label("\(rate.formatted())x", systemImage: player.playbackRate == Float(rate) ? "checkmark" : "speedometer")
-                                }
-                            }
-                        }
-                        Section("播放模式") {
-                            Button {
-                                player.toggleShuffle()
-                            } label: {
-                                Label("随机播放", systemImage: player.isShuffleEnabled ? "checkmark" : "shuffle")
-                            }
-                            Button {
-                                player.cycleRepeatMode()
-                            } label: {
-                                Label(player.repeatMode.title, systemImage: player.repeatMode == .one ? "repeat.1" : "repeat")
-                            }
-                        }
-                        Section("定时关闭") {
-                            ForEach([15, 30, 60], id: \.self) { minutes in
-                                Button("\(minutes) 分钟") { player.setSleepTimer(minutes: minutes) }
-                            }
-                            Button("取消定时") { player.setSleepTimer(minutes: nil) }
-                        }
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        WatchLyricsView()
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: "quote.bubble")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        let rates: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 2]
+                        let index = rates.firstIndex(of: player.playbackRate) ?? 2
+                        player.setPlaybackRate(rates[(index + 1) % rates.count])
+                    } label: {
+                        Text("\(player.playbackRate.formatted())x")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { player.cycleRepeatMode() } label: {
+                        Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { player.toggleShuffle() } label: {
+                        Image(systemName: player.isShuffleEnabled ? "shuffle.circle.fill" : "shuffle")
                     }
                 }
             }
