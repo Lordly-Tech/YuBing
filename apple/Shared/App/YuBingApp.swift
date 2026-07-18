@@ -19,6 +19,9 @@ struct YuBingApp: App {
                 .environmentObject(watchTransfer)
                 .onAppear { watchTransfer.attach(readingStore: readingStore) }
                 #endif
+                .onOpenURL { url in
+                    store.importFiles([url])
+                }
         }
         #if os(macOS)
         .defaultSize(width: 1180, height: 760)

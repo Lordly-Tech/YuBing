@@ -44,6 +44,17 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
         INFOPLIST_KEY_UIBackgroundModes: audio
+        INFOPLIST_KEY_UIFileSharingEnabled: true
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: true
+        INFOPLIST_KEY_NSAppleMusicUsageDescription: "用于扫描并导入你已下载到设备的本地音乐。"
+        INFOPLIST_KEY_CFBundleDocumentTypes:
+          - CFBundleTypeName: YuBing Files
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - public.data
+              - public.content
+              - public.audiovisual-content
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

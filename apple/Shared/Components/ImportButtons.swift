@@ -3,6 +3,10 @@ import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
+#if os(iOS)
+import MediaPlayer
+#endif
+
 enum PhotoImportScope {
     case images
     case videos
@@ -161,3 +165,61 @@ private func importPickerItems(
         }
     }
 }
+
+#if os(iOS)
+struct SystemMusicImportButton: View {
+    @EnvironmentObject private var store: LibraryStore
+    @State private var isImporting = false
+
+    var body: some View {
+        Button {
+            Task { await importSystemMusic() }
+        } label: {
+            if isImporting {
+                ProgressView()
+            } else {
+                Label("扫描系统音乐库", systemImage: "music.note.house")
+            }
+        }
+        .disabled(isImporting)
+        .help("扫描本机 iTunes / iPod 音乐库")
+    }
+
+    @MainActor
+    private func importSystemMusic() async {
+        isImporting = true
+        defer { isImporting = false }
+        let status = await withCheckedContinuation { continuation in
+            MPMediaLibrary.requestAuthorization { continuation.resume(returning: $0) }
+        }
+        guard status == .authorized else {
+            store.alert = LibraryAlert(title: "无法访问音乐库", message: "请在系统设置中允许鱼饼访问媒体与 Apple Music。")
+            return
+        }
+
+        let items = MPMediaQuery.songs().items ?? []
+        var imported = 0
+        var skipped = 0
+        for mediaItem in items {
+            guard !mediaItem.hasProtectedAsset, let url = mediaItem.assetURL else {
+                skipped += 1
+                continue
+            }
+            let ext = url.pathExtension.isEmpty ? "m4a" : url.pathExtension
+            let rawName = mediaItem.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = (rawName?.isEmpty == false ? rawName : nil) ?? url.deletingPathExtension().lastPathComponent
+            let safeTitle = title.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+            store.importFile(url, suggestedName: "\(safeTitle).\(ext)")
+            imported += 1
+        }
+        if imported == 0 {
+            store.alert = LibraryAlert(
+                title: "没有可导入的本地歌曲",
+                message: skipped > 0 ? "云端或受 DRM 保护的歌曲不能复制，请先在系统音乐 App 中下载无保护文件。" : "系统音乐库中没有歌曲。"
+            )
+        } else if skipped > 0 {
+            store.alert = LibraryAlert(title: "导入完成", message: "已导入 \(imported) 首，跳过 \(skipped) 首云端或受保护歌曲。")
+        }
+    }
+}
+#endif
