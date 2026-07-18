@@ -211,30 +211,22 @@ private enum BookChapterDetector {
     }
 
     private static func build(text: NSString, boundaries: [(offset: Int, title: String)]) -> [BookChapter] {
-        boundaries.enumerated().compactMap { position, boundary in
+        var chapters: [BookChapter] = []
+        for (position, boundary) in boundaries.enumerated() {
             let end = position + 1 < boundaries.count ? boundaries[position + 1].offset : text.length
-            guard end > boundary.offset else { return nil }
+            guard end > boundary.offset else { continue }
             let raw = text.substring(with: NSRange(location: boundary.offset, length: end - boundary.offset))
             let body = BookParser.normalize(raw)
-            guard !body.isEmpty else { return nil }
-            return BookChapter(
-                index: position,
+            guard !body.isEmpty else { continue }
+            chapters.append(BookChapter(
+                index: chapters.count,
                 title: boundary.title,
                 text: body,
                 startOffset: boundary.offset,
                 length: max(end - boundary.offset, 1)
-            )
+            ))
         }
-        .enumerated()
-        .map { index, chapter in
-            BookChapter(
-                index: index,
-                title: chapter.title,
-                text: chapter.text,
-                startOffset: chapter.startOffset,
-                length: chapter.length
-            )
-        }
+        return chapters
     }
 
     private static func smartChapters(text: NSString, fallbackTitle: String) -> [BookChapter] {
@@ -876,41 +868,44 @@ private enum LegacyWordTextRecovery {
 
 private extension Data {
     func uint16LE(at offset: Int) -> UInt16? {
-        guard offset >= 0, offset + 2 <= count else { return nil }
-        return withUnsafeBytes { raw in
-            UInt16(raw[offset]) | (UInt16(raw[offset + 1]) << 8)
-        }
+        guard let first = byte(at: offset), let second = byte(at: offset + 1) else { return nil }
+        return UInt16(first) | (UInt16(second) << 8)
     }
 
     func uint32LE(at offset: Int) -> UInt32? {
-        guard offset >= 0, offset + 4 <= count else { return nil }
-        return withUnsafeBytes { raw in
-            UInt32(raw[offset])
-                | (UInt32(raw[offset + 1]) << 8)
-                | (UInt32(raw[offset + 2]) << 16)
-                | (UInt32(raw[offset + 3]) << 24)
-        }
+        guard let first = byte(at: offset),
+              let second = byte(at: offset + 1),
+              let third = byte(at: offset + 2),
+              let fourth = byte(at: offset + 3) else { return nil }
+        return UInt32(first)
+            | (UInt32(second) << 8)
+            | (UInt32(third) << 16)
+            | (UInt32(fourth) << 24)
     }
 
     func uint16BE(at offset: Int) -> UInt16? {
-        guard offset >= 0, offset + 2 <= count else { return nil }
-        return withUnsafeBytes { raw in
-            (UInt16(raw[offset]) << 8) | UInt16(raw[offset + 1])
-        }
+        guard let first = byte(at: offset), let second = byte(at: offset + 1) else { return nil }
+        return (UInt16(first) << 8) | UInt16(second)
     }
 
     func uint32BE(at offset: Int) -> UInt32? {
-        guard offset >= 0, offset + 4 <= count else { return nil }
-        return withUnsafeBytes { raw in
-            (UInt32(raw[offset]) << 24)
-                | (UInt32(raw[offset + 1]) << 16)
-                | (UInt32(raw[offset + 2]) << 8)
-                | UInt32(raw[offset + 3])
-        }
+        guard let first = byte(at: offset),
+              let second = byte(at: offset + 1),
+              let third = byte(at: offset + 2),
+              let fourth = byte(at: offset + 3) else { return nil }
+        return (UInt32(first) << 24)
+            | (UInt32(second) << 16)
+            | (UInt32(third) << 8)
+            | UInt32(fourth)
     }
 
     func ascii(at offset: Int, count length: Int) -> String? {
         guard offset >= 0, offset + length <= count else { return nil }
         return String(data: subdata(in: offset..<(offset + length)), encoding: .ascii)
+    }
+
+    private func byte(at offset: Int) -> UInt8? {
+        guard offset >= 0, offset < count else { return nil }
+        return self[index(startIndex, offsetBy: offset)]
     }
 }
