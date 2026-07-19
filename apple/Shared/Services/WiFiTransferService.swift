@@ -208,6 +208,10 @@ final class WiFiTransferService: ObservableObject {
         }
     }
 
+    private static func message(for error: any Error) -> String {
+        (error as? NWError).map(Self.message(for:)) ?? error.localizedDescription
+    }
+
     private static let uploadPage = """
     <!doctype html><html lang="zh-CN"><meta name="viewport" content="width=device-width"><title>鱼饼传输</title>
     <style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:680px;margin:60px auto;padding:24px}h1{font-size:34px}form{border:1px solid #ccc;padding:24px;border-radius:8px}input{width:100%;margin:18px 0}button{font-size:18px;padding:12px 22px}</style>
