@@ -46,6 +46,7 @@ targets:
         INFOPLIST_KEY_UIBackgroundModes: audio
         INFOPLIST_KEY_UIFileSharingEnabled: true
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: true
+        INFOPLIST_KEY_NSCameraUsageDescription: "鱼饼使用相机扫描文档和二维码以快速添加文件。"
         INFOPLIST_KEY_NSAppleMusicUsageDescription: "用于扫描并导入你已下载到设备的本地音乐。"
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "用于在同一 Wi-Fi 下从电脑向鱼饼快速传入文件。"
         INFOPLIST_KEY_NSBonjourServices:
