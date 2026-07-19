@@ -8,6 +8,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case files
     case favorites
     case watch
+    case settings
 
     var id: String { rawValue }
 
@@ -20,6 +21,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .files: "文件"
         case .favorites: "收藏"
         case .watch: "传到 Watch"
+        case .settings: "设置"
         }
     }
 
@@ -32,6 +34,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .files: "folder"
         case .favorites: "star"
         case .watch: "applewatch.radiowaves.left.and.right"
+        case .settings: "gear"
         }
     }
 }

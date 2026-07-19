@@ -1,0 +1,252 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "设置" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "設定" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "설정" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "設定" } } }
+    },
+    "关于" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "About" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "について" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "정보" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關於" } } }
+    },
+    "隐私协议" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Privacy Policy" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライバシーポリシー" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "개인정보 처리방침" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "隱私權政策" } } }
+    },
+    "用户协议" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Terms of Service" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "利用規約" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "이용약관" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用者條款" } } }
+    },
+    "版本" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Version" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "バージョン" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "버전" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "版本" } } }
+    },
+    "鱼饼" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "YuBing" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "魚餅" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "위빙" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "魚餅" } } }
+    },
+    "阅读" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "読書" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "읽기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "閱讀" } } }
+    },
+    "音乐" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Music" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "音楽" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "음악" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "音樂" } } }
+    },
+    "图库" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Gallery" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ギャラリー" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "갤러리" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "圖庫" } } }
+    },
+    "文件" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Files" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイル" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "파일" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案" } } }
+    },
+    "收藏" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Favorites" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "お気に入り" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "즐겨찾기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "收藏" } } }
+    },
+    "首页" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Home" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホーム" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "홈" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "首頁" } } }
+    },
+    "传到 Watch" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Send to Watch" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "Watchに送信" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "Watch로 보내기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "傳送至 Watch" } } }
+    },
+    "搜索" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "検索" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "검색" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "搜尋" } } }
+    },
+    "关闭" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Close" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "閉じる" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "닫기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉" } } }
+    },
+    "取消" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャンセル" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "취소" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取消" } } }
+    },
+    "保存" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Save" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "저장" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存" } } }
+    },
+    "删除" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "삭제" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除" } } }
+    },
+    "完成" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "完了" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "완료" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "完成" } } }
+    },
+    "播放" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Play" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "再生" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "재생" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "播放" } } }
+    },
+    "目录" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Table of Contents" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "目次" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "목차" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目錄" } } }
+    },
+    "歌词" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Lyrics" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "歌詞" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "가사" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "歌詞" } } }
+    },
+    "正在播放" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Now Playing" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "再生中" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "재생 중" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在播放" } } }
+    },
+    "阅读设置" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Settings" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "読書設定" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "읽기 설정" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "閱讀設定" } } }
+    },
+    "阅读菜单" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Menu" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "読書メニュー" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "읽기 메뉴" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "閱讀選單" } } }
+    },
+    "隐藏" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "非表示" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "숨기기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "隱藏" } } }
+    },
+    "书签" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Bookmarks" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ブックマーク" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "북마크" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "書籤" } } }
+    },
+    "添加书签" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Bookmark" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ブックマークを追加" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "북마크 추가" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "加入書籤" } } }
+    },
+    "阅读格式" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Mode" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "読書モード" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "읽기 모드" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "閱讀模式" } } }
+    },
+    "自动翻页" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Auto Scroll" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "自動スクロール" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "자동 스크롤" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "自動翻頁" } } }
+    },
+    "常驻亮屏" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep Screen On" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "画面を常にオン" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "화면 켜짐 유지" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "保持螢幕開啟" } } }
+    },
+    "同一 Wi-Fi 传输" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Wi-Fi Transfer" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "Wi-Fi転送" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "Wi-Fi 전송" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同一Wi-Fi傳輸" } } }
+    },
+    "分享地址" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Share Address" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "アドレスを共有" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "주소 공유" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "分享地址" } } }
+    },
+    "排序" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Sort" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "並び替え" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "정렬" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "排序" } } }
+    },
+    "移动到" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Move to" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "移動先" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "이동" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "移至" } } }
+    },
+    "创建" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Create" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "作成" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "만들기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建立" } } }
+    },
+    "编辑名称" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rename" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "名前を編集" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "이름 편집" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯名稱" } } }
+    },
+    "继续阅读" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Continue Reading" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "続きを読む" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "계속 읽기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "繼續閱讀" } } }
+    },
+    "回到上次阅读位置" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Resume Last Position" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "最後の位置に戻る" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "마지막 위치로 돌아가기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "回到上次閱讀位置" } } }
+    },
+    "书籍详情" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Book Details" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "書籍詳細" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "도서 정보" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "書籍詳細" } } }
+    },
+    "编辑书籍资料" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Book Info" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "書籍情報を編集" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "도서 정보 편집" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯書籍資訊" } } }
+    },
+    "从相册选择封面" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose from Photos" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "アルバムから選択" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "앨범에서 선택" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從相簿選擇封面" } } }
+    },
+    "从文件选择封面" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose from Files" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイルから選択" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "파일에서 선택" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從檔案選擇封面" } } }
+    },
+    "书签管理" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Manage Bookmarks" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ブックマーク管理" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "북마크 관리" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "書籤管理" } } }
+    },
+    "书签名称" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Bookmark Name" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ブックマーク名" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "북마크 이름" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "書籤名稱" } } }
+    },
+    "保存名称" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Save Name" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "名前を保存" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "이름 저장" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存名稱" } } }
+    },
+    "无法打开" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cannot Open" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "開けません" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "열 수 없음" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法開啟" } } }
+    },
+    "无法打开 PDF" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cannot Open PDF" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "PDFを開けません" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "PDF를 열 수 없음" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法開啟 PDF" } } }
+    },
+    "无法显示图片" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Cannot Display Image" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "画像を表示できません" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "이미지를 표시할 수 없음" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法顯示圖片" } } }
+    },
+    "搜索书名" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search Books" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "書籍を検索" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "도서 검색" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "搜尋書名" } } }
+    },
+    "搜索章节" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search Chapters" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "章を検索" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "장 검색" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "搜尋章節" } } }
+    },
+    "搜索歌曲、艺人或专辑" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search Songs, Artists or Albums" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "曲、アーティスト、アルバムを検索" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "노래, 아티스트 또는 앨범 검색" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "搜尋歌曲、藝人或專輯" } } }
+    },
+    "搜索兼容文件" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search Compatible Files" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "互換ファイルを検索" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "호환 파일 검색" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "搜尋相容檔案" } } }
+    },
+    "搜索照片或视频" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Search Photos or Videos" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真や動画を検索" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "사진 또는 비디오 검색" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "搜尋照片或影片" } } }
+    },
+    "发送到 Apple Watch" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Send to Apple Watch" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "Apple Watchに送信" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "Apple Watch로 보내기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "傳送至 Apple Watch" } } }
+    },
+    "同步到 Apple Watch" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync to Apple Watch" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "Apple Watchと同期" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "Apple Watch와 동기화" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步至 Apple Watch" } } }
+    },
+    "正在播放" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Now Playing" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "再生中" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "재생 중" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在播放" } } }
+    },
+    "本地无损曲库" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Local Lossless Library" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ローカルロスレスライブラリ" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "로컬 무손실 라이브러리" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "本地無損曲庫" } } }
+    },
+    "无损" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Lossless" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ロスレス" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "무손실" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無損" } } }
+    },
+    "专辑" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Album" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "アルバム" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "앨범" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "專輯" } } }
+    },
+    "歌曲" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Songs" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "曲" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "노래" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "歌曲" } } }
+    },
+    "没有歌词" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "No Lyrics" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "歌詞がありません" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "가사 없음" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有歌詞" } } }
+    },
+    "本曲结束" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "End of Track" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "曲の終わり" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "트랙 끝" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "本曲結束" } } }
+    },
+    "阅读时长" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Reading Time" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "読書時間" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "읽은 시간" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "閱讀時間" } } }
+    },
+    "打开音乐" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Music" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "音楽を開く" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "음악 열기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開啟音樂" } } }
+    },
+    "播放视频" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Play Video" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "動画を再生" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "비디오 재생" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "播放影片" } } }
+    },
+    "资料库根目录" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Library Root" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ライブラリルート" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "라이브러리 루트" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "資料庫根目錄" } } }
+    },
+    "从文件选择" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose from Files" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイルから選択" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "파일에서 선택" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從檔案選擇" } } }
+    },
+    "移动" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Move" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "移動" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "이동" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "移動" } } }
+    },
+    "章节" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Chapters" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "章" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "장" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "章節" } } }
+    },
+    "资料库" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Library" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "ライブラリ" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "라이브러리" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "資料庫" } } }
+    },
+    "我的" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "My" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "マイ" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "내" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "我的" } } }
+    },
+    "法律信息" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Legal" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "法的情報" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "법적 정보" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "法律資訊" } } }
+    },
+    "好" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "OK" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "확인" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "好" } } }
+    },
+    "重命名" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Rename" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "名前変更" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "이름 바꾸기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重新命名" } } }
+    },
+    "上一章" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Previous Chapter" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "前の章" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "이전 장" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "上一章" } } }
+    },
+    "下一章" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Next Chapter" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "次の章" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "다음 장" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下一章" } } }
+    },
+    "全书已读完" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Book Completed" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "読了" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "완독" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "全書已讀完" } } }
+    },
+    "新建文件夹" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "New Folder" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいフォルダ" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "새 폴더" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增檔案夾" } } }
+    },
+    "从照片导入" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Import from Photos" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真から読み込む" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "사진에서 가져오기" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從照片匯入" } } }
+    },
+    "正在传输" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Transferring" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "転送中" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "전송 중" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在傳輸" } } }
+    },
+    "所有设备累计" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Across All Devices" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "全デバイス合計" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "모든 기기 통합" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "所有裝置累計" } } }
+    }
+  },
+  "version" : "1.0"
+}

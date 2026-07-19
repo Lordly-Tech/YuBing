@@ -46,6 +46,7 @@ private struct CompactRootView: View {
             compactTab(.music) { MusicLibraryView() }
             compactTab(.gallery) { GalleryView() }
             compactTab(.files) { FileBrowserView() }
+            compactTab(.settings) { SettingsView() }
         }
         .overlay(alignment: .bottom) {
             if player.currentItem != nil {
@@ -138,6 +139,8 @@ private struct SidebarView: View {
                 Label(AppSection.watch.title, systemImage: AppSection.watch.symbol)
                     .tag(AppSection.watch)
                 #endif
+                Label(AppSection.settings.title, systemImage: AppSection.settings.symbol)
+                    .tag(AppSection.settings)
             }
         }
         .navigationTitle("鱼饼")
@@ -175,6 +178,8 @@ private struct SectionDestinationView: View {
             #else
             DashboardView()
             #endif
+        case .settings:
+            SettingsView()
         }
     }
 }
