@@ -485,18 +485,21 @@ struct NowPlayingView: View {
                         .padding(.bottom, 6)
                     }
                     .frame(minHeight: max(geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom, 560), alignment: .top)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, max(8, geometry.safeAreaInsets.bottom * 0.25))
                 }
                 .foregroundStyle(.white)
-                .padding(.horizontal, 24)
-                .padding(.bottom, max(8, geometry.safeAreaInsets.bottom * 0.25))
-                .frame(maxWidth: 720)
             }
         }
         .onAppear {
+            player.isNowPlayingVisible = true
             if player.currentItem != startingItem {
                 player.play(startingItem, in: tracks)
             }
             store.markOpened(startingItem)
+        }
+        .onDisappear {
+            player.isNowPlayingVisible = false
         }
         .confirmationDialog("定时关闭", isPresented: $showsSleepTimer, titleVisibility: .visible) {
             ForEach([15, 30, 45, 60, 90], id: \.self) { minutes in

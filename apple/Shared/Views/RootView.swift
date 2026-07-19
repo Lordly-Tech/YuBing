@@ -40,12 +40,13 @@ private struct CompactRootView: View {
     @State private var selection: AppSection = .home
 
     private var hideMiniPlayer: Bool {
-        selection == .reading || selection == .gallery
+        selection == .reading || selection == .gallery || player.isNowPlayingVisible
     }
 
     var body: some View {
         TabView(selection: $selection) {
             compactTab(.home) { DashboardView() }
+            compactTab(.music) { MusicLibraryView() }
             compactTab(.reading) { ReadingLibraryView() }
             compactTab(.gallery) { GalleryView() }
             compactTab(.more) { MoreView() }
@@ -85,7 +86,7 @@ private struct SplitRootView: View {
     @State private var selection: AppSection? = .home
 
     private var hideMiniPlayer: Bool {
-        selection == .reading || selection == .gallery
+        selection == .reading || selection == .gallery || player.isNowPlayingVisible
     }
 
     var body: some View {
@@ -129,6 +130,8 @@ private struct SidebarView: View {
             Section {
                 Label(AppSection.home.title, systemImage: AppSection.home.symbol)
                     .tag(AppSection.home)
+                Label(AppSection.music.title, systemImage: AppSection.music.symbol)
+                    .tag(AppSection.music)
                 Label(AppSection.reading.title, systemImage: AppSection.reading.symbol)
                     .tag(AppSection.reading)
                 Label(AppSection.gallery.title, systemImage: AppSection.gallery.symbol)
@@ -156,6 +159,8 @@ private struct SectionDestinationView: View {
         switch section {
         case .home:
             DashboardView()
+        case .music:
+            MusicLibraryView()
         case .reading:
             ReadingLibraryView()
         case .gallery:

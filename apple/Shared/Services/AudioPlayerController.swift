@@ -234,6 +234,7 @@ final class AudioPlayerController: ObservableObject {
     @Published private(set) var sleepTimerEnd: Date?
     @Published private(set) var stopAfterCurrentTrack = false
     @Published var playbackError: String?
+    @Published var isNowPlayingVisible = false
 
     private let player = AVPlayer()
     private var timeObserver: Any?

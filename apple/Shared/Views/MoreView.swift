@@ -45,12 +45,6 @@ struct MoreView: View {
     private var featuresSection: some View {
         Section("功能") {
             NavigationLink {
-                MusicLibraryView()
-            } label: {
-                MoreRowLabel(title: "音乐", systemImage: "music.note.list", tint: .red)
-            }
-
-            NavigationLink {
                 FileBrowserView()
             } label: {
                 MoreRowLabel(title: "文件管理", systemImage: "folder", tint: .blue)
