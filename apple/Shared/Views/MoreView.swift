@@ -17,6 +17,8 @@ struct MoreView: View {
     #if os(iOS)
     @State private var musicAuthorization = MPMediaLibrary.authorizationStatus()
     #endif
+    @State private var showsPrivacyPolicy = false
+    @State private var showsTermsOfService = false
 
     var body: some View {
         List {
@@ -38,18 +40,18 @@ struct MoreView: View {
             }
         }
         #endif
+        .sheet(isPresented: $showsPrivacyPolicy) {
+            SafariSheet(url: "https://lordly-tech.github.io/yubing/privacy")
+        }
+        .sheet(isPresented: $showsTermsOfService) {
+            SafariSheet(url: "https://lordly-tech.github.io/yubing/terms")
+        }
     }
 
     @Environment(\.scenePhase) private var scenePhase
 
     private var featuresSection: some View {
         Section("功能") {
-            NavigationLink {
-                FileBrowserView()
-            } label: {
-                MoreRowLabel(title: "文件管理", systemImage: "folder", tint: .blue)
-            }
-
             NavigationLink {
                 FavoriteLibraryView()
             } label: {
@@ -99,7 +101,7 @@ struct MoreView: View {
             } label: {
                 MoreRowLabel(title: "应用语言", subtitle: languageSummary, systemImage: "globe", tint: .blue)
             }
-            .pickerStyle(.inline)
+            .pickerStyle(.menu)
         } header: {
             Text("语言")
         } footer: {
@@ -152,7 +154,7 @@ struct MoreView: View {
 
     private var legalSection: some View {
         Section("法律信息") {
-            Button(action: openPrivacyPolicy) {
+            Button { showsPrivacyPolicy = true } label: {
                 MoreButtonRow(
                     title: "隐私协议",
                     systemImage: "hand.raised",
@@ -161,7 +163,7 @@ struct MoreView: View {
             }
             .buttonStyle(.plain)
 
-            Button(action: openTermsOfService) {
+            Button { showsTermsOfService = true } label: {
                 MoreButtonRow(
                     title: "用户协议",
                     systemImage: "doc.text",
@@ -188,25 +190,6 @@ struct MoreView: View {
         UIApplication.shared.open(url)
     }
     #endif
-
-    private func openPrivacyPolicy() {
-        openURL("https://lordly-tech.github.io/yubing/privacy")
-    }
-
-    private func openTermsOfService() {
-        openURL("https://lordly-tech.github.io/yubing/terms")
-    }
-
-    private func openURL(_ urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        #if os(iOS)
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root = scene.windows.first?.rootViewController else { return }
-        root.present(SFSafariViewController(url: url), animated: true)
-        #elseif os(macOS)
-        NSWorkspace.shared.open(url)
-        #endif
-    }
 
     private var versionString: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -295,3 +278,15 @@ private struct MoreIcon: View {
             .accessibilityHidden(true)
     }
 }
+
+#if os(iOS)
+private struct SafariSheet: UIViewControllerRepresentable {
+    let url: String
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: URL(string: url)!)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
+}
+#endif
