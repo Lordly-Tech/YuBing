@@ -280,15 +280,15 @@ private struct AlbumDetailView: View {
 
                     VStack(spacing: 5) {
                         Text(album.title)
-                            .font(.title.weight(.bold))
+                            .font(.headline)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
-                            .minimumScaleFactor(0.72)
                         Text(album.artist)
-                            .font(.title3.weight(.semibold))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white.opacity(0.85))
                             .lineLimit(1)
                         Text([album.genre, album.year].compactMap { $0 }.joined(separator: " · "))
+                            .font(.caption)
                             .foregroundStyle(.white.opacity(0.72))
                             .lineLimit(1)
                     }
@@ -449,47 +449,46 @@ struct NowPlayingView: View {
     private var activeItem: LibraryItem { player.currentItem ?? startingItem }
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
+        ZStack {
+            AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
+            GeometryReader { geometry in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
-                    #if os(iOS)
-                    Capsule()
-                        .fill(.white.opacity(0.42))
-                        .frame(width: 36, height: 5)
-                        .padding(.top, 7)
-                        .padding(.bottom, 9)
-                    #endif
+                        #if os(iOS)
+                        Capsule()
+                            .fill(.white.opacity(0.42))
+                            .frame(width: 36, height: 5)
+                            .padding(.top, 7)
+                            .padding(.bottom, 9)
+                        #endif
 
-                    topBar
-                    Group {
-                        if showsLyrics {
-                            SyncedLyricsView(lyrics: player.currentMetadata.lyrics)
-                        } else {
-                            artworkPanel(size: artworkSize(in: geometry.size))
+                        topBar
+                        Group {
+                            if showsLyrics {
+                                SyncedLyricsView(lyrics: player.currentMetadata.lyrics)
+                            } else {
+                                artworkPanel(size: artworkSize(in: geometry.size))
+                            }
                         }
-                    }
-                    .frame(height: showsLyrics ? lyricsHeight(in: geometry.size) : artworkSize(in: geometry.size))
-                    .padding(.top, 14)
-                    .padding(.bottom, 20)
+                        .frame(height: showsLyrics ? lyricsHeight(in: geometry.size) : artworkSize(in: geometry.size))
+                        .padding(.top, 14)
+                        .padding(.bottom, 20)
 
-                    metadataPanel
-                    progressPanel
-                        .padding(.top, 16)
-                    playbackControls
-                        .padding(.vertical, 16)
-                    volumePanel
-                    secondaryControls
-                        .padding(.top, 12)
-                        .padding(.bottom, 6)
+                        metadataPanel
+                        progressPanel
+                            .padding(.top, 16)
+                        playbackControls
+                            .padding(.vertical, 16)
+                        volumePanel
+                        secondaryControls
+                            .padding(.top, 12)
+                            .padding(.bottom, 6)
                     }
-                    .frame(minHeight: max(geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom, 560), alignment: .top)
+                    .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .top)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, max(8, geometry.safeAreaInsets.bottom * 0.25))
                 }
                 .foregroundStyle(.white)
-                .padding(.horizontal, 24)
-                .padding(.bottom, max(8, geometry.safeAreaInsets.bottom * 0.25))
-                .frame(maxWidth: 720)
             }
         }
         .onAppear {
