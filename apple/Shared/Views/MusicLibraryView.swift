@@ -271,22 +271,26 @@ private struct AlbumDetailView: View {
         ZStack {
             AudioGradientBackground(artworkData: album.artworkData)
             ScrollView {
-                VStack(spacing: 22) {
+                VStack(spacing: 20) {
                     AudioArtwork(data: album.artworkData, fallbackSymbol: "square.stack.fill")
-                        .frame(maxWidth: 390)
+                        .frame(maxWidth: 340)
                         .aspectRatio(1, contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .shadow(color: .black.opacity(0.32), radius: 24, y: 14)
 
                     VStack(spacing: 5) {
                         Text(album.title)
-                            .font(.largeTitle.weight(.bold))
+                            .font(.title.weight(.bold))
                             .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.72)
                         Text(album.artist)
-                            .font(.title2.weight(.semibold))
+                            .font(.title3.weight(.semibold))
                             .foregroundStyle(.white.opacity(0.85))
+                            .lineLimit(1)
                         Text([album.genre, album.year].compactMap { $0 }.joined(separator: " · "))
                             .foregroundStyle(.white.opacity(0.72))
+                            .lineLimit(1)
                     }
 
                     HStack(spacing: 14) {
@@ -314,13 +318,7 @@ private struct AlbumDetailView: View {
 
                     LazyVStack(spacing: 0) {
                         ForEach(Array(album.tracks.enumerated()), id: \.element.id) { index, track in
-                            HStack(spacing: 12) {
-                                Text("\(index + 1)")
-                                    .font(.callout.monospacedDigit())
-                                    .foregroundStyle(.white.opacity(0.6))
-                                    .frame(width: 28)
-                                AudioTrackRow(item: track, queue: album.tracks)
-                            }
+                            AlbumTrackRow(index: index + 1, item: track, queue: album.tracks)
                             Divider().overlay(.white.opacity(0.16))
                         }
                     }
@@ -336,6 +334,49 @@ private struct AlbumDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+    }
+}
+
+private struct AlbumTrackRow: View {
+    @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var player: AudioPlayerController
+    let index: Int
+    let item: LibraryItem
+    let queue: [LibraryItem]
+
+    private var metadata: EmbeddedAudioMetadata? { player.metadataByPath[item.relativePath] }
+
+    var body: some View {
+        Button {
+            player.play(item, in: queue)
+            store.markOpened(item)
+        } label: {
+            HStack(spacing: 14) {
+                Text("\(index)")
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.62))
+                    .frame(width: 28, alignment: .trailing)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(metadata?.title ?? item.displayName)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    Text(metadata?.artist ?? metadata?.album ?? item.fileExtension.uppercased())
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.62))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                if player.currentItem == item {
+                    Image(systemName: player.isPlaying ? "waveform" : "pause.fill")
+                        .foregroundStyle(.white)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -411,7 +452,8 @@ struct NowPlayingView: View {
         GeometryReader { geometry in
             ZStack {
                 AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
-                VStack(spacing: 0) {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
                     #if os(iOS)
                     Capsule()
                         .fill(.white.opacity(0.42))
@@ -428,7 +470,7 @@ struct NowPlayingView: View {
                             artworkPanel(size: artworkSize(in: geometry.size))
                         }
                     }
-                    .frame(height: artworkSize(in: geometry.size))
+                    .frame(height: showsLyrics ? lyricsHeight(in: geometry.size) : artworkSize(in: geometry.size))
                     .padding(.top, 14)
                     .padding(.bottom, 20)
 
@@ -441,6 +483,8 @@ struct NowPlayingView: View {
                     secondaryControls
                         .padding(.top, 12)
                         .padding(.bottom, 6)
+                    }
+                    .frame(minHeight: max(geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom, 560), alignment: .top)
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 24)
@@ -489,6 +533,7 @@ struct NowPlayingView: View {
                 Text(player.currentMetadata.album ?? AppLocalization.string("鱼饼音乐"))
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
             .frame(maxWidth: 260)
             Spacer()
@@ -504,8 +549,13 @@ struct NowPlayingView: View {
     }
 
     private func artworkSize(in size: CGSize) -> CGFloat {
-        let width = max(size.width - 48, 180)
-        return max(180, min(width, 520, size.height - 430))
+        let width = max(size.width - 56, 150)
+        let height = max(size.height - 470, 150)
+        return max(150, min(width, 420, height))
+    }
+
+    private func lyricsHeight(in size: CGSize) -> CGFloat {
+        max(240, min(430, size.height - 430))
     }
 
     private var metadataPanel: some View {
@@ -514,6 +564,7 @@ struct NowPlayingView: View {
                 Text(player.currentMetadata.title ?? activeItem.displayName)
                     .font(.title2.weight(.bold))
                     .lineLimit(2)
+                    .minimumScaleFactor(0.72)
                 Text(player.currentMetadata.artist ?? player.currentMetadata.album ?? AppLocalization.string("本地音乐"))
                     .font(.title3)
                     .foregroundStyle(.white.opacity(0.7))
@@ -763,7 +814,13 @@ private struct SyncedLyricsView: View {
     }
 
     private func lyricText(_ line: TimedLyricLine, index: Int) -> Text {
-        guard !line.words.isEmpty else { return Text(line.text) }
+        guard !line.words.isEmpty else {
+            let activeCharacters = activeIndex == index ? (lyrics?.activeCharacterCount(in: index, at: player.currentTime) ?? 0) : 0
+            return line.text.enumerated().reduce(Text("")) { partial, entry in
+                partial + Text(String(entry.element))
+                    .foregroundColor(entry.offset < activeCharacters ? .white : .white.opacity(0.42))
+            }
+        }
         let activeWord = activeIndex == index ? player.currentMetadata.lyrics?.activeWordIndex(in: index, at: player.currentTime) : nil
         return line.words.enumerated().reduce(Text("")) { partial, entry in
             partial + Text(entry.element.text)

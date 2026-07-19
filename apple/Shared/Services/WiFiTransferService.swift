@@ -30,10 +30,13 @@ final class WiFiTransferService: ObservableObject {
                 switch state {
                 case .ready:
                     let port = listener?.port?.rawValue ?? 0
-                    let host = Self.localIPv4Address() ?? ProcessInfo.processInfo.hostName
-                    self.update(running: true, address: "http://\(host):\(port)", status: "等待电脑上传")
+                    if let host = Self.localIPv4Address() {
+                        self.update(running: true, address: "http://\(host):\(port)", status: "等待电脑上传")
+                    } else {
+                        self.update(running: true, address: nil, status: "已启动，请连接 Wi-Fi 后重新开始传输")
+                    }
                 case .failed(let error):
-                    self.update(running: false, address: nil, status: error.localizedDescription)
+                    self.update(running: false, address: nil, status: Self.message(for: error))
                     self.stop()
                 case .cancelled:
                     self.update(running: false, address: nil, status: "已停止")
@@ -48,7 +51,7 @@ final class WiFiTransferService: ObservableObject {
             listener.start(queue: queue)
             update(running: false, address: nil, status: "正在启动")
         } catch {
-            update(running: false, address: nil, status: error.localizedDescription)
+            update(running: false, address: nil, status: Self.message(for: error))
         }
     }
 
@@ -189,9 +192,20 @@ final class WiFiTransferService: ObservableObject {
             guard result == 0 else { continue }
             let value = String(cString: host)
             if name == "en0" { return value }
-            fallback = fallback ?? value
+            if name.hasPrefix("en") || name.hasPrefix("bridge") {
+                fallback = fallback ?? value
+            }
         }
         return fallback
+    }
+
+    private static func message(for error: NWError) -> String {
+        switch error {
+        case .posix(let code) where code == .EPERM:
+            return "本地网络权限未生效，请在系统设置中允许鱼饼访问本地网络后再次开始传输。"
+        default:
+            return error.localizedDescription
+        }
     }
 
     private static let uploadPage = """

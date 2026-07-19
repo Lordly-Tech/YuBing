@@ -177,7 +177,6 @@ private struct WiFiTransferPanel: View {
                 ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
             }
         }
-        .onDisappear { transfer.stop() }
     }
 }
 

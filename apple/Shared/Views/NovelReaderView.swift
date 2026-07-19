@@ -186,8 +186,11 @@ struct NovelReaderView: View {
             if let book {
                 ReaderChapterPicker(
                     bookTitle: book.title,
+                    coverData: book.coverData,
                     chapters: book.chapters,
                     currentIndex: chapterIndex,
+                    currentOffset: currentFileOffset,
+                    totalLength: book.totalLength,
                     onSelect: { switchChapter(to: $0, progress: 0) }
                 )
             }
@@ -1271,8 +1274,11 @@ private struct ReaderTopOffsetKey: PreferenceKey {
 private struct ReaderChapterPicker: View {
     @Environment(\.dismiss) private var dismiss
     let bookTitle: String
+    let coverData: Data?
     let chapters: [BookChapter]
     let currentIndex: Int
+    let currentOffset: Int
+    let totalLength: Int
     let onSelect: (Int) -> Void
     @State private var query = ""
 
@@ -1282,23 +1288,34 @@ private struct ReaderChapterPicker: View {
 
     var body: some View {
         NavigationStack {
-            List(filtered) { chapter in
-                Button {
-                    onSelect(chapter.index)
-                    dismiss()
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
+            VStack(spacing: 0) {
+                header
+                Divider()
+                List(filtered) { chapter in
+                    Button {
+                        onSelect(chapter.index)
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 14) {
                             Text(chapter.title)
+                                .font(.title3.weight(.bold))
                                 .foregroundStyle(.primary)
+                                .lineLimit(2)
+                            Spacer(minLength: 12)
+                            Text(pageLabel(for: chapter))
+                                .font(.title3.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
-                        Spacer()
-                        if chapter.index == currentIndex {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.tint)
-                        }
+                        .padding(.vertical, 9)
+                        .padding(.horizontal, 10)
+                        .background(chapter.index == currentIndex ? Color.secondary.opacity(0.16) : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
+                    .buttonStyle(.plain)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14))
+                    .listRowSeparator(chapter.index == currentIndex ? .hidden : .visible)
                 }
+                .listStyle(.plain)
             }
             .navigationTitle(bookTitle)
             .searchable(text: $query, prompt: "搜索章节")
@@ -1309,6 +1326,74 @@ private struct ReaderChapterPicker: View {
             }
         }
     }
+
+    private var header: some View {
+        HStack(spacing: 18) {
+            coverView
+                .frame(width: 72, height: 96)
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(bookTitle)
+                    .font(.largeTitle.weight(.bold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+                Text("页码 第 \(currentPage) 页，共 \(totalPages) 页")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 28)
+        .padding(.bottom, 20)
+    }
+
+    @ViewBuilder
+    private var coverView: some View {
+        if let coverData, let image = readerImage(data: coverData) {
+            readerImageView(image).resizable().scaledToFill()
+        } else {
+            ZStack {
+                LinearGradient(colors: [.teal.opacity(0.85), .cyan.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                Image(systemName: "book.closed.fill")
+                    .font(.title)
+                    .foregroundStyle(.white.opacity(0.92))
+            }
+        }
+    }
+
+    private var totalPages: Int { max(totalLength / 1_000, chapters.count, 1) }
+    private var currentPage: Int { min(max(currentOffset / 1_000 + 1, 1), totalPages) }
+
+    private func pageLabel(for chapter: BookChapter) -> String {
+        "\(min(max(chapter.startOffset / 1_000 + 1, 1), totalPages))"
+    }
+}
+
+#if os(macOS)
+private typealias ReaderPlatformImage = NSImage
+#else
+private typealias ReaderPlatformImage = UIImage
+#endif
+
+private func readerImage(data: Data) -> ReaderPlatformImage? {
+    #if os(macOS)
+    return NSImage(data: data)
+    #else
+    return UIImage(data: data)
+    #endif
+}
+
+@ViewBuilder
+private func readerImageView(_ image: ReaderPlatformImage) -> Image {
+    #if os(macOS)
+    Image(nsImage: image)
+    #else
+    Image(uiImage: image)
+    #endif
 }
 
 private struct ReaderBookmarkManager: View {

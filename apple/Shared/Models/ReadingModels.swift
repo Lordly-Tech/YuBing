@@ -10,7 +10,7 @@ struct BookChapter: Codable, Hashable, Identifiable, Sendable {
     var id: Int { index }
 }
 
-struct ParsedBook: Sendable {
+struct ParsedBook: Codable, Sendable {
     let title: String
     let format: String
     let chapters: [BookChapter]

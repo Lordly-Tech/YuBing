@@ -33,31 +33,35 @@ enum BookParser {
     static let advertisedExtensions: [String] = ["TXT", "EPUB", "MOBI", "AZW3", "DOC", "DOCX", "PDF"]
 
     static func parse(url: URL) throws -> ParsedBook {
+        if let cached = ParsedBookMemoryCache.shared.book(for: url) { return cached }
         let format = url.pathExtension.lowercased()
+        let parsed: ParsedBook
         switch format {
         case "txt", "md", "markdown":
             let text = try decodePlainText(Data(contentsOf: url))
-            return makeBook(title: url.deletingPathExtension().lastPathComponent, format: format, text: text)
+            parsed = makeBook(title: url.deletingPathExtension().lastPathComponent, format: format, text: text)
         case "epub":
-            return try EPUBBookDecoder.decode(url: url)
+            parsed = try EPUBBookDecoder.decode(url: url)
         case "mobi", "azw", "azw3":
             let text = try MOBIBookDecoder.decode(url: url)
-            return makeBook(title: url.deletingPathExtension().lastPathComponent, format: format, text: text)
+            parsed = makeBook(title: url.deletingPathExtension().lastPathComponent, format: format, text: text)
         case "doc":
             let text = try decodeLegacyWord(url: url)
-            return makeBook(title: url.deletingPathExtension().lastPathComponent, format: format, text: text)
+            parsed = makeBook(title: url.deletingPathExtension().lastPathComponent, format: format, text: text)
         case "docx":
             let archive = try SimpleZIPArchive(url: url)
             guard let document = try archive.data(for: "word/document.xml") else {
                 throw BookParserError.unreadable("DOCX 文件中没有找到正文。")
             }
             let text = WordDocumentTextParser.parse(document)
-            return makeBook(title: url.deletingPathExtension().lastPathComponent, format: format, text: text)
+            parsed = makeBook(title: url.deletingPathExtension().lastPathComponent, format: format, text: text)
         case "pdf":
-            return try decodePDF(url: url)
+            parsed = try decodePDF(url: url)
         default:
             throw BookParserError.unsupportedFormat(format)
         }
+        ParsedBookMemoryCache.shared.store(parsed, for: url)
+        return parsed
     }
 
     private static func makeBook(title: String, format: String, text: String, coverData: Data? = nil) -> ParsedBook {
@@ -149,6 +153,35 @@ enum BookParser {
             sections: sections,
             coverData: nil
         )
+    }
+}
+
+private final class ParsedBookMemoryCache: @unchecked Sendable {
+    static let shared = ParsedBookMemoryCache()
+
+    private let lock = NSLock()
+    private var books: [String: ParsedBook] = [:]
+
+    func book(for url: URL) -> ParsedBook? {
+        let key = cacheKey(for: url)
+        lock.lock()
+        defer { lock.unlock() }
+        return books[key]
+    }
+
+    func store(_ book: ParsedBook, for url: URL) {
+        let key = cacheKey(for: url)
+        lock.lock()
+        books[key] = book
+        if books.count > 12, let first = books.keys.first { books[first] = nil }
+        lock.unlock()
+    }
+
+    private func cacheKey(for url: URL) -> String {
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+        let modified = values?.contentModificationDate?.timeIntervalSince1970 ?? 0
+        let size = values?.fileSize ?? 0
+        return "\(url.path)|\(modified)|\(size)"
     }
 }
 

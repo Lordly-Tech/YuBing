@@ -43,6 +43,17 @@ struct TimedLyrics: Equatable, Hashable, Sendable {
         let index = words.lastIndex { $0.time <= time }
         return index ?? 0
     }
+
+    func activeCharacterCount(in lineIndex: Int, at time: TimeInterval) -> Int {
+        guard lines.indices.contains(lineIndex) else { return 0 }
+        let line = lines[lineIndex]
+        let count = line.text.count
+        guard count > 0 else { return 0 }
+        let nextTime = lines.indices.contains(lineIndex + 1) ? lines[lineIndex + 1].time : line.time + 4
+        let duration = max(nextTime - line.time, 0.8)
+        let progress = min(max((time - line.time) / duration, 0), 1)
+        return min(count, max(1, Int((Double(count) * progress).rounded(.up))))
+    }
 }
 
 enum AudioLyricsLoader {
