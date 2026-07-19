@@ -15,9 +15,9 @@ private enum ReaderAppearance: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .system: "自动"
-        case .paper: "纸张"
-        case .night: "夜间"
+        case .system: AppLocalization.string("自动")
+        case .paper: AppLocalization.string("纸张")
+        case .night: AppLocalization.string("夜间")
         }
     }
 
@@ -53,10 +53,10 @@ private enum ReaderTransitionMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .slide: "滑动"
-        case .curl: "卷页"
-        case .fade: "快速淡入淡出"
-        case .scroll: "滚动"
+        case .slide: AppLocalization.string("滑动")
+        case .curl: AppLocalization.string("卷页")
+        case .fade: AppLocalization.string("快速淡入淡出")
+        case .scroll: AppLocalization.string("滚动")
         }
     }
 
@@ -114,7 +114,7 @@ struct NovelReaderView: View {
     #endif
 
     @AppStorage("reader.fontSize") private var fontSize = 19.0
-    @AppStorage("reader.lineSpacing") private var lineSpacing = 8.0
+    @AppStorage("reader.lineSpacing") private var lineSpacing = 5.0
     @AppStorage("reader.verticalMargin") private var verticalMargin = 34.0
     @AppStorage("reader.appearance") private var appearanceRaw = ReaderAppearance.system.rawValue
     @AppStorage("reader.autoTurnEnabled") private var autoTurnEnabled = false
@@ -152,7 +152,7 @@ struct NovelReaderView: View {
                 ContentUnavailableView(
                     "无法读取这本书",
                     systemImage: "text.badge.xmark",
-                    description: Text(loadError)
+                    description: Text(AppLocalization.string(loadError))
                 )
             } else if let book, let chapter = currentChapter {
                 chapterContent(book: book, chapter: chapter)
@@ -548,6 +548,22 @@ private struct ReaderScrollRequest: Equatable {
     let progress: Double
 }
 
+private func readerBodyText(for chapter: BookChapter) -> String {
+    var lines = chapter.text.components(separatedBy: .newlines)
+    while lines.first?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+        lines.removeFirst()
+    }
+    if let first = lines.first,
+       first.trimmingCharacters(in: .whitespacesAndNewlines) ==
+        chapter.title.trimmingCharacters(in: .whitespacesAndNewlines) {
+        lines.removeFirst()
+        while lines.first?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+            lines.removeFirst()
+        }
+    }
+    return lines.joined(separator: "\n")
+}
+
 private struct ReaderChapterContent: View {
     let chapter: BookChapter
     let chapterIndex: Int
@@ -566,19 +582,20 @@ private struct ReaderChapterContent: View {
     @State private var contentHeight = 1.0
 
     private var paragraphs: [String] {
-        let values = chapter.text
+        let body = readerBodyText(for: chapter)
+        let values = body
             .components(separatedBy: #"\n\s*\n"#)
             .flatMap { $0.components(separatedBy: "\n") }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        return values.isEmpty ? [chapter.text] : values
+        return values.isEmpty ? [body] : values
     }
 
     var body: some View {
         GeometryReader { viewport in
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: CGFloat(max(0, lineSpacing * 0.65))) {
                         GeometryReader { geometry in
                             Color.clear.preference(
                                 key: ReaderTopOffsetKey.self,
@@ -602,7 +619,7 @@ private struct ReaderChapterContent: View {
                             Text(paragraph)
                                 .font(.system(size: fontSize, design: .serif))
                                 .foregroundStyle(foreground)
-                                .lineSpacing(lineSpacing)
+                                .lineSpacing(max(0, lineSpacing))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: 720, alignment: .leading)
                                 .id("paragraph-\(index)")
@@ -665,7 +682,7 @@ private struct ReaderChapterContent: View {
 
     private func chapterButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: symbol)
+            Label(AppLocalization.string(title), systemImage: symbol)
                 .frame(maxWidth: 720)
                 .padding(.vertical, 10)
         }
@@ -943,14 +960,14 @@ private final class ReaderPagesViewController: UIViewController,
         viewportSize: CGSize
     ) -> [NSAttributedString] {
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineSpacing = CGFloat(configuration.lineSpacing)
-        paragraphStyle.paragraphSpacing = 13
+        paragraphStyle.lineSpacing = CGFloat(max(0, configuration.lineSpacing))
+        paragraphStyle.paragraphSpacing = CGFloat(max(0, configuration.lineSpacing * 0.65))
         paragraphStyle.lineBreakMode = .byWordWrapping
 
         let bodyFont = UIFont(name: "NewYork-Regular", size: CGFloat(configuration.fontSize))
             ?? UIFont.systemFont(ofSize: CGFloat(configuration.fontSize))
         let titleFont = UIFont.systemFont(ofSize: CGFloat(configuration.fontSize * 1.35), weight: .semibold)
-        let fullText = "\(configuration.chapter.title)\n\n\(configuration.chapter.text)"
+        let fullText = "\(configuration.chapter.title)\n\n\(readerBodyText(for: configuration.chapter))"
         let attributed = NSMutableAttributedString(
             string: fullText,
             attributes: [
@@ -1204,13 +1221,13 @@ private final class ReaderTextPageController: UIViewController {
         image.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 38, weight: .semibold)
 
         let titleLabel = UILabel()
-        titleLabel.text = title
+        titleLabel.text = AppLocalization.string(title)
         titleLabel.font = .preferredFont(forTextStyle: .title2)
         titleLabel.textColor = pageForegroundColor
         titleLabel.textAlignment = .center
 
         let detailLabel = UILabel()
-        detailLabel.text = detail
+        detailLabel.text = AppLocalization.string(detail)
         detailLabel.font = .preferredFont(forTextStyle: .subheadline)
         detailLabel.textColor = pageForegroundColor.withAlphaComponent(0.65)
         detailLabel.textAlignment = .center
@@ -1222,7 +1239,7 @@ private final class ReaderTextPageController: UIViewController {
         if let actionTitle, let action {
             let button = UIButton(
                 configuration: .borderedProminent(),
-                primaryAction: UIAction(title: actionTitle) { _ in action() }
+                primaryAction: UIAction(title: AppLocalization.string(actionTitle)) { _ in action() }
             )
             stack.addArrangedSubview(button)
             stack.setCustomSpacing(22, after: detailLabel)
@@ -1409,7 +1426,7 @@ private struct ReaderSettingsSheet: View {
                     }
                     .pickerStyle(.segmented)
                     ReaderValueSlider(title: "字号", value: $values.fontSize, range: 14...32, step: 1, suffix: "")
-                    ReaderValueSlider(title: "行距", value: $values.lineSpacing, range: 2...16, step: 1, suffix: "")
+                    ReaderValueSlider(title: "行距", value: $values.lineSpacing, range: 0...14, step: 1, suffix: "")
                     ReaderValueSlider(title: "上下边距", value: $values.verticalMargin, range: 12...100, step: 2, suffix: " pt")
                 }
 
@@ -1420,9 +1437,9 @@ private struct ReaderSettingsSheet: View {
                             Label(option.title, systemImage: option.symbol).tag(option.rawValue)
                         }
                     }
-                    Text(values.transitionModeRaw == ReaderTransitionMode.scroll.rawValue
+                    Text(AppLocalization.string(values.transitionModeRaw == ReaderTransitionMode.scroll.rawValue
                          ? "连续上下滚动阅读。"
-                         : "左右翻页，章节内容会自动排成适合当前屏幕的页面。")
+                         : "左右翻页，章节内容会自动排成适合当前屏幕的页面。"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1474,7 +1491,7 @@ private struct ReaderValueSlider: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
-                Text(title)
+                Text(AppLocalization.string(title))
                 Spacer()
                 Text("\(Int(value))\(suffix)")
                     .foregroundStyle(.secondary)

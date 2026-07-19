@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "위빙";
+"NSCameraUsageDescription" = "위빙은 문서와 QR 코드를 스캔해 파일을 빠르게 추가하기 위해 카메라를 사용합니다.";
+"NSAppleMusicUsageDescription" = "이 기기에 다운로드된 로컬 음악을 스캔하고 가져오기 위해 사용합니다.";
+"NSLocalNetworkUsageDescription" = "같은 Wi-Fi의 컴퓨터에서 위빙으로 파일을 빠르게 전송하기 위해 사용합니다.";

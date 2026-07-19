@@ -10,9 +10,9 @@ private enum ReadingFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .all: "全部"
-        case .novels: "小说"
-        case .comics: "漫画"
+        case .all: AppLocalization.string("全部")
+        case .novels: AppLocalization.string("小说")
+        case .comics: AppLocalization.string("漫画")
         }
     }
 }
@@ -22,7 +22,7 @@ private enum ReadingShelfStyle: String, CaseIterable, Identifiable {
     case list
 
     var id: String { rawValue }
-    var title: String { self == .covers ? "封面" : "列表" }
+    var title: String { AppLocalization.string(self == .covers ? "封面" : "列表") }
     var symbol: String { self == .covers ? "square.grid.2x2" : "list.bullet" }
 }
 
@@ -255,7 +255,7 @@ private struct ReaderFormatGuideView: View {
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.headline)
-                Text(detail)
+                Text(AppLocalization.string(detail))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

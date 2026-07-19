@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "鱼饼";
+"NSCameraUsageDescription" = "鱼饼使用相机扫描文档和二维码以快速添加文件。";
+"NSAppleMusicUsageDescription" = "用于扫描并导入你已下载到设备的本地音乐。";
+"NSLocalNetworkUsageDescription" = "用于在同一 Wi-Fi 下从电脑向鱼饼快速传入文件。";

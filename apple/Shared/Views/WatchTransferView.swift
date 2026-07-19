@@ -22,7 +22,7 @@ struct WatchTransferView: View {
                         .font(.title2)
                         .foregroundStyle(transfer.isPaired && transfer.isWatchAppInstalled ? .green : .secondary)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(transfer.lastStatus)
+                        Text(AppLocalization.string(transfer.lastStatus))
                             .font(.headline)
                         Text("传输会在后台完成，文件随后可在手表上离线使用。")
                             .font(.caption)
@@ -30,7 +30,7 @@ struct WatchTransferView: View {
                         if let progress = transfer.overallProgress {
                             ProgressView(value: progress)
                                 .tint(.cyan)
-                            Text("\(transfer.activeTransferTitle ?? "正在传输") · \(Int(progress * 100))%")
+                            Text("\(transfer.activeTransferTitle ?? AppLocalization.string("正在传输")) · \(Int(progress * 100))%")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
@@ -91,7 +91,7 @@ struct WatchTransferView: View {
                 transfer.send(store.items.filter { selectedPaths.contains($0.relativePath) })
                 selectedPaths.removeAll()
             } label: {
-                Label(selectedPaths.isEmpty ? "选择文件" : "传输 \(selectedPaths.count) 个文件", systemImage: "applewatch.radiowaves.left.and.right")
+                Label(transferButtonTitle, systemImage: "applewatch.radiowaves.left.and.right")
                     .frame(maxWidth: .infinity)
             }
             .adaptiveGlassButton(prominent: true)
@@ -102,6 +102,11 @@ struct WatchTransferView: View {
 
     private func symbol(for rawKind: String) -> String {
         LibraryKind(rawValue: rawKind)?.symbol ?? "doc"
+    }
+
+    private var transferButtonTitle: String {
+        if selectedPaths.isEmpty { return AppLocalization.string("选择文件") }
+        return "\(AppLocalization.string("传输")) \(selectedPaths.count) \(AppLocalization.string("个文件"))"
     }
 }
 #endif

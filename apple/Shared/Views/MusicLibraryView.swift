@@ -5,6 +5,7 @@ import SwiftUI
 import AppKit
 private typealias AudioPlatformImage = NSImage
 #else
+import MediaPlayer
 import UIKit
 private typealias AudioPlatformImage = UIImage
 #endif
@@ -44,7 +45,7 @@ struct MusicLibraryView: View {
             guard let metadata = player.metadataByPath[track.relativePath],
                   let album = metadata.album?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !album.isEmpty else { continue }
-            let artist = metadata.albumArtist ?? metadata.artist ?? "未知艺人"
+            let artist = metadata.albumArtist ?? metadata.artist ?? AppLocalization.string("未知艺人")
             grouped["\(album)|\(artist)", default: []].append(track)
         }
         return grouped.compactMap { key, tracks in
@@ -58,7 +59,7 @@ struct MusicLibraryView: View {
             return MusicAlbum(
                 id: key,
                 title: title,
-                artist: metadata.albumArtist ?? metadata.artist ?? "未知艺人",
+                artist: metadata.albumArtist ?? metadata.artist ?? AppLocalization.string("未知艺人"),
                 year: metadata.year,
                 genre: metadata.genre,
                 artworkData: metadata.artworkData,
@@ -79,14 +80,14 @@ struct MusicLibraryView: View {
                 )
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 22) {
+                    LazyVStack(alignment: .leading, spacing: 30) {
                         if !albums.isEmpty {
                             albumSection
                         }
                         trackSection
                     }
-                    .frame(maxWidth: 980)
-                    .padding(.vertical, 18)
+                    .frame(maxWidth: 1_100)
+                    .padding(.vertical, 20)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -107,10 +108,15 @@ struct MusicLibraryView: View {
                 _ = await player.loadMetadata(for: track)
             }
         }
+        #if os(iOS)
+        .task {
+            _ = await SystemMusicLibraryAccess.requestAuthorizationIfNeeded()
+        }
+        #endif
         .alert("播放失败", isPresented: playbackErrorPresented) {
             Button("好", role: .cancel) { player.playbackError = nil }
         } message: {
-            Text(player.playbackError ?? "无法播放此文件。")
+            Text(player.playbackError.map(AppLocalization.string) ?? AppLocalization.string("无法播放此文件。"))
         }
     }
 
@@ -149,13 +155,13 @@ struct MusicLibraryView: View {
 
     private var trackSection: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            Text("歌曲 · \(filteredTracks.count)")
+            Text("\(AppLocalization.string("歌曲")) · \(filteredTracks.count)")
                 .font(.title2.weight(.bold))
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 6)
             ForEach(filteredTracks) { item in
                 AudioTrackRow(item: item, queue: filteredTracks)
-                Divider().padding(.leading, 76)
+                Divider().padding(.leading, 92)
             }
         }
     }
@@ -183,7 +189,7 @@ private struct AudioTrackRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Button {
                 if player.currentItem == item {
                     player.togglePlayback()
@@ -200,47 +206,59 @@ private struct AudioTrackRow: View {
                             .foregroundStyle(.white)
                     }
                 }
-                .frame(width: 48, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .frame(width: 60, height: 60)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.plain)
 
             NavigationLink {
                 NowPlayingView(startingItem: item)
             } label: {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(metadata?.title ?? item.displayName)
                         .font(.headline)
                         .lineLimit(1)
-                    Text(trackDetail)
-                        .font(.caption)
+                    Text(artistAndAlbum)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Text(technicalDetail)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
 
-            if metadata?.isLossless == true {
-                Text("无损")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.pink)
+            VStack(alignment: .trailing, spacing: 4) {
+                if metadata?.isLossless == true {
+                    Text("无损")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.pink)
+                }
+                Text(item.byteCount.formattedFileSize)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.tertiary)
             }
-            Text(item.byteCount.formattedFileSize)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
     }
 
-    private var trackDetail: String {
-        let values = [metadata?.artist, metadata?.album, metadata?.qualityDescription]
+    private var artistAndAlbum: String {
+        let values = [metadata?.artist, metadata?.album]
             .compactMap { value -> String? in
                 guard let value, !value.isEmpty else { return nil }
                 return value
             }
-        return values.isEmpty ? item.fileExtension.uppercased() : values.joined(separator: " · ")
+        return values.isEmpty ? AppLocalization.string("未知艺人") : values.joined(separator: " · ")
+    }
+
+    private var technicalDetail: String {
+        let quality = metadata?.qualityDescription ?? ""
+        return quality.isEmpty ? item.fileExtension.uppercased() : quality
     }
 }
 
@@ -326,18 +344,18 @@ struct MiniPlayerView: View {
     @State private var isPlayerPresented = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             if let item = player.currentItem {
                 Button { isPlayerPresented = true } label: {
                     HStack(spacing: 10) {
                         AudioArtwork(data: player.currentMetadata.artworkData, fallbackSymbol: "music.note")
-                            .frame(width: 42, height: 42)
-                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .frame(width: 46, height: 46)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(player.currentMetadata.title ?? item.displayName)
                                 .font(.subheadline.weight(.semibold))
                                 .lineLimit(1)
-                            Text(player.currentMetadata.artist ?? "鱼饼音乐")
+                            Text(player.currentMetadata.artist ?? AppLocalization.string("鱼饼音乐"))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
@@ -349,7 +367,8 @@ struct MiniPlayerView: View {
                 if player.isPreparing { ProgressView().controlSize(.small) }
                 Button { player.togglePlayback() } label: {
                     Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                        .frame(width: 30, height: 30)
+                        .font(.title3)
+                        .frame(width: 34, height: 34)
                 }
                 .buttonStyle(.plain)
                 Button { player.playNext() } label: { Image(systemName: "forward.fill") }
@@ -357,13 +376,21 @@ struct MiniPlayerView: View {
             }
         }
         .padding(8)
-        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        #if os(iOS)
+        .fullScreenCover(isPresented: $isPlayerPresented) {
+            if let item = player.currentItem {
+                NowPlayingView(startingItem: item)
+            }
+        }
+        #else
         .sheet(isPresented: $isPlayerPresented) {
             if let item = player.currentItem {
                 NowPlayingView(startingItem: item)
                     .frame(minWidth: 360, minHeight: 560)
             }
         }
+        #endif
     }
 }
 
@@ -375,32 +402,51 @@ struct NowPlayingView: View {
 
     @State private var showsLyrics = false
     @State private var showsSleepTimer = false
+    @State private var showsQueue = false
 
     private var tracks: [LibraryItem] { store.items(of: .music).sorted(by: .name) }
     private var activeItem: LibraryItem { player.currentItem ?? startingItem }
 
     var body: some View {
-        ZStack {
-            AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
-            VStack(spacing: 18) {
-                topBar
-                Group {
-                    if showsLyrics {
-                        SyncedLyricsView(lyrics: player.currentMetadata.lyrics)
-                    } else {
-                        artworkPanel
+        GeometryReader { geometry in
+            ZStack {
+                AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
+                VStack(spacing: 0) {
+                    #if os(iOS)
+                    Capsule()
+                        .fill(.white.opacity(0.42))
+                        .frame(width: 36, height: 5)
+                        .padding(.top, 7)
+                        .padding(.bottom, 9)
+                    #endif
+
+                    topBar
+                    Group {
+                        if showsLyrics {
+                            SyncedLyricsView(lyrics: player.currentMetadata.lyrics)
+                        } else {
+                            artworkPanel(size: artworkSize(in: geometry.size))
+                        }
                     }
+                    .frame(height: artworkSize(in: geometry.size))
+                    .padding(.top, 14)
+                    .padding(.bottom, 20)
+
+                    metadataPanel
+                    progressPanel
+                        .padding(.top, 16)
+                    playbackControls
+                        .padding(.vertical, 16)
+                    volumePanel
+                    secondaryControls
+                        .padding(.top, 12)
+                        .padding(.bottom, 6)
                 }
-                .frame(maxHeight: .infinity)
-                metadataPanel
-                progressPanel
-                playbackControls
-                secondaryControls
+                .foregroundStyle(.white)
+                .padding(.horizontal, 24)
+                .padding(.bottom, max(8, geometry.safeAreaInsets.bottom * 0.25))
+                .frame(maxWidth: 720)
             }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .frame(maxWidth: 760)
         }
         .onAppear {
             if player.currentItem != startingItem {
@@ -410,40 +456,56 @@ struct NowPlayingView: View {
         }
         .confirmationDialog("定时关闭", isPresented: $showsSleepTimer, titleVisibility: .visible) {
             ForEach([15, 30, 45, 60, 90], id: \.self) { minutes in
-                Button("\(minutes) 分钟") { player.setSleepTimer(minutes: minutes) }
+                Button("\(minutes) \(AppLocalization.string("分钟"))") { player.setSleepTimer(minutes: minutes) }
             }
             Button("本曲结束") { player.sleepAfterCurrentTrack() }
             if player.sleepTimerEnd != nil || player.stopAfterCurrentTrack {
                 Button("关闭定时", role: .destructive) { player.cancelSleepTimer() }
             }
         }
+        .sheet(isPresented: $showsQueue) {
+            PlaybackQueueView()
+        }
+        #if os(iOS)
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        #endif
     }
 
     private var topBar: some View {
         HStack {
-            Button { dismiss() } label: { Image(systemName: "chevron.down") }
-                .adaptiveGlassButton()
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.down")
+                    .font(.headline)
+                    .frame(width: 38, height: 38)
+                    .background(.white.opacity(0.12), in: Circle())
+            }
+            .buttonStyle(.plain)
             Spacer()
             VStack(spacing: 2) {
-                Text(showsLyrics ? "歌词" : "正在播放")
-                    .font(.caption.weight(.semibold))
+                Text(AppLocalization.string(showsLyrics ? "歌词" : "正在播放"))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.72))
-                Text(player.currentMetadata.album ?? "鱼饼音乐")
-                    .font(.headline)
+                Text(player.currentMetadata.album ?? AppLocalization.string("鱼饼音乐"))
+                    .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
             }
+            .frame(maxWidth: 260)
             Spacer()
-            ShareLink(item: activeItem.url) { Image(systemName: "square.and.arrow.up") }
-                .adaptiveGlassButton()
+            optionsMenu
         }
     }
 
-    private var artworkPanel: some View {
+    private func artworkPanel(size: CGFloat) -> some View {
         AudioArtwork(data: player.currentMetadata.artworkData, fallbackSymbol: "music.note")
-            .aspectRatio(1, contentMode: .fit)
-            .frame(maxWidth: 470)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: .black.opacity(0.38), radius: 28, y: 18)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .shadow(color: .black.opacity(0.34), radius: 24, y: 14)
+    }
+
+    private func artworkSize(in size: CGSize) -> CGFloat {
+        let width = max(size.width - 48, 180)
+        return max(180, min(width, 520, size.height - 430))
     }
 
     private var metadataPanel: some View {
@@ -452,7 +514,7 @@ struct NowPlayingView: View {
                 Text(player.currentMetadata.title ?? activeItem.displayName)
                     .font(.title2.weight(.bold))
                     .lineLimit(2)
-                Text(player.currentMetadata.artist ?? player.currentMetadata.album ?? "本地音乐")
+                Text(player.currentMetadata.artist ?? player.currentMetadata.album ?? AppLocalization.string("本地音乐"))
                     .font(.title3)
                     .foregroundStyle(.white.opacity(0.7))
                     .lineLimit(1)
@@ -505,14 +567,21 @@ struct NowPlayingView: View {
         .buttonStyle(.plain)
     }
 
-    private var secondaryControls: some View {
-        HStack {
-            Button { player.toggleShuffle() } label: {
-                Image(systemName: "shuffle")
-                    .foregroundStyle(player.isShuffleEnabled ? .white : .white.opacity(0.48))
+    private var optionsMenu: some View {
+        Menu {
+            ShareLink(item: activeItem.url) {
+                Label("分享", systemImage: "square.and.arrow.up")
             }
-            Spacer()
-            Menu {
+            Button { player.toggleShuffle() } label: {
+                Label(
+                    AppLocalization.string(player.isShuffleEnabled ? "关闭随机播放" : "随机播放"),
+                    systemImage: "shuffle"
+                )
+            }
+            Button { player.cycleRepeatMode() } label: {
+                Label(player.repeatMode.title, systemImage: player.repeatMode.symbol)
+            }
+            Menu("播放速度") {
                 ForEach([0.5, 0.75, 1, 1.25, 1.5, 2, 3], id: \.self) { rate in
                     Button {
                         player.setPlaybackRate(Float(rate))
@@ -524,30 +593,134 @@ struct NowPlayingView: View {
                         }
                     }
                 }
-            } label: {
-                Text("\(Double(player.playbackRate).formatted())x")
-                    .font(.callout.weight(.bold))
             }
-            Spacer()
+            Button { showsSleepTimer = true } label: {
+                Label("定时关闭", systemImage: "timer")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.headline)
+                .frame(width: 38, height: 38)
+                .background(.white.opacity(0.12), in: Circle())
+        }
+    }
+
+    @ViewBuilder
+    private var volumePanel: some View {
+        #if os(iOS)
+        HStack(spacing: 10) {
+            Image(systemName: "speaker.fill")
+                .font(.caption)
+            SystemVolumeSlider()
+                .frame(height: 24)
+            Image(systemName: "speaker.wave.3.fill")
+                .font(.caption)
+        }
+        .foregroundStyle(.white.opacity(0.68))
+        #else
+        EmptyView()
+        #endif
+    }
+
+    private var secondaryControls: some View {
+        HStack {
             Button { showsLyrics.toggle() } label: {
                 Image(systemName: "quote.bubble")
                     .foregroundStyle(showsLyrics ? .white : .white.opacity(0.62))
+                    .frame(width: 44, height: 36)
             }
+            .accessibilityLabel("歌词")
             Spacer()
-            Button { showsSleepTimer = true } label: {
-                Image(systemName: player.sleepTimerEnd == nil && !player.stopAfterCurrentTrack ? "timer" : "timer.circle.fill")
-            }
+            #if os(iOS)
+            AirPlayRouteButton()
+                .frame(width: 44, height: 36)
+                .accessibilityLabel("AirPlay")
+            #else
+            Image(systemName: "airplayaudio")
+                .frame(width: 44, height: 36)
+            #endif
             Spacer()
-            Button { player.cycleRepeatMode() } label: {
-                Image(systemName: player.repeatMode.symbol)
-                    .foregroundStyle(player.repeatMode == .off ? .white.opacity(0.48) : .white)
+            Button { showsQueue = true } label: {
+                Image(systemName: "list.bullet")
+                    .frame(width: 44, height: 36)
             }
+            .accessibilityLabel("播放队列")
         }
         .font(.title3)
         .buttonStyle(.plain)
-        .padding(.bottom, 6)
     }
 }
+
+private struct PlaybackQueueView: View {
+    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(player.queue) { item in
+                Button {
+                    player.play(item, in: player.queue)
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        AudioArtwork(
+                            data: player.metadataByPath[item.relativePath]?.artworkData,
+                            fallbackSymbol: "music.note"
+                        )
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(player.metadataByPath[item.relativePath]?.title ?? item.displayName)
+                                .font(.headline)
+                                .lineLimit(1)
+                            Text(player.metadataByPath[item.relativePath]?.artist ?? AppLocalization.string("未知艺人"))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        if player.currentItem == item {
+                            Image(systemName: player.isPlaying ? "waveform" : "pause.fill")
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .navigationTitle("播放队列")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+#if os(iOS)
+private struct SystemVolumeSlider: UIViewRepresentable {
+    func makeUIView(context: Context) -> MPVolumeView {
+        let view = MPVolumeView(frame: .zero)
+        view.showsRouteButton = false
+        view.tintColor = .white
+        return view
+    }
+
+    func updateUIView(_ uiView: MPVolumeView, context: Context) {}
+}
+
+private struct AirPlayRouteButton: UIViewRepresentable {
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let view = AVRoutePickerView(frame: .zero)
+        view.tintColor = UIColor.white.withAlphaComponent(0.72)
+        view.activeTintColor = .white
+        return view
+    }
+
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
+}
+#endif
 
 private struct SyncedLyricsView: View {
     @EnvironmentObject private var player: AudioPlayerController
@@ -604,24 +777,17 @@ private struct AudioGradientBackground: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color.indigo, Color.pink.opacity(0.8), Color.cyan.opacity(0.65)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            Color(red: 0.09, green: 0.10, blue: 0.12)
             if let image = platformAudioImage(data: artworkData) {
                 platformAudioImageView(image)
                     .resizable()
                     .scaledToFill()
-                    .blur(radius: 52)
-                    .scaleEffect(1.25)
-                    .opacity(0.88)
+                    .blur(radius: 58)
+                    .scaleEffect(1.30)
+                    .opacity(0.94)
             }
-            LinearGradient(
-                colors: [.black.opacity(0.08), .black.opacity(0.38)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            Rectangle().fill(.ultraThinMaterial).opacity(0.18)
+            Color.black.opacity(0.24)
         }
         .ignoresSafeArea()
     }
@@ -637,7 +803,7 @@ private struct AudioArtwork: View {
             if let image = platformAudioImage(data: data) {
                 platformAudioImageView(image).resizable().scaledToFill()
             } else {
-                LinearGradient(colors: [.pink.opacity(0.9), .indigo], startPoint: .topLeading, endPoint: .bottomTrailing)
+                Color.white.opacity(0.10)
                 Image(systemName: fallbackSymbol)
                     .font(.system(size: 46, weight: .medium))
                     .foregroundStyle(.white.opacity(0.88))

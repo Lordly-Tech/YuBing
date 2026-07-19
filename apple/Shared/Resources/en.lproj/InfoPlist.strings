@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "YuBing";
+"NSCameraUsageDescription" = "YuBing uses the camera to scan documents and QR codes so files can be added quickly.";
+"NSAppleMusicUsageDescription" = "YuBing scans and imports local music downloaded to this device.";
+"NSLocalNetworkUsageDescription" = "YuBing uses the local network to receive files from a computer on the same Wi-Fi network.";

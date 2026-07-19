@@ -29,7 +29,7 @@ struct VideoPlayerScreen: View {
                 Button {
                     store.toggleFavorite(item)
                 } label: {
-                    Label(store.isFavorite(item) ? "取消收藏" : "收藏", systemImage: store.isFavorite(item) ? "star.fill" : "star")
+                    Label(AppLocalization.string(store.isFavorite(item) ? "取消收藏" : "收藏"), systemImage: store.isFavorite(item) ? "star.fill" : "star")
                 }
                 #if os(iOS)
                 Button {

@@ -6,7 +6,7 @@ private enum ComicDisplayMode: String, CaseIterable, Identifiable {
     case continuous
 
     var id: String { rawValue }
-    var title: String { self == .pages ? "单页" : "连续" }
+    var title: String { AppLocalization.string(self == .pages ? "单页" : "连续") }
 }
 
 struct PDFComicReaderView: View {
@@ -35,7 +35,7 @@ struct PDFComicReaderView: View {
             #endif
             .toolbar {
                 ToolbarItemGroup {
-                    Text("\(pageCount) 页")
+                    Text("\(pageCount) \(AppLocalization.string("页"))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Picker("阅读方式", selection: $mode) {

@@ -48,7 +48,7 @@ struct LibraryItemCard: View {
                     Text(item.kind.title)
                 }
                 Text("·")
-                Text(audioMetadata?.album ?? (item.isDirectory ? "文件夹" : item.byteCount.formattedFileSize))
+                Text(audioMetadata?.album ?? (item.isDirectory ? AppLocalization.string("文件夹") : item.byteCount.formattedFileSize))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -72,7 +72,7 @@ struct LibraryItemCard: View {
         Button {
             store.toggleFavorite(item)
         } label: {
-            Label(store.isFavorite(item) ? "取消收藏" : "收藏", systemImage: store.isFavorite(item) ? "star.slash" : "star")
+            Label(AppLocalization.string(store.isFavorite(item) ? "取消收藏" : "收藏"), systemImage: store.isFavorite(item) ? "star.slash" : "star")
         }
         #if os(iOS)
         WatchSendContextButton(item: item)
@@ -136,7 +136,7 @@ struct LibraryItemRow: View {
             Button {
                 store.toggleFavorite(item)
             } label: {
-                Label(store.isFavorite(item) ? "取消收藏" : "收藏", systemImage: store.isFavorite(item) ? "star.slash" : "star")
+                Label(AppLocalization.string(store.isFavorite(item) ? "取消收藏" : "收藏"), systemImage: store.isFavorite(item) ? "star.slash" : "star")
             }
             #if os(iOS)
             WatchSendContextButton(item: item)
@@ -174,7 +174,7 @@ struct LibraryItemRow: View {
         let details = [audioMetadata?.artist, audioMetadata?.album]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        return details.isEmpty ? "音乐 · \(item.byteCount.formattedFileSize)" : details.joined(separator: " · ")
+        return details.isEmpty ? "\(AppLocalization.string("音乐")) · \(item.byteCount.formattedFileSize)" : details.joined(separator: " · ")
     }
 }
 
@@ -203,9 +203,9 @@ struct ContentUnavailablePanel: View {
 
     var body: some View {
         ContentUnavailableView {
-            Label(title, systemImage: symbol)
+            Label(AppLocalization.string(title), systemImage: symbol)
         } description: {
-            Text(message)
+            Text(AppLocalization.string(message))
         } actions: {
             if let action { action }
         }
@@ -229,7 +229,7 @@ struct MetricTile: View {
                 Text(value)
                     .font(.headline)
                     .lineLimit(1)
-                Text(title)
+                Text(AppLocalization.string(title))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

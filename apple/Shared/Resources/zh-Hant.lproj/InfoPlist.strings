@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "魚餅";
+"NSCameraUsageDescription" = "魚餅會使用相機掃描文件和 QR Code，以快速新增檔案。";
+"NSAppleMusicUsageDescription" = "用於掃描並匯入你已下載到裝置的本地音樂。";
+"NSLocalNetworkUsageDescription" = "用於在同一 Wi-Fi 下從電腦向魚餅快速傳入檔案。";

@@ -116,7 +116,7 @@ struct DashboardView: View {
                         .font(.system(.largeTitle, design: .rounded, weight: .bold))
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
-                    Text(touchedBookCount == 0 ? "还没有阅读记录" : "已记录 \(touchedBookCount) 本书")
+                    Text(touchedBookCount == 0 ? AppLocalization.string("还没有阅读记录") : "\(AppLocalization.string("已记录")) \(touchedBookCount) \(AppLocalization.string("本书"))")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -136,7 +136,7 @@ struct DashboardView: View {
     #endif
 
     private func sectionHeader(_ title: String, symbol: String) -> some View {
-        Label(title, systemImage: symbol)
+        Label(AppLocalization.string(title), systemImage: symbol)
             .font(.title3.weight(.semibold))
     }
 }
@@ -170,7 +170,7 @@ private struct WatchDashboardSummary: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Apple Watch")
                         .font(.headline)
-                    Text(transfer.lastStatus)
+                    Text(AppLocalization.string(transfer.lastStatus))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -189,7 +189,7 @@ private struct WatchDashboardSummary: View {
                     ProgressView(value: progress)
                         .tint(.cyan)
                     HStack {
-                        Text(transfer.activeTransferTitle ?? "正在传输")
+                        Text(transfer.activeTransferTitle ?? AppLocalization.string("正在传输"))
                             .lineLimit(1)
                         Spacer()
                         Text("\(Int(progress * 100))%")

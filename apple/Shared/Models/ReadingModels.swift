@@ -66,10 +66,12 @@ struct WatchReadingStatPayload: Codable, Hashable, Sendable {
 extension TimeInterval {
     var formattedReadingDuration: String {
         let totalMinutes = max(Int(self / 60), 0)
-        if totalMinutes < 1 { return "不到 1 分钟" }
-        if totalMinutes < 60 { return "\(totalMinutes) 分钟" }
+        if totalMinutes < 1 { return AppLocalization.string("不到 1 分钟") }
+        if totalMinutes < 60 { return "\(totalMinutes) \(AppLocalization.string("分钟"))" }
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        return minutes == 0 ? "\(hours) 小时" : "\(hours) 小时 \(minutes) 分钟"
+        return minutes == 0
+            ? "\(hours) \(AppLocalization.string("小时"))"
+            : "\(hours) \(AppLocalization.string("小时")) \(minutes) \(AppLocalization.string("分钟"))"
     }
 }

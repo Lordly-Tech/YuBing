@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct YuBingApp: App {
+    @AppStorage(AppLocalization.preferenceKey) private var appLanguageRaw = AppLanguage.system.rawValue
     @StateObject private var store = LibraryStore()
     @StateObject private var player = AudioPlayerController()
     @StateObject private var readingStore = ReadingStore()
@@ -13,6 +14,7 @@ struct YuBingApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environment(\.locale, Locale(identifier: appLanguage.localeIdentifier))
                 .environmentObject(store)
                 .environmentObject(player)
                 .environmentObject(readingStore)
@@ -34,5 +36,9 @@ struct YuBingApp: App {
         .defaultSize(width: 1180, height: 760)
         .windowToolbarStyle(.unified)
         #endif
+    }
+
+    private var appLanguage: AppLanguage {
+        AppLanguage(rawValue: appLanguageRaw) ?? .system
     }
 }

@@ -27,8 +27,8 @@ struct RootView: View {
         }
         .alert(item: $store.alert) { alert in
             Alert(
-                title: Text(alert.title),
-                message: Text(alert.message),
+                title: Text(AppLocalization.string(alert.title)),
+                message: Text(AppLocalization.string(alert.message)),
                 dismissButton: .default(Text("好"))
             )
         }

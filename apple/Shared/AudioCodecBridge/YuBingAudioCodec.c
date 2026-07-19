@@ -13,6 +13,166 @@ static void yubing_error(char *buffer, int32_t capacity, int code, const char *c
     snprintf(buffer, (size_t)capacity, "%s: %s", context, detail);
 }
 
+static const char *yubing_metadata_value(
+    AVDictionary *container_metadata,
+    AVDictionary *stream_metadata,
+    const char *const *keys,
+    size_t key_count
+) {
+    for (size_t index = 0; index < key_count; index++) {
+        AVDictionaryEntry *entry = av_dict_get(container_metadata, keys[index], NULL, 0);
+        if (entry == NULL) {
+            entry = av_dict_get(stream_metadata, keys[index], NULL, 0);
+        }
+        if (entry != NULL && entry->value != NULL && entry->value[0] != '\0') {
+            return entry->value;
+        }
+    }
+    return NULL;
+}
+
+static char *yubing_copy_metadata_value(
+    AVDictionary *container_metadata,
+    AVDictionary *stream_metadata,
+    const char *const *keys,
+    size_t key_count
+) {
+    const char *value = yubing_metadata_value(
+        container_metadata,
+        stream_metadata,
+        keys,
+        key_count
+    );
+    return value == NULL ? NULL : av_strdup(value);
+}
+
+void yubing_free_audio_metadata(YuBingAudioMetadata *metadata) {
+    if (metadata == NULL) {
+        return;
+    }
+    av_freep(&metadata->title);
+    av_freep(&metadata->artist);
+    av_freep(&metadata->album);
+    av_freep(&metadata->album_artist);
+    av_freep(&metadata->genre);
+    av_freep(&metadata->date);
+    av_freep(&metadata->track_number);
+    av_freep(&metadata->disc_number);
+    av_freep(&metadata->lyrics);
+    av_freep(&metadata->codec);
+    av_freep(&metadata->artwork_data);
+    memset(metadata, 0, sizeof(*metadata));
+}
+
+int32_t yubing_read_audio_metadata(
+    const char *input_path,
+    YuBingAudioMetadata *metadata,
+    char *error_buffer,
+    int32_t error_capacity
+) {
+    if (input_path == NULL || metadata == NULL) {
+        return AVERROR(EINVAL);
+    }
+    memset(metadata, 0, sizeof(*metadata));
+
+    AVFormatContext *input = NULL;
+    int result = avformat_open_input(&input, input_path, NULL, NULL);
+    if (result < 0) {
+        yubing_error(error_buffer, error_capacity, result, "Unable to open audio metadata");
+        return result;
+    }
+    result = avformat_find_stream_info(input, NULL);
+    if (result < 0) {
+        yubing_error(error_buffer, error_capacity, result, "Unable to read audio metadata");
+        avformat_close_input(&input);
+        return result;
+    }
+
+    const int audio_index = av_find_best_stream(input, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
+    if (audio_index < 0) {
+        yubing_error(error_buffer, error_capacity, audio_index, "No audio stream");
+        avformat_close_input(&input);
+        return audio_index;
+    }
+    AVStream *audio_stream = input->streams[audio_index];
+    AVCodecParameters *codec = audio_stream->codecpar;
+    AVDictionary *container_metadata = input->metadata;
+    AVDictionary *stream_metadata = audio_stream->metadata;
+
+    const char *title_keys[] = {"title"};
+    const char *artist_keys[] = {"artist", "performer", "album_artist", "albumartist"};
+    const char *album_keys[] = {"album", "WM/AlbumTitle"};
+    const char *album_artist_keys[] = {"album_artist", "albumartist", "WM/AlbumArtist"};
+    const char *genre_keys[] = {"genre", "WM/Genre"};
+    const char *date_keys[] = {"date", "year", "originaldate", "WM/Year"};
+    const char *track_keys[] = {"track", "tracknumber", "WM/TrackNumber"};
+    const char *disc_keys[] = {"disc", "discnumber", "disk"};
+    const char *lyrics_keys[] = {
+        "lyrics", "syncedlyrics", "unsyncedlyrics", "unsynchronizedlyrics", "WM/Lyrics"
+    };
+
+#define YUBING_KEY_COUNT(keys) (sizeof(keys) / sizeof((keys)[0]))
+    metadata->title = yubing_copy_metadata_value(
+        container_metadata, stream_metadata, title_keys, YUBING_KEY_COUNT(title_keys)
+    );
+    metadata->artist = yubing_copy_metadata_value(
+        container_metadata, stream_metadata, artist_keys, YUBING_KEY_COUNT(artist_keys)
+    );
+    metadata->album = yubing_copy_metadata_value(
+        container_metadata, stream_metadata, album_keys, YUBING_KEY_COUNT(album_keys)
+    );
+    metadata->album_artist = yubing_copy_metadata_value(
+        container_metadata, stream_metadata, album_artist_keys, YUBING_KEY_COUNT(album_artist_keys)
+    );
+    metadata->genre = yubing_copy_metadata_value(
+        container_metadata, stream_metadata, genre_keys, YUBING_KEY_COUNT(genre_keys)
+    );
+    metadata->date = yubing_copy_metadata_value(
+        container_metadata, stream_metadata, date_keys, YUBING_KEY_COUNT(date_keys)
+    );
+    metadata->track_number = yubing_copy_metadata_value(
+        container_metadata, stream_metadata, track_keys, YUBING_KEY_COUNT(track_keys)
+    );
+    metadata->disc_number = yubing_copy_metadata_value(
+        container_metadata, stream_metadata, disc_keys, YUBING_KEY_COUNT(disc_keys)
+    );
+    metadata->lyrics = yubing_copy_metadata_value(
+        container_metadata, stream_metadata, lyrics_keys, YUBING_KEY_COUNT(lyrics_keys)
+    );
+#undef YUBING_KEY_COUNT
+
+    const char *codec_name = avcodec_get_name(codec->codec_id);
+    metadata->codec = codec_name == NULL ? NULL : av_strdup(codec_name);
+    metadata->sample_rate = codec->sample_rate;
+    metadata->bit_depth = codec->bits_per_raw_sample > 0
+        ? codec->bits_per_raw_sample
+        : codec->bits_per_coded_sample;
+    if (metadata->bit_depth <= 0) {
+        metadata->bit_depth = av_get_bits_per_sample(codec->codec_id);
+    }
+    const AVCodecDescriptor *descriptor = avcodec_descriptor_get(codec->codec_id);
+    metadata->is_lossless = descriptor != NULL &&
+        (descriptor->props & AV_CODEC_PROP_LOSSLESS) != 0;
+
+    for (unsigned int index = 0; index < input->nb_streams; index++) {
+        AVStream *stream = input->streams[index];
+        AVPacket *picture = &stream->attached_pic;
+        if ((stream->disposition & AV_DISPOSITION_ATTACHED_PIC) == 0 ||
+            picture->data == NULL || picture->size <= 0) {
+            continue;
+        }
+        metadata->artwork_data = av_malloc((size_t)picture->size);
+        if (metadata->artwork_data != NULL) {
+            memcpy(metadata->artwork_data, picture->data, (size_t)picture->size);
+            metadata->artwork_size = picture->size;
+        }
+        break;
+    }
+
+    avformat_close_input(&input);
+    return 0;
+}
+
 static int yubing_write_packets(
     AVFormatContext *output,
     AVCodecContext *encoder,

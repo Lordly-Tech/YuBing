@@ -66,6 +66,19 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
     }
 
     static func load(from url: URL) async -> EmbeddedAudioMetadata {
+        let ext = url.pathExtension.lowercased()
+        let containerMetadata = await Task.detached(priority: .utility) {
+            try? FFmpegAudioMetadataReader.read(from: url)
+        }.value
+        let flacMetadata: FLACMetadataSnapshot?
+        if ext == "flac" {
+            flacMetadata = await Task.detached(priority: .utility) {
+                try? FLACMetadataReader.read(from: url)
+            }.value
+        } else {
+            flacMetadata = nil
+        }
+
         let asset = AVURLAsset(url: url)
         let commonItems = (try? await asset.load(.commonMetadata)) ?? []
         var allItems = commonItems
@@ -76,26 +89,35 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
             }
         }
 
-        let title = await stringValue(in: allItems, identifiers: [.commonIdentifierTitle], hints: ["title"])
-        let artist = await stringValue(in: allItems, identifiers: [.commonIdentifierArtist], hints: ["artist", "performer"])
-        let album = await stringValue(in: allItems, identifiers: [.commonIdentifierAlbumName], hints: ["album"])
-        let albumArtist = await stringValue(in: allItems, identifiers: [], hints: ["albumartist", "album_artist"])
-        let genre = await stringValue(in: allItems, identifiers: [], hints: ["genre", "contenttype"])
-        let rawYear = await stringValue(in: allItems, identifiers: [.commonIdentifierCreationDate], hints: ["year", "date"])
+        let avTitle = await stringValue(in: allItems, identifiers: [.commonIdentifierTitle], hints: ["title"])
+        let avArtist = await stringValue(in: allItems, identifiers: [.commonIdentifierArtist], hints: ["artist", "performer"])
+        let avAlbum = await stringValue(in: allItems, identifiers: [.commonIdentifierAlbumName], hints: ["album"])
+        let avAlbumArtist = await stringValue(in: allItems, identifiers: [], hints: ["albumartist", "album_artist"])
+        let avGenre = await stringValue(in: allItems, identifiers: [], hints: ["genre", "contenttype"])
+        let avYear = await stringValue(in: allItems, identifiers: [.commonIdentifierCreationDate], hints: ["year", "date"])
+        let title = containerMetadata?.title ?? flacMetadata?.title ?? avTitle
+        let artist = containerMetadata?.artist ?? flacMetadata?.artist ?? avArtist
+        let album = containerMetadata?.album ?? flacMetadata?.album ?? avAlbum
+        let albumArtist = containerMetadata?.albumArtist ?? flacMetadata?.albumArtist ?? avAlbumArtist
+        let genre = containerMetadata?.genre ?? flacMetadata?.genre ?? avGenre
+        let rawYear = containerMetadata?.date ?? flacMetadata?.date ?? avYear
         let year = rawYear.flatMap { value in
             let digits = value.filter(\.isNumber)
             return digits.count >= 4 ? String(digits.prefix(4)) : value
         }
-        let trackNumber = await stringValue(in: allItems, identifiers: [], hints: ["tracknumber", "track_number"])
-        let discNumber = await stringValue(in: allItems, identifiers: [], hints: ["discnumber", "disc_number"])
-        let embeddedLyrics = await stringValue(in: allItems, identifiers: [], hints: ["lyric", "unsynchronizedlyric"])
-        let artworkData = await dataValue(in: allItems, identifier: .commonIdentifierArtwork, hints: ["artwork", "picture", "cover"])
+        let avTrackNumber = await stringValue(in: allItems, identifiers: [], hints: ["tracknumber", "track_number"])
+        let avDiscNumber = await stringValue(in: allItems, identifiers: [], hints: ["discnumber", "disc_number"])
+        let avLyrics = await stringValue(in: allItems, identifiers: [], hints: ["lyric", "unsynchronizedlyric"])
+        let avArtworkData = await dataValue(in: allItems, identifier: .commonIdentifierArtwork, hints: ["artwork", "picture", "cover"])
+        let trackNumber = containerMetadata?.trackNumber ?? flacMetadata?.trackNumber ?? avTrackNumber
+        let discNumber = containerMetadata?.discNumber ?? flacMetadata?.discNumber ?? avDiscNumber
+        let embeddedLyrics = containerMetadata?.lyrics ?? flacMetadata?.lyrics ?? avLyrics
+        let artworkData = containerMetadata?.artworkData ?? flacMetadata?.artworkData ?? avArtworkData
         let properties = await audioProperties(from: asset)
-        let ext = url.pathExtension.lowercased()
         let losslessExtensions: Set<String> = [
             "flac", "alac", "wav", "aif", "aiff", "caf", "dsd", "dsf", "dff", "ape"
         ]
-        let isLossless = losslessExtensions.contains(ext) ||
+        let isLossless = containerMetadata?.isLossless == true || losslessExtensions.contains(ext) ||
             (properties.codec?.localizedCaseInsensitiveContains("alac") ?? false) ||
             (properties.codec?.localizedCaseInsensitiveContains("flac") ?? false) ||
             (properties.codec?.localizedCaseInsensitiveContains("wmal") ?? false)
@@ -109,9 +131,9 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
             year: year,
             trackNumber: trackNumber,
             discNumber: discNumber,
-            codec: properties.codec ?? ext,
-            sampleRate: properties.sampleRate,
-            bitDepth: properties.bitDepth,
+            codec: containerMetadata?.codec ?? properties.codec ?? ext,
+            sampleRate: containerMetadata?.sampleRate ?? flacMetadata?.sampleRate ?? properties.sampleRate,
+            bitDepth: containerMetadata?.bitDepth ?? flacMetadata?.bitDepth ?? properties.bitDepth,
             isLossless: isLossless,
             artworkData: artworkData,
             lyrics: AudioLyricsLoader.load(sidecarFor: url, embeddedText: embeddedLyrics)
@@ -181,9 +203,9 @@ enum AudioRepeatMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .off: "顺序播放"
-        case .all: "列表循环"
-        case .one: "单曲循环"
+        case .off: AppLocalization.string("顺序播放")
+        case .all: AppLocalization.string("列表循环")
+        case .one: AppLocalization.string("单曲循环")
         }
     }
 

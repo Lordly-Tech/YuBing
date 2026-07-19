@@ -22,9 +22,9 @@ enum PhotoImportScope {
 
     var title: String {
         switch self {
-        case .images: "从相册选择照片"
-        case .videos: "从相册选择视频"
-        case .media: "从相册选择照片或视频"
+        case .images: AppLocalization.string("从相册选择照片")
+        case .videos: AppLocalization.string("从相册选择视频")
+        case .media: AppLocalization.string("从相册选择照片或视频")
         }
     }
 }
@@ -41,7 +41,7 @@ struct FileImportButton: View {
         Button {
             isImporterPresented = true
         } label: {
-            Label(title, systemImage: "square.and.arrow.down")
+            Label(AppLocalization.string(title), systemImage: "square.and.arrow.down")
         }
         .adaptiveGlassButton(prominent: prominent)
         .fileImporter(
@@ -113,7 +113,7 @@ struct LibraryImportMenu: View {
                 Label("同一 Wi-Fi 传输", systemImage: "wifi")
             }
         } label: {
-            Label(title, systemImage: "plus")
+            Label(AppLocalization.string(title), systemImage: "plus")
         }
         .adaptiveGlassButton(prominent: prominent)
         .fileImporter(
@@ -151,7 +151,7 @@ private struct WiFiTransferPanel: View {
                 Image(systemName: transfer.isRunning ? "wifi" : "wifi.slash")
                     .font(.system(size: 54))
                     .foregroundStyle(transfer.isRunning ? .green : .secondary)
-                Text(transfer.status)
+                Text(AppLocalization.string(transfer.status))
                     .font(.headline)
                 if let address = transfer.address {
                     Text(address)
@@ -219,6 +219,19 @@ private func importPickerItems(
 }
 
 #if os(iOS)
+enum SystemMusicLibraryAccess {
+    @MainActor
+    static func requestAuthorizationIfNeeded() async -> MPMediaLibraryAuthorizationStatus {
+        let current = MPMediaLibrary.authorizationStatus()
+        guard current == .notDetermined else { return current }
+        return await withCheckedContinuation { continuation in
+            MPMediaLibrary.requestAuthorization { status in
+                continuation.resume(returning: status)
+            }
+        }
+    }
+}
+
 struct SystemMusicImportButton: View {
     @EnvironmentObject private var store: LibraryStore
     @State private var isImporting = false
@@ -241,9 +254,7 @@ struct SystemMusicImportButton: View {
     private func importSystemMusic() async {
         isImporting = true
         defer { isImporting = false }
-        let status = await withCheckedContinuation { continuation in
-            MPMediaLibrary.requestAuthorization { continuation.resume(returning: $0) }
-        }
+        let status = await SystemMusicLibraryAccess.requestAuthorizationIfNeeded()
         guard status == .authorized else {
             store.alert = LibraryAlert(title: "无法访问音乐库", message: "请在系统设置中允许鱼饼访问媒体与 Apple Music。")
             return

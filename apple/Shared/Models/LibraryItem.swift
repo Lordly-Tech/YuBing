@@ -11,13 +11,13 @@ enum LibraryKind: String, Codable, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .novel: "小说"
-        case .comic: "漫画"
-        case .music: "音乐"
-        case .video: "视频"
-        case .photo: "图库"
-        case .folder: "文件夹"
-        case .file: "文件"
+        case .novel: AppLocalization.string("小说")
+        case .comic: AppLocalization.string("漫画")
+        case .music: AppLocalization.string("音乐")
+        case .video: AppLocalization.string("视频")
+        case .photo: AppLocalization.string("图库")
+        case .folder: AppLocalization.string("文件夹")
+        case .file: AppLocalization.string("文件")
         }
     }
 }
@@ -79,10 +79,10 @@ enum LibrarySort: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .name: "名称"
-        case .date: "最近修改"
-        case .size: "大小"
-        case .kind: "类型"
+        case .name: AppLocalization.string("名称")
+        case .date: AppLocalization.string("最近修改")
+        case .size: AppLocalization.string("大小")
+        case .kind: AppLocalization.string("类型")
         }
     }
 }

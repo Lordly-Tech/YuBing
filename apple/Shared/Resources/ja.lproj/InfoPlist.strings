@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "魚餅";
+"NSCameraUsageDescription" = "魚餅は書類やQRコードをスキャンして、ファイルをすばやく追加するためにカメラを使用します。";
+"NSAppleMusicUsageDescription" = "このデバイスにダウンロード済みのローカル音楽をスキャンして読み込むために使用します。";
+"NSLocalNetworkUsageDescription" = "同じWi-Fi上のコンピュータから魚餅へファイルをすばやく転送するために使用します。";

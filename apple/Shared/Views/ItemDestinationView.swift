@@ -46,7 +46,7 @@ private struct DocumentPreviewScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             if let message {
-                Text(message)
+                Text(AppLocalization.string(message))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -63,7 +63,7 @@ private struct DocumentPreviewScreen: View {
                 Button {
                     store.toggleFavorite(item)
                 } label: {
-                    Label(store.isFavorite(item) ? "取消收藏" : "收藏", systemImage: store.isFavorite(item) ? "star.fill" : "star")
+                    Label(AppLocalization.string(store.isFavorite(item) ? "取消收藏" : "收藏"), systemImage: store.isFavorite(item) ? "star.fill" : "star")
                 }
                 #if os(iOS)
                 if item.isWatchCompatible {

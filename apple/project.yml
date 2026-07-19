@@ -14,6 +14,13 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
+    INFOPLIST_KEY_CFBundleAllowMixedLocalizations: true
+    INFOPLIST_KEY_CFBundleLocalizations:
+      - en
+      - zh-Hans
+      - zh-Hant
+      - ja
+      - ko
 packages:
   FFmpegLibav:
     url: https://github.com/tylerjonesio/ffmpeg-libav-spm.git
@@ -99,6 +106,12 @@ targets:
     sources:
       - path: Watch
       - path: Shared/Models/AudioLyrics.swift
+      - path: Shared/Resources/Localizable.xcstrings
+      - path: Shared/Resources/en.lproj/InfoPlist.strings
+      - path: Shared/Resources/zh-Hans.lproj/InfoPlist.strings
+      - path: Shared/Resources/zh-Hant.lproj/InfoPlist.strings
+      - path: Shared/Resources/ja.lproj/InfoPlist.strings
+      - path: Shared/Resources/ko.lproj/InfoPlist.strings
     entitlements:
       path: Config/YuBingWatch.entitlements
     settings:

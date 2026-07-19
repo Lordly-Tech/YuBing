@@ -48,7 +48,7 @@ struct FileBrowserView: View {
                 list
             }
         }
-        .navigationTitle(folderURL?.lastPathComponent ?? "文件")
+        .navigationTitle(folderURL?.lastPathComponent ?? AppLocalization.string("文件"))
         .searchable(text: $query, prompt: "搜索当前文件夹")
         .toolbar { toolbarContent }
         .alert("新建文件夹", isPresented: $isCreatingFolder) {
@@ -70,7 +70,7 @@ struct FileBrowserView: View {
             }
         }
         .confirmationDialog(
-            deletingItem.map { "删除“\($0.displayName)”？" } ?? "删除项目？",
+            deleteDialogTitle,
             isPresented: deletePresented,
             titleVisibility: .visible
         ) {
@@ -184,6 +184,11 @@ struct FileBrowserView: View {
         )
     }
 
+    private var deleteDialogTitle: String {
+        guard let deletingItem else { return AppLocalization.string("删除项目？") }
+        return "\(AppLocalization.string("删除"))“\(deletingItem.displayName)”？"
+    }
+
     private func beginRename(_ item: LibraryItem) {
         renamingItem = item
         renameText = item.isDirectory ? item.name : item.displayName
@@ -222,7 +227,7 @@ private struct MoveDestinationView: View {
                     }
                 }
             }
-            .navigationTitle("移动“\(item.displayName)”")
+            .navigationTitle("\(AppLocalization.string("移动"))“\(item.displayName)”")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
