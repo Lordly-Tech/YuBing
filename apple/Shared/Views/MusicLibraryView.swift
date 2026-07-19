@@ -449,46 +449,47 @@ struct NowPlayingView: View {
     private var activeItem: LibraryItem { player.currentItem ?? startingItem }
 
     var body: some View {
-        ZStack {
-            AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
-            GeometryReader { geometry in
+        GeometryReader { geometry in
+            ZStack {
+                AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
-                        #if os(iOS)
-                        Capsule()
-                            .fill(.white.opacity(0.42))
-                            .frame(width: 36, height: 5)
-                            .padding(.top, 7)
-                            .padding(.bottom, 9)
-                        #endif
+                    #if os(iOS)
+                    Capsule()
+                        .fill(.white.opacity(0.42))
+                        .frame(width: 36, height: 5)
+                        .padding(.top, 7)
+                        .padding(.bottom, 9)
+                    #endif
 
-                        topBar
-                        Group {
-                            if showsLyrics {
-                                SyncedLyricsView(lyrics: player.currentMetadata.lyrics)
-                            } else {
-                                artworkPanel(size: artworkSize(in: geometry.size))
-                            }
+                    topBar
+                    Group {
+                        if showsLyrics {
+                            SyncedLyricsView(lyrics: player.currentMetadata.lyrics)
+                        } else {
+                            artworkPanel(size: artworkSize(in: geometry.size))
                         }
-                        .frame(height: showsLyrics ? lyricsHeight(in: geometry.size) : artworkSize(in: geometry.size))
-                        .padding(.top, 14)
-                        .padding(.bottom, 20)
-
-                        metadataPanel
-                        progressPanel
-                            .padding(.top, 16)
-                        playbackControls
-                            .padding(.vertical, 16)
-                        volumePanel
-                        secondaryControls
-                            .padding(.top, 12)
-                            .padding(.bottom, 6)
                     }
-                    .frame(minWidth: geometry.size.width, minHeight: geometry.size.height, alignment: .top)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, max(8, geometry.safeAreaInsets.bottom * 0.25))
+                    .frame(height: showsLyrics ? lyricsHeight(in: geometry.size) : artworkSize(in: geometry.size))
+                    .padding(.top, 14)
+                    .padding(.bottom, 20)
+
+                    metadataPanel
+                    progressPanel
+                        .padding(.top, 16)
+                    playbackControls
+                        .padding(.vertical, 16)
+                    volumePanel
+                    secondaryControls
+                        .padding(.top, 12)
+                        .padding(.bottom, 6)
+                    }
+                    .frame(minHeight: max(geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom, 560), alignment: .top)
                 }
                 .foregroundStyle(.white)
+                .padding(.horizontal, 24)
+                .padding(.bottom, max(8, geometry.safeAreaInsets.bottom * 0.25))
+                .frame(maxWidth: 720)
             }
         }
         .onAppear {
@@ -532,9 +533,9 @@ struct NowPlayingView: View {
                 Text(player.currentMetadata.album ?? AppLocalization.string("鱼饼音乐"))
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .truncationMode(.tail)
             }
-            .frame(maxWidth: 260)
+            .frame(maxWidth: 200)
             Spacer()
             optionsMenu
         }
