@@ -39,17 +39,19 @@ private struct CompactRootView: View {
     @EnvironmentObject private var player: AudioPlayerController
     @State private var selection: AppSection = .home
 
+    private var hideMiniPlayer: Bool {
+        selection == .reading || selection == .gallery
+    }
+
     var body: some View {
         TabView(selection: $selection) {
             compactTab(.home) { DashboardView() }
             compactTab(.reading) { ReadingLibraryView() }
-            compactTab(.music) { MusicLibraryView() }
             compactTab(.gallery) { GalleryView() }
-            compactTab(.files) { FileBrowserView() }
-            compactTab(.settings) { SettingsView() }
+            compactTab(.more) { MoreView() }
         }
         .overlay(alignment: .bottom) {
-            if player.currentItem != nil {
+            if !hideMiniPlayer, player.currentItem != nil {
                 MiniPlayerView()
                     .padding(.horizontal, 10)
                     .padding(.bottom, 62)
@@ -82,6 +84,10 @@ private struct SplitRootView: View {
     @EnvironmentObject private var player: AudioPlayerController
     @State private var selection: AppSection? = .home
 
+    private var hideMiniPlayer: Bool {
+        selection == .reading || selection == .gallery
+    }
+
     var body: some View {
         NavigationSplitView {
             SidebarView(selection: $selection)
@@ -92,7 +98,7 @@ private struct SplitRootView: View {
                     .libraryDestinations()
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if player.currentItem != nil {
+                if !hideMiniPlayer, player.currentItem != nil {
                     HStack {
                         Spacer(minLength: 0)
                         MiniPlayerView()
@@ -123,24 +129,12 @@ private struct SidebarView: View {
             Section {
                 Label(AppSection.home.title, systemImage: AppSection.home.symbol)
                     .tag(AppSection.home)
-            }
-
-            Section("资料库") {
-                ForEach([AppSection.reading, .music, .gallery, .files], id: \.self) { section in
-                    Label(section.title, systemImage: section.symbol)
-                        .tag(section)
-                }
-            }
-
-            Section("我的") {
-                Label(AppSection.favorites.title, systemImage: AppSection.favorites.symbol)
-                    .tag(AppSection.favorites)
-                #if os(iOS)
-                Label(AppSection.watch.title, systemImage: AppSection.watch.symbol)
-                    .tag(AppSection.watch)
-                #endif
-                Label(AppSection.settings.title, systemImage: AppSection.settings.symbol)
-                    .tag(AppSection.settings)
+                Label(AppSection.reading.title, systemImage: AppSection.reading.symbol)
+                    .tag(AppSection.reading)
+                Label(AppSection.gallery.title, systemImage: AppSection.gallery.symbol)
+                    .tag(AppSection.gallery)
+                Label(AppSection.more.title, systemImage: AppSection.more.symbol)
+                    .tag(AppSection.more)
             }
         }
         .navigationTitle("鱼饼")
@@ -164,22 +158,10 @@ private struct SectionDestinationView: View {
             DashboardView()
         case .reading:
             ReadingLibraryView()
-        case .music:
-            MusicLibraryView()
         case .gallery:
             GalleryView()
-        case .files:
-            FileBrowserView()
-        case .favorites:
-            FavoriteLibraryView()
-        case .watch:
-            #if os(iOS)
-            WatchTransferView()
-            #else
-            DashboardView()
-            #endif
-        case .settings:
-            SettingsView()
+        case .more:
+            MoreView()
         }
     }
 }
