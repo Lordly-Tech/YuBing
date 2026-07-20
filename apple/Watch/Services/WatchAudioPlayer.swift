@@ -31,7 +31,7 @@ struct WatchEmbeddedAudioMetadata: Equatable, Sendable {
 
     static func load(from url: URL) async -> WatchEmbeddedAudioMetadata {
         let asset = AVURLAsset(url: url)
-        guard let items = try? await asset.load(.commonMetadata) else { return .empty }
+        let items = (try? await asset.load(.commonMetadata)) ?? []
         let title = await stringValue(in: items, identifier: .commonIdentifierTitle)
         let artist = await stringValue(in: items, identifier: .commonIdentifierArtist)
         let album = await stringValue(in: items, identifier: .commonIdentifierAlbumName)
@@ -47,7 +47,7 @@ struct WatchEmbeddedAudioMetadata: Equatable, Sendable {
             artworkData = nil
         }
         let formats = (try? await asset.load(.availableMetadataFormats)) ?? []
-        var embeddedLyrics: String?
+        var embeddedLyrics = ID3EmbeddedLyricsReader.read(from: url)
         for format in formats {
             guard let metadata = try? await asset.loadMetadata(for: format) else { continue }
             for item in metadata {

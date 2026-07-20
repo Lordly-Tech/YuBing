@@ -116,20 +116,18 @@ final class WatchTransferService: NSObject, ObservableObject {
                             name: transfer.metadata["name"] as? String ?? item.name,
                             byteCount: transfer.metadata["byteCount"] as? Int64 ?? item.byteCount
                         )
-                        if let lyricsURL = self.sidecarLyricsURL(for: item.url) {
+                        if let lyricsMetadata = await self.makeWatchLyricsTransfer(
+                            for: item,
+                            audioRelativePath: transfer.metadata["relativePath"] as? String ?? item.relativePath
+                        ) {
                             let lyricsTransfer = session.transferFile(
-                                lyricsURL,
-                                metadata: [
-                                    "name": lyricsURL.lastPathComponent,
-                                    "kind": LibraryKind.file.rawValue,
-                                    "relativePath": lyricsURL.lastPathComponent,
-                                    "byteCount": Int64((try? lyricsURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
-                                ]
+                                lyricsMetadata.url,
+                                metadata: lyricsMetadata.metadata
                             )
                             self.track(
                                 lyricsTransfer,
-                                name: lyricsURL.lastPathComponent,
-                                byteCount: Int64((try? lyricsURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+                                name: lyricsMetadata.metadata["name"] as? String ?? "Lyrics.lrc",
+                                byteCount: lyricsMetadata.metadata["byteCount"] as? Int64 ?? 0
                             )
                         }
                     } else {
@@ -179,6 +177,49 @@ final class WatchTransferService: NSObject, ObservableObject {
                 "relativePath": "\(relativeStem).m4a",
                 "byteCount": byteCount,
                 "sourceExtension": item.fileExtension
+            ]
+        )
+    }
+
+    private func makeWatchLyricsTransfer(
+        for item: LibraryItem,
+        audioRelativePath: String
+    ) async -> (url: URL, metadata: [String: Any])? {
+        let relativeStem = (audioRelativePath as NSString).deletingPathExtension
+        let relativePath = "\(relativeStem).lrc"
+        let name = (relativePath as NSString).lastPathComponent
+
+        if let lyricsURL = sidecarLyricsURL(for: item.url) {
+            let byteCount = Int64((try? lyricsURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+            return (
+                lyricsURL,
+                [
+                    "name": name,
+                    "kind": LibraryKind.file.rawValue,
+                    "relativePath": relativePath,
+                    "byteCount": byteCount
+                ]
+            )
+        }
+
+        guard let lyricsText = await EmbeddedAudioMetadata.load(from: item.url).lyrics?.lrcRepresentation,
+              let data = lyricsText.data(using: .utf8),
+              !data.isEmpty else { return nil }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("YuBing Watch Transfers", isDirectory: true)
+        guard (try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)) != nil else {
+            return nil
+        }
+        let url = directory.appendingPathComponent("\(UUID().uuidString).lrc")
+        guard (try? data.write(to: url, options: .atomic)) != nil else { return nil }
+        return (
+            url,
+            [
+                "name": name,
+                "kind": LibraryKind.file.rawValue,
+                "relativePath": relativePath,
+                "byteCount": Int64(data.count),
+                "temporaryTransferFile": true
             ]
         )
     }
@@ -330,7 +371,8 @@ extension WatchTransferService: WCSessionDelegate {
     ) {
         let temporaryURL = fileTransfer.file.fileURL
         Task { @MainActor [weak self] in
-            if temporaryURL.pathExtension.lowercased() == WatchBookPackage.fileExtension {
+            let isTemporaryTransferFile = fileTransfer.file.metadata?["temporaryTransferFile"] as? Bool == true
+            if isTemporaryTransferFile || temporaryURL.pathExtension.lowercased() == WatchBookPackage.fileExtension {
                 try? FileManager.default.removeItem(at: temporaryURL)
             }
             self?.finishTracking(fileTransfer)
@@ -365,6 +407,26 @@ extension WatchTransferService: WCSessionDelegate {
             }
             self.updateSessionState(session)
         }
+    }
+}
+
+private extension TimedLyrics {
+    var lrcRepresentation: String? {
+        if !lines.isEmpty {
+            return lines
+                .map { "[\(Self.lrcTimestamp(for: $0.time))]\($0.text)" }
+                .joined(separator: "\n")
+        }
+        return untimedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func lrcTimestamp(for time: TimeInterval) -> String {
+        let clamped = max(0, time)
+        let totalHundredths = Int((clamped * 100).rounded())
+        let minutes = totalHundredths / 6_000
+        let seconds = (totalHundredths / 100) % 60
+        let hundredths = totalHundredths % 100
+        return String(format: "%02d:%02d.%02d", minutes, seconds, hundredths)
     }
 }
 #endif

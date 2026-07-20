@@ -13,6 +13,23 @@ static void yubing_error(char *buffer, int32_t capacity, int code, const char *c
     snprintf(buffer, (size_t)capacity, "%s: %s", context, detail);
 }
 
+static AVDictionaryEntry *yubing_metadata_entry(AVDictionary *metadata, const char *key) {
+    if (metadata == NULL || key == NULL) {
+        return NULL;
+    }
+    const size_t length = strlen(key);
+    if (length > 0 && key[length - 1] == '*') {
+        char prefix[64] = {0};
+        if (length > sizeof(prefix)) {
+            return NULL;
+        }
+        memcpy(prefix, key, length - 1);
+        AVDictionaryEntry *entry = av_dict_get(metadata, prefix, NULL, AV_DICT_IGNORE_SUFFIX);
+        return entry;
+    }
+    return av_dict_get(metadata, key, NULL, 0);
+}
+
 static const char *yubing_metadata_value(
     AVDictionary *container_metadata,
     AVDictionary *stream_metadata,
@@ -20,9 +37,9 @@ static const char *yubing_metadata_value(
     size_t key_count
 ) {
     for (size_t index = 0; index < key_count; index++) {
-        AVDictionaryEntry *entry = av_dict_get(container_metadata, keys[index], NULL, 0);
+        AVDictionaryEntry *entry = yubing_metadata_entry(container_metadata, keys[index]);
         if (entry == NULL) {
-            entry = av_dict_get(stream_metadata, keys[index], NULL, 0);
+            entry = yubing_metadata_entry(stream_metadata, keys[index]);
         }
         if (entry != NULL && entry->value != NULL && entry->value[0] != '\0') {
             return entry->value;
@@ -108,7 +125,7 @@ int32_t yubing_read_audio_metadata(
     const char *track_keys[] = {"track", "tracknumber", "WM/TrackNumber"};
     const char *disc_keys[] = {"disc", "discnumber", "disk"};
     const char *lyrics_keys[] = {
-        "lyrics", "syncedlyrics", "unsyncedlyrics", "unsynchronizedlyrics", "WM/Lyrics"
+        "lyrics", "lyrics-*", "syncedlyrics", "unsyncedlyrics", "unsynchronizedlyrics", "WM/Lyrics"
     };
 
 #define YUBING_KEY_COUNT(keys) (sizeof(keys) / sizeof((keys)[0]))

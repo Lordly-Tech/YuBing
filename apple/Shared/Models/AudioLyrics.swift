@@ -124,6 +124,173 @@ enum AudioLyricsLoader {
     }
 }
 
+enum ID3EmbeddedLyricsReader {
+    static func read(from url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { handle.closeFile() }
+
+        guard let headerData = try? handle.read(upToCount: 10),
+              headerData.count == 10 else { return nil }
+        let header = [UInt8](headerData)
+        guard header[0] == 0x49, header[1] == 0x44, header[2] == 0x33 else { return nil }
+
+        let version = Int(header[3])
+        guard (2...4).contains(version) else { return nil }
+        let tagSize = synchsafeInteger(header[6..<10])
+        guard tagSize > 0, tagSize < 16 * 1_024 * 1_024,
+              let tagData = try? handle.read(upToCount: tagSize),
+              tagData.count > 0 else { return nil }
+
+        var bytes = [UInt8](tagData)
+        if (header[5] & 0x80) != 0 {
+            bytes = removeUnsynchronisation(from: bytes)
+        }
+        return lyrics(from: bytes, version: version, headerFlags: header[5])
+    }
+
+    private static func lyrics(from bytes: [UInt8], version: Int, headerFlags: UInt8) -> String? {
+        var offset = extendedHeaderLength(in: bytes, version: version, headerFlags: headerFlags)
+        let frameHeaderLength = version == 2 ? 6 : 10
+
+        while offset + frameHeaderLength <= bytes.count {
+            let identifierLength = version == 2 ? 3 : 4
+            let identifierBytes = bytes[offset..<offset + identifierLength]
+            guard !identifierBytes.allSatisfy({ $0 == 0 }) else { break }
+            guard let identifier = String(bytes: identifierBytes, encoding: .isoLatin1) else { break }
+
+            let frameSize: Int
+            if version == 2 {
+                frameSize = (Int(bytes[offset + 3]) << 16) | (Int(bytes[offset + 4]) << 8) | Int(bytes[offset + 5])
+            } else if version == 4 {
+                frameSize = synchsafeInteger(bytes[offset + 4..<offset + 8])
+            } else {
+                frameSize = bigEndianInteger(bytes[offset + 4..<offset + 8])
+            }
+
+            let frameStart = offset + frameHeaderLength
+            let frameEnd = frameStart + frameSize
+            guard frameSize > 0, frameEnd <= bytes.count else { break }
+            var payload = Array(bytes[frameStart..<frameEnd])
+            if version == 4, offset + 9 < bytes.count, (bytes[offset + 9] & 0x02) != 0 {
+                payload = removeUnsynchronisation(from: payload)
+            }
+
+            if identifier == "USLT" || identifier == "ULT",
+               let text = unsynchronisedLyrics(from: payload) {
+                return text
+            }
+            if identifier == "TXXX" || identifier == "TXX",
+               let text = userTextLyrics(from: payload) {
+                return text
+            }
+
+            offset = frameEnd
+        }
+        return nil
+    }
+
+    private static func unsynchronisedLyrics(from payload: [UInt8]) -> String? {
+        guard payload.count > 4 else { return nil }
+        let encoding = payload[0]
+        let content = Array(payload.dropFirst(4))
+        let lyricStart = textTerminatorEnd(in: content, encoding: encoding) ?? 0
+        return decodedText(from: Array(content.dropFirst(lyricStart)), encoding: encoding)
+    }
+
+    private static func userTextLyrics(from payload: [UInt8]) -> String? {
+        guard payload.count > 1 else { return nil }
+        let encoding = payload[0]
+        let content = Array(payload.dropFirst())
+        guard let descriptionEnd = textTerminatorEnd(in: content, encoding: encoding) else { return nil }
+        let terminatorLength = usesWideTerminator(encoding) ? 2 : 1
+        let descriptionBytes = Array(content.prefix(max(0, descriptionEnd - terminatorLength)))
+        guard let description = decodedText(from: descriptionBytes, encoding: encoding)?
+            .lowercased(),
+              description.contains("lyric") else { return nil }
+        return decodedText(from: Array(content.dropFirst(descriptionEnd)), encoding: encoding)
+    }
+
+    private static func decodedText(from bytes: [UInt8], encoding: UInt8) -> String? {
+        guard !bytes.isEmpty else { return nil }
+        let data = Data(bytes)
+        let candidates: [String.Encoding]
+        switch encoding {
+        case 1:
+            candidates = [.utf16, .utf16LittleEndian, .utf16BigEndian]
+        case 2:
+            candidates = [.utf16BigEndian, .utf16]
+        case 3:
+            candidates = [.utf8]
+        default:
+            candidates = [.isoLatin1, .utf8]
+        }
+
+        let trimSet = CharacterSet.whitespacesAndNewlines
+            .union(CharacterSet(charactersIn: "\u{feff}\0"))
+        for candidate in candidates {
+            if let value = String(data: data, encoding: candidate) {
+                let trimmed = value.trimmingCharacters(in: trimSet)
+                if !trimmed.isEmpty { return trimmed }
+            }
+        }
+        return nil
+    }
+
+    private static func textTerminatorEnd(in bytes: [UInt8], encoding: UInt8) -> Int? {
+        if usesWideTerminator(encoding) {
+            var index = 0
+            while index + 1 < bytes.count {
+                if bytes[index] == 0, bytes[index + 1] == 0 {
+                    return index + 2
+                }
+                index += 2
+            }
+        } else if let index = bytes.firstIndex(of: 0) {
+            return index + 1
+        }
+        return nil
+    }
+
+    private static func usesWideTerminator(_ encoding: UInt8) -> Bool {
+        encoding == 1 || encoding == 2
+    }
+
+    private static func extendedHeaderLength(in bytes: [UInt8], version: Int, headerFlags: UInt8) -> Int {
+        guard (headerFlags & 0x40) != 0, bytes.count >= 4 else { return 0 }
+        if version == 4 {
+            return min(bytes.count, max(0, synchsafeInteger(bytes[0..<4])))
+        }
+        if version == 3 {
+            return min(bytes.count, max(0, bigEndianInteger(bytes[0..<4]) + 4))
+        }
+        return 0
+    }
+
+    private static func removeUnsynchronisation(from bytes: [UInt8]) -> [UInt8] {
+        var result: [UInt8] = []
+        result.reserveCapacity(bytes.count)
+        var index = 0
+        while index < bytes.count {
+            let byte = bytes[index]
+            result.append(byte)
+            if byte == 0xff, index + 1 < bytes.count, bytes[index + 1] == 0 {
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+        return result
+    }
+
+    private static func synchsafeInteger(_ bytes: ArraySlice<UInt8>) -> Int {
+        bytes.reduce(0) { ($0 << 7) | Int($1 & 0x7f) }
+    }
+
+    private static func bigEndianInteger(_ bytes: ArraySlice<UInt8>) -> Int {
+        bytes.reduce(0) { ($0 << 8) | Int($1) }
+    }
+}
+
 enum LRCParser {
     private static let lineExpression = try! NSRegularExpression(
         pattern: #"\[(\d{1,3}):(\d{1,2})(?:[\.:](\d{1,3}))?\]"#

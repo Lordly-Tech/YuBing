@@ -109,9 +109,10 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
         let avDiscNumber = await stringValue(in: allItems, identifiers: [], hints: ["discnumber", "disc_number"])
         let avLyrics = await stringValue(in: allItems, identifiers: [], hints: ["lyric", "unsynchronizedlyric"])
         let avArtworkData = await dataValue(in: allItems, identifier: .commonIdentifierArtwork, hints: ["artwork", "picture", "cover"])
+        let id3Lyrics = ID3EmbeddedLyricsReader.read(from: url)
         let trackNumber = containerMetadata?.trackNumber ?? flacMetadata?.trackNumber ?? avTrackNumber
         let discNumber = containerMetadata?.discNumber ?? flacMetadata?.discNumber ?? avDiscNumber
-        let embeddedLyrics = containerMetadata?.lyrics ?? flacMetadata?.lyrics ?? avLyrics
+        let embeddedLyrics = containerMetadata?.lyrics ?? flacMetadata?.lyrics ?? avLyrics ?? id3Lyrics
         let artworkData = containerMetadata?.artworkData ?? flacMetadata?.artworkData ?? avArtworkData
         let properties = await audioProperties(from: asset)
         let losslessExtensions: Set<String> = [
