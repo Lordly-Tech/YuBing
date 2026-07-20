@@ -48,16 +48,19 @@ struct ReadingLibraryView: View {
     }
 
     var body: some View {
-        Group {
-            if items.isEmpty {
-                ContentUnavailablePanel(
-                    title: "还没有书",
-                    message: "支持 TXT、EPUB、MOBI、AZW3、DOC、DOCX 与 PDF。",
-                    symbol: "books.vertical",
-                    action: AnyView(FileImportButton(title: "导入书籍", prominent: true))
-                )
-            } else if shelfStyle == .covers {
-                ScrollView {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                readingControls
+
+                if items.isEmpty {
+                    ContentUnavailablePanel(
+                        title: "还没有书",
+                        message: "支持 TXT、EPUB、MOBI、AZW3、DOC、DOCX 与 PDF。",
+                        symbol: "books.vertical",
+                        action: AnyView(FileImportButton(title: "导入书籍", prominent: true))
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 360, alignment: .topLeading)
+                } else if shelfStyle == .covers {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 145, maximum: 230), spacing: 16)], spacing: 20) {
                         ForEach(items) { item in
                             NavigationLink(value: item) {
@@ -66,12 +69,7 @@ struct ReadingLibraryView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .frame(maxWidth: YuBingMetrics.contentMaxWidth)
-                    .padding(20)
-                    .frame(maxWidth: .infinity)
-                }
-            } else {
-                ScrollView {
+                } else {
                     LazyVStack(spacing: 0) {
                         ForEach(items) { item in
                             NavigationLink(value: item) {
@@ -84,36 +82,17 @@ struct ReadingLibraryView: View {
                         }
                     }
                     .frame(maxWidth: 820)
-                    .frame(maxWidth: .infinity)
                 }
             }
+            .frame(maxWidth: YuBingMetrics.contentMaxWidth, alignment: .leading)
+            .padding(20)
+            .frame(maxWidth: .infinity)
         }
         .navigationTitle("阅读")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .searchable(text: $query, prompt: "搜索书名")
-        .safeAreaInset(edge: .top, spacing: 0) {
-            HStack(spacing: 12) {
-                Picker("类型", selection: $filter) {
-                    ForEach(ReadingFilter.allCases) { option in
-                        Text(option.title).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 420)
-
-                Picker("书架样式", selection: $shelfStyle) {
-                    ForEach(ReadingShelfStyle.allCases) { option in
-                        Image(systemName: option.symbol)
-                            .accessibilityLabel(option.title)
-                            .tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 104)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-            .background(.bar)
-        }
         .toolbar {
             ToolbarItemGroup {
                 Button { isFormatGuidePresented = true } label: {
@@ -128,6 +107,31 @@ struct ReadingLibraryView: View {
         .sheet(item: $editingBook) { item in
             BookMetadataEditor(item: item)
         }
+        .immersiveSplitDetail()
+    }
+
+    private var readingControls: some View {
+        HStack(spacing: 12) {
+            Picker("类型", selection: $filter) {
+                ForEach(ReadingFilter.allCases) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 420)
+
+            Picker("书架样式", selection: $shelfStyle) {
+                ForEach(ReadingShelfStyle.allCases) { option in
+                    Image(systemName: option.symbol)
+                        .accessibilityLabel(option.title)
+                        .tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 104)
+        }
+        .padding(12)
+        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 

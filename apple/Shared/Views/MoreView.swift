@@ -8,6 +8,8 @@ import UIKit
 struct MoreView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
+    @EnvironmentObject private var wifiTransfer: WiFiTransferService
+    @State private var showsWiFiTransfer = false
     @AppStorage(AppLocalization.preferenceKey) private var appLanguageRaw = AppLanguage.system.rawValue
 
     #if os(iOS)
@@ -34,6 +36,10 @@ struct MoreView: View {
             }
         }
         #endif
+        .sheet(isPresented: $showsWiFiTransfer) {
+            WiFiTransferPanel()
+                .environmentObject(wifiTransfer)
+        }
     }
 
     @Environment(\.scenePhase) private var scenePhase
@@ -45,6 +51,18 @@ struct MoreView: View {
             } label: {
                 MoreRowLabel(title: "收藏", systemImage: "star", tint: .yellow)
             }
+
+            Button {
+                showsWiFiTransfer = true
+            } label: {
+                MoreButtonRow(
+                    title: "Wi-Fi 传输",
+                    systemImage: "wifi",
+                    tint: .blue,
+                    showsChevron: false
+                )
+            }
+            .buttonStyle(.plain)
 
             #if os(iOS)
             NavigationLink {

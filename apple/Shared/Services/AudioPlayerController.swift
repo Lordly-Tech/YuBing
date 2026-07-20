@@ -311,6 +311,12 @@ final class AudioPlayerController: ObservableObject {
         }
     }
 
+    func setQueue(_ items: [LibraryItem]) {
+        let filtered = items.filter { $0.kind == .music }
+        guard !filtered.isEmpty, filtered != queue else { return }
+        queue = filtered
+    }
+
     func loadMetadata(for item: LibraryItem) async -> EmbeddedAudioMetadata {
         if let cached = metadataByPath[item.relativePath] { return cached }
         let metadata = await EmbeddedAudioMetadata.load(from: item.url)

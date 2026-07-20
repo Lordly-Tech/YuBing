@@ -179,7 +179,6 @@ struct MusicLibraryView: View {
 }
 
 private struct AudioTrackRow: View {
-    @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
     let item: LibraryItem
     let queue: [LibraryItem]
@@ -189,15 +188,10 @@ private struct AudioTrackRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            Button {
-                if player.currentItem == item {
-                    player.togglePlayback()
-                } else {
-                    player.play(item, in: queue)
-                    store.markOpened(item)
-                }
-            } label: {
+        NavigationLink {
+            NowPlayingView(startingItem: item, queueItems: queue)
+        } label: {
+            HStack(spacing: 14) {
                 ZStack {
                     AudioArtwork(data: metadata?.artworkData, fallbackSymbol: "music.note")
                     if player.currentItem == item {
@@ -208,12 +202,7 @@ private struct AudioTrackRow: View {
                 }
                 .frame(width: 60, height: 60)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-            .buttonStyle(.plain)
 
-            NavigationLink {
-                NowPlayingView(startingItem: item)
-            } label: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(metadata?.title ?? item.displayName)
                         .font(.headline)
@@ -228,21 +217,21 @@ private struct AudioTrackRow: View {
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
 
-            VStack(alignment: .trailing, spacing: 4) {
-                if metadata?.isLossless == true {
-                    Text("无损")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.pink)
+                VStack(alignment: .trailing, spacing: 4) {
+                    if metadata?.isLossless == true {
+                        Text("无损")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.pink)
+                    }
+                    Text(item.byteCount.formattedFileSize)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.tertiary)
                 }
-                Text(item.byteCount.formattedFileSize)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: true, vertical: false)
             }
-            .fixedSize(horizontal: true, vertical: false)
         }
+        .buttonStyle(.plain)
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
     }
@@ -318,13 +307,12 @@ private struct AlbumDetailView: View {
                             .adaptiveGlassButton()
                         }
 
-                        LazyVStack(spacing: 0) {
+                        LazyVStack(spacing: 10) {
                             ForEach(Array(album.tracks.enumerated()), id: \.element.id) { index, track in
                                 AlbumTrackRow(index: index + 1, item: track, queue: album.tracks)
-                                Divider().overlay(.white.opacity(0.16))
                             }
                         }
-                        .background(.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
+                        .frame(maxWidth: 660)
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: 760)
@@ -337,11 +325,11 @@ private struct AlbumDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .immersiveSplitDetail()
     }
 }
 
 private struct AlbumTrackRow: View {
-    @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
     let index: Int
     let item: LibraryItem
@@ -350,9 +338,8 @@ private struct AlbumTrackRow: View {
     private var metadata: EmbeddedAudioMetadata? { player.metadataByPath[item.relativePath] }
 
     var body: some View {
-        Button {
-            player.play(item, in: queue)
-            store.markOpened(item)
+        NavigationLink {
+            NowPlayingView(startingItem: item, queueItems: queue)
         } label: {
             HStack(spacing: 14) {
                 Text("\(index)")
@@ -376,8 +363,15 @@ private struct AlbumTrackRow: View {
                         .foregroundStyle(.white)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 13)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 15)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .background(.white.opacity(player.currentItem == item ? 0.18 : 0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(.white.opacity(player.currentItem == item ? 0.20 : 0.10), lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -419,8 +413,16 @@ struct MiniPlayerView: View {
                     .buttonStyle(.plain)
             }
         }
-        .padding(8)
-        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(minHeight: 58)
+        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 29, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 29, style: .continuous)
+                .stroke(.white.opacity(0.16), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 29, style: .continuous))
+        .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
     }
 }
 
@@ -429,55 +431,73 @@ struct NowPlayingView: View {
     @EnvironmentObject private var player: AudioPlayerController
     @Environment(\.dismiss) private var dismiss
     let startingItem: LibraryItem
+    var queueItems: [LibraryItem]? = nil
 
     @State private var showsLyrics = false
     @State private var showsSleepTimer = false
     @State private var showsQueue = false
 
-    private var tracks: [LibraryItem] { store.items(of: .music).sorted(by: .name) }
+    private var tracks: [LibraryItem] {
+        (queueItems ?? store.items(of: .music).sorted(by: .name)).filter { $0.kind == .music }
+    }
     private var activeItem: LibraryItem { player.currentItem ?? startingItem }
 
     var body: some View {
         GeometryReader { geometry in
-            let horizontalInset: CGFloat = geometry.size.width < 390 ? 18 : 24
+            let horizontalInset: CGFloat = geometry.size.width < 390 ? 18 : 28
+            let isWideLayout = geometry.size.width >= 820 && geometry.size.height >= 560
+            let visualSize = isWideLayout ? wideArtworkSize(in: geometry.size) : artworkSize(in: geometry.size)
+            let visualHeight = showsLyrics ? lyricsHeight(in: geometry.size) : visualSize
+            let contentHeight = max(geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom, 560)
 
             ZStack {
                 AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                    #if os(iOS)
-                    Capsule()
-                        .fill(.white.opacity(0.42))
-                        .frame(width: 36, height: 5)
-                        .padding(.top, 7)
-                        .padding(.bottom, 9)
-                    #endif
+                    if isWideLayout {
+                        VStack(spacing: 0) {
+                            #if os(iOS)
+                            Capsule()
+                                .fill(.white.opacity(0.42))
+                                .frame(width: 36, height: 5)
+                                .padding(.top, 7)
+                                .padding(.bottom, 12)
+                            #endif
 
-                    topBar
-                    Group {
-                        if showsLyrics {
-                            SyncedLyricsView(lyrics: player.currentMetadata.lyrics)
-                        } else {
-                            artworkPanel(size: artworkSize(in: geometry.size))
+                            topBar
+                            Spacer(minLength: 34)
+
+                            HStack(alignment: .center, spacing: 44) {
+                                visualPanel(size: visualSize, height: visualHeight)
+                                    .frame(width: visualSize, height: visualHeight)
+                                controlsCard
+                                    .frame(maxWidth: 460)
+                            }
+                            .frame(maxWidth: 1_040)
+                            .frame(maxWidth: .infinity)
+
+                            Spacer(minLength: 40)
                         }
-                    }
-                    .frame(height: showsLyrics ? lyricsHeight(in: geometry.size) : artworkSize(in: geometry.size))
-                    .padding(.top, 14)
-                    .padding(.bottom, 20)
+                        .frame(minHeight: contentHeight, alignment: .center)
+                    } else {
+                        VStack(spacing: 18) {
+                            #if os(iOS)
+                            Capsule()
+                                .fill(.white.opacity(0.42))
+                                .frame(width: 36, height: 5)
+                                .padding(.top, 7)
+                                .padding(.bottom, -2)
+                            #endif
 
-                    metadataPanel
-                    progressPanel
-                        .padding(.top, 16)
-                    playbackControls
-                        .padding(.vertical, 16)
-                    volumePanel
-                    secondaryControls
-                        .padding(.top, 12)
-                        .padding(.bottom, 6)
+                            topBar
+                            visualPanel(size: visualSize, height: visualHeight)
+                                .frame(height: visualHeight)
+                            controlsCard
+                        }
+                        .frame(minHeight: contentHeight, alignment: .top)
                     }
-                    .frame(minHeight: max(geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom, 560), alignment: .top)
                     .padding(.horizontal, horizontalInset)
-                    .padding(.bottom, max(8, geometry.safeAreaInsets.bottom * 0.25))
+                    .padding(.top, max(8, geometry.safeAreaInsets.top * 0.18))
+                    .padding(.bottom, max(18, geometry.safeAreaInsets.bottom + 12))
                     .frame(maxWidth: .infinity)
                 }
                 .foregroundStyle(.white)
@@ -485,6 +505,7 @@ struct NowPlayingView: View {
         }
         .onAppear {
             player.isNowPlayingVisible = true
+            player.setQueue(tracks)
             if player.currentItem != startingItem {
                 player.play(startingItem, in: tracks)
             }
@@ -509,6 +530,19 @@ struct NowPlayingView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         #endif
+        .immersiveSplitDetail()
+    }
+
+    @ViewBuilder
+    private func visualPanel(size: CGFloat, height: CGFloat) -> some View {
+        if showsLyrics {
+            SyncedLyricsView(lyrics: player.currentMetadata.lyrics)
+                .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
+                .adaptiveGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        } else {
+            artworkPanel(size: size)
+        }
     }
 
     private var topBar: some View {
@@ -534,6 +568,14 @@ struct NowPlayingView: View {
             Spacer()
             optionsMenu
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .frame(maxWidth: 720)
+        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(.white.opacity(0.14), lineWidth: 1)
+        }
     }
 
     private func artworkPanel(size: CGFloat) -> some View {
@@ -547,6 +589,10 @@ struct NowPlayingView: View {
         let width = max(size.width - 56, 150)
         let height = max(size.height - 470, 150)
         return max(150, min(width, 420, height))
+    }
+
+    private func wideArtworkSize(in size: CGSize) -> CGFloat {
+        max(300, min(440, size.width * 0.34, size.height * 0.56))
     }
 
     private func lyricsHeight(in size: CGSize) -> CGFloat {
@@ -573,6 +619,22 @@ struct NowPlayingView: View {
         }
     }
 
+    private var controlsCard: some View {
+        VStack(spacing: 17) {
+            metadataPanel
+            progressPanel
+            playbackControls
+            volumePanel
+            secondaryControls
+        }
+        .padding(22)
+        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(.white.opacity(0.14), lineWidth: 1)
+        }
+    }
+
     private var progressPanel: some View {
         VStack(spacing: 6) {
             Slider(
@@ -591,7 +653,7 @@ struct NowPlayingView: View {
     }
 
     private var playbackControls: some View {
-        HStack(spacing: 48) {
+        HStack(spacing: 34) {
             Button { player.playPrevious() } label: {
                 Image(systemName: "backward.fill").font(.system(size: 34))
             }

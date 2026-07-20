@@ -3,6 +3,7 @@ import SwiftUI
 
 extension Notification.Name {
     static let yuBingOpenSection = Notification.Name("YuBingOpenSection")
+    static let yuBingImmersiveDetailMode = Notification.Name("YuBingImmersiveDetailMode")
 }
 
 struct RootView: View {
@@ -100,13 +101,19 @@ private struct SplitRootView: View {
     @EnvironmentObject private var player: AudioPlayerController
     let openPlayer: (LibraryItem) -> Void
     @State private var selection: AppSection? = .home
+    @State private var immersiveDetailDepth = 0
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     private var hideMiniPlayer: Bool {
         selection == .reading || selection == .gallery || player.isNowPlayingVisible
     }
 
+    private var shouldHideSidebar: Bool {
+        selection == .reading || immersiveDetailDepth > 0
+    }
+
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(selection: $selection)
                 .navigationSplitViewColumnWidth(min: 210, ideal: YuBingMetrics.sidebarWidth, max: 290)
         } detail: {
@@ -131,10 +138,27 @@ private struct SplitRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .yuBingWatchTransferDidStart)) { _ in
             selection = .home
         }
+        .onReceive(NotificationCenter.default.publisher(for: .yuBingImmersiveDetailMode)) { notification in
+            guard let delta = notification.object as? Int else { return }
+            immersiveDetailDepth = max(0, immersiveDetailDepth + delta)
+            updateSidebarVisibility()
+        }
         #endif
         .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
             if let section = notification.object as? AppSection { selection = section }
         }
+        .onAppear {
+            updateSidebarVisibility()
+        }
+        .onChange(of: selection) { _, _ in
+            updateSidebarVisibility()
+        }
+    }
+
+    private func updateSidebarVisibility() {
+        #if os(iOS)
+        columnVisibility = shouldHideSidebar ? .detailOnly : .all
+        #endif
     }
 }
 
@@ -192,5 +216,29 @@ private extension View {
         navigationDestination(for: LibraryItem.self) { item in
             ItemDestinationView(item: item)
         }
+    }
+}
+
+extension View {
+    func immersiveSplitDetail() -> some View {
+        modifier(ImmersiveSplitDetailModifier())
+    }
+}
+
+private struct ImmersiveSplitDetailModifier: ViewModifier {
+    @State private var isActive = false
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                guard !isActive else { return }
+                isActive = true
+                NotificationCenter.default.post(name: .yuBingImmersiveDetailMode, object: 1)
+            }
+            .onDisappear {
+                guard isActive else { return }
+                isActive = false
+                NotificationCenter.default.post(name: .yuBingImmersiveDetailMode, object: -1)
+            }
     }
 }

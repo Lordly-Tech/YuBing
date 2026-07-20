@@ -141,7 +141,7 @@ struct LibraryImportMenu: View {
     }
 }
 
-private struct WiFiTransferPanel: View {
+struct WiFiTransferPanel: View {
     @EnvironmentObject private var transfer: WiFiTransferService
     @Environment(\.dismiss) private var dismiss
 
@@ -163,11 +163,19 @@ private struct WiFiTransferPanel: View {
                     }
                 }
                 Button {
-                    transfer.isRunning ? transfer.stop() : transfer.start()
+                    if transfer.isRunning {
+                        transfer.stop()
+                    } else {
+                        transfer.start()
+                    }
                 } label: {
-                    Label(transfer.isRunning ? "停止传输" : "开始传输", systemImage: transfer.isRunning ? "stop.fill" : "play.fill")
-                        .frame(minWidth: 180)
+                    if transfer.isStarting {
+                        ProgressView()
+                    } else {
+                        Label(transfer.isRunning ? "停止传输" : "开始传输", systemImage: transfer.isRunning ? "stop.fill" : "play.fill")
+                    }
                 }
+                .disabled(transfer.isStarting)
                 .adaptiveGlassButton(prominent: !transfer.isRunning)
             }
             .padding(28)

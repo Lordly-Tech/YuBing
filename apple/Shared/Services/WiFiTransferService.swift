@@ -5,6 +5,7 @@ import Network
 
 final class WiFiTransferService: ObservableObject {
     @Published private(set) var isRunning = false
+    @Published private(set) var isStarting = false
     @Published private(set) var address: String?
     @Published private(set) var status = "尚未启动"
 
@@ -21,36 +22,41 @@ final class WiFiTransferService: ObservableObject {
     }
 
     func start() {
-        guard listener == nil else { return }
+        guard listener == nil, !isStarting else { return }
+        isStarting = true
+        status = "正在启动"
         do {
-            let listener = try NWListener(using: .tcp, on: .any)
-            listener.service = NWListener.Service(name: "鱼饼", type: "_yubing._tcp")
-            listener.stateUpdateHandler = { [weak self, weak listener] state in
+            let newListener = try NWListener(using: .tcp, on: .any)
+            newListener.service = NWListener.Service(name: "鱼饼", type: "_yubing._tcp")
+            newListener.stateUpdateHandler = { [weak self, weak newListener] state in
                 guard let self else { return }
                 switch state {
                 case .ready:
-                    let port = listener?.port?.rawValue ?? 0
+                    self.listener = newListener
+                    self.isStarting = false
+                    let port = newListener?.port?.rawValue ?? 0
                     if let host = Self.localIPv4Address() {
                         self.update(running: true, address: "http://\(host):\(port)", status: "等待电脑上传")
                     } else {
                         self.update(running: true, address: nil, status: "已启动，请连接 Wi-Fi 后重新开始传输")
                     }
                 case .failed(let error):
+                    self.isStarting = false
                     self.update(running: false, address: nil, status: Self.message(for: error))
-                    self.stop()
+                    newListener?.cancel()
                 case .cancelled:
+                    self.isStarting = false
                     self.update(running: false, address: nil, status: "已停止")
                 default:
                     break
                 }
             }
-            listener.newConnectionHandler = { [weak self] connection in
+            newListener.newConnectionHandler = { [weak self] connection in
                 self?.accept(connection)
             }
-            self.listener = listener
-            listener.start(queue: queue)
-            update(running: false, address: nil, status: "正在启动")
+            newListener.start(queue: queue)
         } catch {
+            isStarting = false
             update(running: false, address: nil, status: Self.message(for: error))
         }
     }
@@ -58,6 +64,7 @@ final class WiFiTransferService: ObservableObject {
     func stop() {
         listener?.cancel()
         listener = nil
+        isStarting = false
         update(running: false, address: nil, status: "已停止")
     }
 
