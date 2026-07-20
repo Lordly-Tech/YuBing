@@ -385,12 +385,12 @@ private struct AlbumTrackRow: View {
 
 struct MiniPlayerView: View {
     @EnvironmentObject private var player: AudioPlayerController
-    @State private var isPlayerPresented = false
+    let openPlayer: (LibraryItem) -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             if let item = player.currentItem {
-                Button { isPlayerPresented = true } label: {
+                Button { openPlayer(item) } label: {
                     HStack(spacing: 10) {
                         AudioArtwork(data: player.currentMetadata.artworkData, fallbackSymbol: "music.note")
                             .frame(width: 46, height: 46)
@@ -421,20 +421,6 @@ struct MiniPlayerView: View {
         }
         .padding(8)
         .adaptiveGlass(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        #if os(iOS)
-        .fullScreenCover(isPresented: $isPlayerPresented) {
-            if let item = player.currentItem {
-                NowPlayingView(startingItem: item)
-            }
-        }
-        #else
-        .sheet(isPresented: $isPlayerPresented) {
-            if let item = player.currentItem {
-                NowPlayingView(startingItem: item)
-                    .frame(minWidth: 360, minHeight: 560)
-            }
-        }
-        #endif
     }
 }
 
@@ -454,7 +440,6 @@ struct NowPlayingView: View {
     var body: some View {
         GeometryReader { geometry in
             let horizontalInset: CGFloat = geometry.size.width < 390 ? 18 : 24
-            let contentWidth = max(geometry.size.width - horizontalInset * 2, 1)
 
             ZStack {
                 AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
@@ -490,12 +475,11 @@ struct NowPlayingView: View {
                         .padding(.top, 12)
                         .padding(.bottom, 6)
                     }
-                    .frame(width: contentWidth)
                     .frame(minHeight: max(geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom, 560), alignment: .top)
+                    .padding(.horizontal, horizontalInset)
                     .padding(.bottom, max(8, geometry.safeAreaInsets.bottom * 0.25))
                     .frame(maxWidth: .infinity)
                 }
-                .frame(width: geometry.size.width)
                 .foregroundStyle(.white)
             }
         }
@@ -799,7 +783,7 @@ private struct SyncedLyricsView: View {
                             ForEach(Array(lyrics.lines.enumerated()), id: \.element.id) { index, line in
                                 Group {
                                     if index == activeIndex {
-                                        SmoothLyricText(lyrics: lyrics, lineIndex: index)
+                                        KaraokeLyricText(lyrics: lyrics, lineIndex: index)
                                     } else {
                                         Text(line.text)
                                             .foregroundStyle(.white.opacity(0.42))
@@ -832,33 +816,190 @@ private struct SyncedLyricsView: View {
 
 }
 
-private struct SmoothLyricText: View {
+private struct KaraokeLyricText: View {
     @EnvironmentObject private var player: AudioPlayerController
     let lyrics: TimedLyrics
     let lineIndex: Int
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !player.isPlaying)) { _ in
-            highlightedText(at: player.playbackPosition())
+        #if os(iOS)
+        DisplayLinkedLyricLabel(
+            text: lyrics.lines[lineIndex].text,
+            progress: { lyrics.highlightProgress(in: lineIndex, at: player.playbackPosition()) },
+            isPlaying: player.isPlaying
+        )
+        #else
+        Text(lyrics.lines[lineIndex].text)
+            .foregroundStyle(.white)
+        #endif
+    }
+}
+
+#if os(iOS)
+private struct DisplayLinkedLyricLabel: UIViewRepresentable {
+    let text: String
+    let progress: () -> Double
+    let isPlaying: Bool
+
+    func makeUIView(context: Context) -> DisplayLinkedLyricUIView {
+        let view = DisplayLinkedLyricUIView()
+        view.progressProvider = progress
+        view.setText(text)
+        view.setAnimating(isPlaying)
+        return view
+    }
+
+    func updateUIView(_ uiView: DisplayLinkedLyricUIView, context: Context) {
+        uiView.progressProvider = progress
+        uiView.setText(text)
+        uiView.setAnimating(isPlaying)
+        uiView.updateHighlight()
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiView: DisplayLinkedLyricUIView,
+        context: Context
+    ) -> CGSize? {
+        guard let width = proposal.width else { return nil }
+        return uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+    }
+}
+
+@MainActor
+private final class DisplayLinkedLyricUIView: UIView {
+    var progressProvider: (() -> Double)?
+
+    private let inactiveLabel = UILabel()
+    private let activeLabel = UILabel()
+    private let activeMask = CAShapeLayer()
+    private var displayLink: CADisplayLink?
+    private var currentText = ""
+    private var shouldAnimate = false
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        [inactiveLabel, activeLabel].forEach { label in
+            label.font = .preferredFont(forTextStyle: .title1).bold()
+            label.numberOfLines = 0
+            label.lineBreakMode = .byWordWrapping
+            addSubview(label)
+        }
+        inactiveLabel.textColor = UIColor.white.withAlphaComponent(0.42)
+        activeLabel.textColor = .white
+        activeMask.fillColor = UIColor.black.cgColor
+        activeLabel.layer.mask = activeMask
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    deinit {
+        displayLink?.invalidate()
+    }
+
+    func setText(_ text: String) {
+        guard currentText != text else { return }
+        currentText = text
+        inactiveLabel.text = text
+        activeLabel.text = text
+        invalidateIntrinsicContentSize()
+        setNeedsLayout()
+    }
+
+    func setAnimating(_ isAnimating: Bool) {
+        shouldAnimate = isAnimating
+        updateDisplayLink()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        updateDisplayLink()
+    }
+
+    private func updateDisplayLink() {
+        if shouldAnimate, window != nil, displayLink == nil {
+            let link = CADisplayLink(target: DisplayLinkProxy(owner: self), selector: #selector(DisplayLinkProxy.fire))
+            let maximum = Float(UIScreen.main.maximumFramesPerSecond)
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: maximum, preferred: maximum)
+            link.add(to: .main, forMode: .common)
+            displayLink = link
+        } else if (!shouldAnimate || window == nil), let displayLink {
+            displayLink.invalidate()
+            self.displayLink = nil
         }
     }
 
-    private func highlightedText(at time: TimeInterval) -> Text {
-        let line = lyrics.lines[lineIndex]
-        guard !line.words.isEmpty else {
-            let activeCharacters = lyrics.activeCharacterCount(in: lineIndex, at: time)
-            return line.text.enumerated().reduce(Text("")) { partial, entry in
-                partial + Text(String(entry.element))
-                    .foregroundColor(entry.offset < activeCharacters ? .white : .white.opacity(0.42))
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        inactiveLabel.frame = bounds
+        activeLabel.frame = bounds
+        updateHighlight()
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        inactiveLabel.sizeThatFits(size)
+    }
+
+    func updateHighlight() {
+        let progress = min(max(progressProvider?() ?? 0, 0), 1)
+        let maskPath = UIBezierPath()
+        let textLength = max((currentText as NSString).length, 1)
+        let highlightedLocation = min(max(CGFloat(textLength) * progress, 0), CGFloat(textLength))
+        let textRect = activeLabel.textRect(forBounds: bounds, limitedToNumberOfLines: 0)
+        let font = activeLabel.font ?? .preferredFont(forTextStyle: .title1)
+        let lineHeight = font.lineHeight
+        let lineCount = max(Int((textRect.height / lineHeight).rounded()), 1)
+
+        if lineCount == 1 {
+            maskPath.append(UIBezierPath(rect: CGRect(
+                x: textRect.minX,
+                y: textRect.minY,
+                width: textRect.width * progress,
+                height: textRect.height
+            )))
+        } else {
+            let charactersPerLine = CGFloat(textLength) / CGFloat(lineCount)
+            for line in 0..<lineCount {
+                let lineStart = CGFloat(line) * charactersPerLine
+                let lineProgress = min(max((highlightedLocation - lineStart) / charactersPerLine, 0), 1)
+                guard lineProgress > 0 else { continue }
+                maskPath.append(UIBezierPath(rect: CGRect(
+                    x: textRect.minX,
+                    y: textRect.minY + CGFloat(line) * lineHeight,
+                    width: textRect.width * lineProgress,
+                    height: lineHeight
+                )))
             }
         }
-        let activeWord = lyrics.activeWordIndex(in: lineIndex, at: time) ?? -1
-        return line.words.enumerated().reduce(Text("")) { partial, entry in
-            partial + Text(entry.element.text)
-                .foregroundColor(entry.offset <= activeWord ? .white : .white.opacity(0.42))
-        }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        activeMask.frame = bounds
+        activeMask.path = maskPath.cgPath
+        CATransaction.commit()
     }
 }
+
+@MainActor
+private final class DisplayLinkProxy: NSObject {
+    weak var owner: DisplayLinkedLyricUIView?
+
+    init(owner: DisplayLinkedLyricUIView) {
+        self.owner = owner
+    }
+
+    @objc func fire() {
+        owner?.updateHighlight()
+    }
+}
+
+private extension UIFont {
+    func bold() -> UIFont {
+        guard let descriptor = fontDescriptor.withSymbolicTraits(.traitBold) else { return self }
+        return UIFont(descriptor: descriptor, size: pointSize)
+    }
+}
+#endif
 
 private struct AudioGradientBackground: View {
     let artworkData: Data?

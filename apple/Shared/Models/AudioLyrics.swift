@@ -46,13 +46,37 @@ struct TimedLyrics: Equatable, Hashable, Sendable {
 
     func activeCharacterCount(in lineIndex: Int, at time: TimeInterval) -> Int {
         guard lines.indices.contains(lineIndex) else { return 0 }
+        return Int((Double(lines[lineIndex].text.count) * highlightProgress(in: lineIndex, at: time)).rounded(.up))
+    }
+
+    func highlightProgress(in lineIndex: Int, at time: TimeInterval) -> Double {
+        guard lines.indices.contains(lineIndex) else { return 0 }
         let line = lines[lineIndex]
-        let count = line.text.count
-        guard count > 0 else { return 0 }
+        guard !line.text.isEmpty else { return 0 }
+        if !line.words.isEmpty {
+            let nextLineTime = lines.indices.contains(lineIndex + 1) ? lines[lineIndex + 1].time : line.time + 4
+            var completedCharacters = 0
+            for (index, word) in line.words.enumerated() {
+                let wordCount = word.text.count
+                let endTime = line.words.indices.contains(index + 1) ? line.words[index + 1].time : nextLineTime
+                if time < word.time {
+                    break
+                }
+                if time < endTime {
+                    let duration = max(endTime - word.time, 0.08)
+                    let wordProgress = min(max((time - word.time) / duration, 0), 1)
+                    return min(
+                        1,
+                        (Double(completedCharacters) + Double(wordCount) * wordProgress) / Double(line.text.count)
+                    )
+                }
+                completedCharacters += wordCount
+            }
+            return min(1, Double(completedCharacters) / Double(line.text.count))
+        }
         let nextTime = lines.indices.contains(lineIndex + 1) ? lines[lineIndex + 1].time : line.time + 4
         let duration = max(nextTime - line.time, 0.8)
-        let progress = min(max((time - line.time) / duration, 0), 1)
-        return min(count, max(1, Int((Double(count) * progress).rounded(.up))))
+        return min(max((time - line.time) / duration, 0), 1)
     }
 }
 

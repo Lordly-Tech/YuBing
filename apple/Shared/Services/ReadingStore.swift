@@ -14,7 +14,9 @@ final class ReadingStore: ObservableObject {
     private let coverDirectory: URL
 
     init() {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let supportRoot = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let support = supportRoot
             .appendingPathComponent("YuBing", isDirectory: true)
         stateURL = support.appendingPathComponent("ReadingState.json")
         coverDirectory = support.appendingPathComponent("Book Covers", isDirectory: true)

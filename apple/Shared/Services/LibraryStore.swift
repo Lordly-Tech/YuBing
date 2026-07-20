@@ -21,7 +21,8 @@ final class LibraryStore: ObservableObject {
     private let recentsKey = "folio.recentPaths"
 
     init() {
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         libraryURL = documents.appendingPathComponent("YuBing Library", isDirectory: true)
         favoritePaths = Set(UserDefaults.standard.stringArray(forKey: favoritesKey) ?? [])
         recentPaths = UserDefaults.standard.stringArray(forKey: recentsKey) ?? []

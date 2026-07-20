@@ -7,7 +7,7 @@ extension Notification.Name {
 
 struct RootView: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @State private var presentedPlayer: LibraryItem?
 
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -17,14 +17,24 @@ struct RootView: View {
         Group {
             #if os(iOS)
             if horizontalSizeClass == .compact {
-                CompactRootView()
+                CompactRootView(openPlayer: presentPlayer)
             } else {
-                SplitRootView()
+                SplitRootView(openPlayer: presentPlayer)
             }
             #else
-            SplitRootView()
+            SplitRootView(openPlayer: presentPlayer)
             #endif
         }
+        #if os(iOS)
+        .fullScreenCover(item: $presentedPlayer) { item in
+            NowPlayingView(startingItem: item)
+        }
+        #else
+        .sheet(item: $presentedPlayer) { item in
+            NowPlayingView(startingItem: item)
+                .frame(minWidth: 360, minHeight: 560)
+        }
+        #endif
         .alert(item: $store.alert) { alert in
             Alert(
                 title: Text(AppLocalization.string(alert.title)),
@@ -33,10 +43,15 @@ struct RootView: View {
             )
         }
     }
+
+    private func presentPlayer(_ item: LibraryItem) {
+        presentedPlayer = item
+    }
 }
 
 private struct CompactRootView: View {
     @EnvironmentObject private var player: AudioPlayerController
+    let openPlayer: (LibraryItem) -> Void
     @State private var selection: AppSection = .home
 
     private var hideMiniPlayer: Bool {
@@ -53,7 +68,7 @@ private struct CompactRootView: View {
         }
         .overlay(alignment: .bottom) {
             if !hideMiniPlayer, player.currentItem != nil {
-                MiniPlayerView()
+                MiniPlayerView(openPlayer: openPlayer)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 62)
             }
@@ -83,6 +98,7 @@ private struct CompactRootView: View {
 
 private struct SplitRootView: View {
     @EnvironmentObject private var player: AudioPlayerController
+    let openPlayer: (LibraryItem) -> Void
     @State private var selection: AppSection? = .home
 
     private var hideMiniPlayer: Bool {
@@ -102,7 +118,7 @@ private struct SplitRootView: View {
                 if !hideMiniPlayer, player.currentItem != nil {
                     HStack {
                         Spacer(minLength: 0)
-                        MiniPlayerView()
+                        MiniPlayerView(openPlayer: openPlayer)
                             .frame(maxWidth: 660)
                         Spacer(minLength: 0)
                     }

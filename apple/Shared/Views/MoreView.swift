@@ -39,13 +39,17 @@ struct MoreView: View {
                 musicAuthorization = MPMediaLibrary.authorizationStatus()
             }
         }
-        #endif
         .sheet(isPresented: $showsPrivacyPolicy) {
-            SafariSheet(url: "https://lordly-tech.github.io/yubing/privacy")
+            if let url = URL(string: "https://lordly-tech.github.io/yubing/privacy") {
+                SafariSheet(url: url)
+            }
         }
         .sheet(isPresented: $showsTermsOfService) {
-            SafariSheet(url: "https://lordly-tech.github.io/yubing/terms")
+            if let url = URL(string: "https://lordly-tech.github.io/yubing/terms") {
+                SafariSheet(url: url)
+            }
         }
+        #endif
     }
 
     @Environment(\.scenePhase) private var scenePhase
@@ -281,10 +285,10 @@ private struct MoreIcon: View {
 
 #if os(iOS)
 private struct SafariSheet: UIViewControllerRepresentable {
-    let url: String
+    let url: URL
 
     func makeUIViewController(context: Context) -> SFSafariViewController {
-        SFSafariViewController(url: URL(string: url)!)
+        SFSafariViewController(url: url)
     }
 
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}

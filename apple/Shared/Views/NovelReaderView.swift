@@ -1010,8 +1010,8 @@ private final class ReaderPagesViewController: UIViewController,
         return result.isEmpty ? [attributed] : result
     }
 
-    private func makePageController(index: Int) -> ReaderTextPageController {
-        let configuration = configuration!
+    private func makePageController(index: Int) -> ReaderTextPageController? {
+        guard let configuration, pages.indices.contains(index) else { return nil }
         return ReaderTextPageController(
             content: pages[index],
             pageIndex: index,
@@ -1029,8 +1029,8 @@ private final class ReaderPagesViewController: UIViewController,
         direction: UIPageViewController.NavigationDirection
     ) {
         guard pages.indices.contains(proposedIndex) else { return }
+        guard let next = makePageController(index: proposedIndex) else { return }
         currentIndex = proposedIndex
-        let next = makePageController(index: proposedIndex)
 
         if let pager {
             pager.setViewControllers([next], direction: direction, animated: animated, completion: nil)

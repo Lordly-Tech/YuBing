@@ -65,8 +65,10 @@ enum UniversalAudioSource {
         let digest = SHA256.hash(data: Data(identity.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
-        let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("YuBing Audio Cache", isDirectory: true)
+        guard let cachesDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            throw UniversalAudioError.conversionFailed("缓存目录不可用。")
+        }
+        let directory = cachesDirectory.appendingPathComponent("YuBing Audio Cache", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory.appendingPathComponent("\(digest).m4a")
     }
