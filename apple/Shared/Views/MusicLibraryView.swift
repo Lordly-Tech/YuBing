@@ -268,66 +268,69 @@ private struct AlbumDetailView: View {
     let album: MusicAlbum
 
     var body: some View {
-        ZStack {
-            AudioGradientBackground(artworkData: album.artworkData)
-            ScrollView {
-                VStack(spacing: 20) {
-                    AudioArtwork(data: album.artworkData, fallbackSymbol: "square.stack.fill")
-                        .frame(maxWidth: 340)
-                        .aspectRatio(1, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: .black.opacity(0.32), radius: 24, y: 14)
+        GeometryReader { geometry in
+            let coverSize = min(max(geometry.size.width - 48, 180), 340)
 
-                    VStack(spacing: 5) {
-                        Text(album.title)
-                            .font(.headline)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                        Text(album.artist)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.85))
-                            .lineLimit(1)
-                        Text([album.genre, album.year].compactMap { $0 }.joined(separator: " · "))
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.72))
-                            .lineLimit(1)
-                    }
+            ZStack {
+                AudioGradientBackground(artworkData: album.artworkData)
+                ScrollView {
+                    VStack(spacing: 20) {
+                        AudioArtwork(data: album.artworkData, fallbackSymbol: "square.stack.fill")
+                            .frame(width: coverSize, height: coverSize)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .shadow(color: .black.opacity(0.32), radius: 24, y: 14)
 
-                    HStack(spacing: 14) {
-                        Button {
-                            guard let first = album.tracks.first else { return }
-                            player.play(first, in: album.tracks)
-                            store.markOpened(first)
-                        } label: {
-                            Label("播放", systemImage: "play.fill")
-                                .frame(minWidth: 150)
+                        VStack(spacing: 5) {
+                            Text(album.title)
+                                .font(.headline)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                            Text(album.artist)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.85))
+                                .lineLimit(1)
+                            Text([album.genre, album.year].compactMap { $0 }.joined(separator: " · "))
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.72))
+                                .lineLimit(1)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.white)
-                        .foregroundStyle(.black)
 
-                        Button {
-                            if !player.isShuffleEnabled { player.toggleShuffle() }
-                            guard let track = album.tracks.randomElement() else { return }
-                            player.play(track, in: album.tracks)
-                        } label: {
-                            Image(systemName: "shuffle")
-                        }
-                        .adaptiveGlassButton()
-                    }
+                        HStack(spacing: 14) {
+                            Button {
+                                guard let first = album.tracks.first else { return }
+                                player.play(first, in: album.tracks)
+                                store.markOpened(first)
+                            } label: {
+                                Label("播放", systemImage: "play.fill")
+                                    .frame(minWidth: 150)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.white)
+                            .foregroundStyle(.black)
 
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(album.tracks.enumerated()), id: \.element.id) { index, track in
-                            AlbumTrackRow(index: index + 1, item: track, queue: album.tracks)
-                            Divider().overlay(.white.opacity(0.16))
+                            Button {
+                                if !player.isShuffleEnabled { player.toggleShuffle() }
+                                guard let track = album.tracks.randomElement() else { return }
+                                player.play(track, in: album.tracks)
+                            } label: {
+                                Image(systemName: "shuffle")
+                            }
+                            .adaptiveGlassButton()
                         }
+
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(album.tracks.enumerated()), id: \.element.id) { index, track in
+                                AlbumTrackRow(index: index + 1, item: track, queue: album.tracks)
+                                Divider().overlay(.white.opacity(0.16))
+                            }
+                        }
+                        .background(.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
                     }
-                    .background(.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: 760)
+                    .padding(24)
+                    .frame(maxWidth: .infinity)
                 }
-                .foregroundStyle(.white)
-                .frame(maxWidth: 760)
-                .padding(24)
-                .frame(maxWidth: .infinity)
             }
         }
         .navigationTitle(album.title)
@@ -450,6 +453,9 @@ struct NowPlayingView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let horizontalInset: CGFloat = geometry.size.width < 390 ? 18 : 24
+            let contentWidth = max(geometry.size.width - horizontalInset * 2, 1)
+
             ZStack {
                 AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
                 ScrollView(showsIndicators: false) {
@@ -484,10 +490,12 @@ struct NowPlayingView: View {
                         .padding(.top, 12)
                         .padding(.bottom, 6)
                     }
+                    .frame(width: contentWidth)
                     .frame(minHeight: max(geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom, 560), alignment: .top)
-                    .padding(.horizontal, 24)
                     .padding(.bottom, max(8, geometry.safeAreaInsets.bottom * 0.25))
+                    .frame(maxWidth: .infinity)
                 }
+                .frame(width: geometry.size.width)
                 .foregroundStyle(.white)
             }
         }
@@ -789,10 +797,16 @@ private struct SyncedLyricsView: View {
                     ScrollView(showsIndicators: false) {
                         LazyVStack(alignment: .leading, spacing: 26) {
                             ForEach(Array(lyrics.lines.enumerated()), id: \.element.id) { index, line in
-                                lyricText(line, index: index)
+                                Group {
+                                    if index == activeIndex {
+                                        SmoothLyricText(lyrics: lyrics, lineIndex: index)
+                                    } else {
+                                        Text(line.text)
+                                            .foregroundStyle(.white.opacity(0.42))
+                                    }
+                                }
                                     .font(index == activeIndex ? .title.weight(.bold) : .title2.weight(.bold))
                                     .opacity(index == activeIndex ? 1 : 0.34)
-                                    .blur(radius: index == activeIndex ? 0 : 1.1)
                                     .id(line.id)
                                     .onTapGesture { player.seek(to: line.time) }
                             }
@@ -802,7 +816,7 @@ private struct SyncedLyricsView: View {
                     }
                     .onChange(of: activeIndex) { _, newIndex in
                         guard let newIndex, lyrics.lines.indices.contains(newIndex) else { return }
-                        withAnimation(.easeOut(duration: 0.35)) {
+                        withAnimation(.easeOut(duration: 0.24)) {
                             proxy.scrollTo(lyrics.lines[newIndex].id, anchor: .center)
                         }
                     }
@@ -816,18 +830,32 @@ private struct SyncedLyricsView: View {
         }
     }
 
-    private func lyricText(_ line: TimedLyricLine, index: Int) -> Text {
+}
+
+private struct SmoothLyricText: View {
+    @EnvironmentObject private var player: AudioPlayerController
+    let lyrics: TimedLyrics
+    let lineIndex: Int
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !player.isPlaying)) { _ in
+            highlightedText(at: player.playbackPosition())
+        }
+    }
+
+    private func highlightedText(at time: TimeInterval) -> Text {
+        let line = lyrics.lines[lineIndex]
         guard !line.words.isEmpty else {
-            let activeCharacters = activeIndex == index ? (lyrics?.activeCharacterCount(in: index, at: player.currentTime) ?? 0) : 0
+            let activeCharacters = lyrics.activeCharacterCount(in: lineIndex, at: time)
             return line.text.enumerated().reduce(Text("")) { partial, entry in
                 partial + Text(String(entry.element))
                     .foregroundColor(entry.offset < activeCharacters ? .white : .white.opacity(0.42))
             }
         }
-        let activeWord = activeIndex == index ? player.currentMetadata.lyrics?.activeWordIndex(in: index, at: player.currentTime) : nil
+        let activeWord = lyrics.activeWordIndex(in: lineIndex, at: time) ?? -1
         return line.words.enumerated().reduce(Text("")) { partial, entry in
             partial + Text(entry.element.text)
-                .foregroundColor(entry.offset <= (activeWord ?? -1) ? .white : .white.opacity(0.42))
+                .foregroundColor(entry.offset <= activeWord ? .white : .white.opacity(0.42))
         }
     }
 }
