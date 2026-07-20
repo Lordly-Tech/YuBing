@@ -2,11 +2,7 @@ import SwiftUI
 
 #if os(iOS)
 import MediaPlayer
-import SafariServices
-#endif
-
-#if os(macOS)
-import AppKit
+import UIKit
 #endif
 
 struct SettingsView: View {
@@ -130,23 +126,27 @@ struct SettingsView: View {
 
     private var legalSection: some View {
         Section("法律信息") {
-            Button(action: openPrivacyPolicy) {
+            NavigationLink {
+                LegalDocumentView(document: .privacyPolicy)
+            } label: {
                 SettingsButtonRow(
                     title: "隐私协议",
                     systemImage: "hand.raised",
-                    tint: .purple
+                    tint: .purple,
+                    showsChevron: false
                 )
             }
-            .buttonStyle(.plain)
 
-            Button(action: openTermsOfService) {
+            NavigationLink {
+                LegalDocumentView(document: .termsOfService)
+            } label: {
                 SettingsButtonRow(
                     title: "用户协议",
                     systemImage: "doc.text",
-                    tint: .teal
+                    tint: .teal,
+                    showsChevron: false
                 )
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -166,25 +166,6 @@ struct SettingsView: View {
         UIApplication.shared.open(url)
     }
     #endif
-
-    private func openPrivacyPolicy() {
-        openURL("https://lordly-tech.github.io/yubing/privacy")
-    }
-
-    private func openTermsOfService() {
-        openURL("https://lordly-tech.github.io/yubing/terms")
-    }
-
-    private func openURL(_ urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        #if os(iOS)
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let root = scene.windows.first?.rootViewController else { return }
-        root.present(SFSafariViewController(url: url), animated: true)
-        #elseif os(macOS)
-        NSWorkspace.shared.open(url)
-        #endif
-    }
 
     private var versionString: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -233,6 +214,7 @@ private struct SettingsButtonRow: View {
     let systemImage: String
     let tint: Color
     var value: String? = nil
+    var showsChevron: Bool = true
 
     var body: some View {
         HStack(spacing: 12) {
@@ -252,9 +234,11 @@ private struct SettingsButtonRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(.vertical, subtitle == nil ? 2 : 4)
     }

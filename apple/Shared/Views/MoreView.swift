@@ -2,11 +2,7 @@ import SwiftUI
 
 #if os(iOS)
 import MediaPlayer
-import SafariServices
-#endif
-
-#if os(macOS)
-import AppKit
+import UIKit
 #endif
 
 struct MoreView: View {
@@ -17,8 +13,6 @@ struct MoreView: View {
     #if os(iOS)
     @State private var musicAuthorization = MPMediaLibrary.authorizationStatus()
     #endif
-    @State private var showsPrivacyPolicy = false
-    @State private var showsTermsOfService = false
 
     var body: some View {
         List {
@@ -37,16 +31,6 @@ struct MoreView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 musicAuthorization = MPMediaLibrary.authorizationStatus()
-            }
-        }
-        .sheet(isPresented: $showsPrivacyPolicy) {
-            if let url = URL(string: "https://lordly-tech.github.io/yubing/privacy") {
-                SafariSheet(url: url)
-            }
-        }
-        .sheet(isPresented: $showsTermsOfService) {
-            if let url = URL(string: "https://lordly-tech.github.io/yubing/terms") {
-                SafariSheet(url: url)
             }
         }
         #endif
@@ -158,23 +142,27 @@ struct MoreView: View {
 
     private var legalSection: some View {
         Section("法律信息") {
-            Button { showsPrivacyPolicy = true } label: {
+            NavigationLink {
+                LegalDocumentView(document: .privacyPolicy)
+            } label: {
                 MoreButtonRow(
                     title: "隐私协议",
                     systemImage: "hand.raised",
-                    tint: .purple
+                    tint: .purple,
+                    showsChevron: false
                 )
             }
-            .buttonStyle(.plain)
 
-            Button { showsTermsOfService = true } label: {
+            NavigationLink {
+                LegalDocumentView(document: .termsOfService)
+            } label: {
                 MoreButtonRow(
                     title: "用户协议",
                     systemImage: "doc.text",
-                    tint: .teal
+                    tint: .teal,
+                    showsChevron: false
                 )
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -242,6 +230,7 @@ private struct MoreButtonRow: View {
     let systemImage: String
     let tint: Color
     var value: String? = nil
+    var showsChevron: Bool = true
 
     var body: some View {
         HStack(spacing: 12) {
@@ -261,9 +250,11 @@ private struct MoreButtonRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(.vertical, subtitle == nil ? 2 : 4)
     }
@@ -282,15 +273,3 @@ private struct MoreIcon: View {
             .accessibilityHidden(true)
     }
 }
-
-#if os(iOS)
-private struct SafariSheet: UIViewControllerRepresentable {
-    let url: URL
-
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        SFSafariViewController(url: url)
-    }
-
-    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
-}
-#endif
