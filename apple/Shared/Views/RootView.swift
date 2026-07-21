@@ -225,7 +225,7 @@ extension View {
     }
 }
 
-private struct ImmersiveSplitDetailModifier: ViewModifier {
+struct ImmersiveSplitDetailModifier: ViewModifier {
     @State private var isActive = false
 
     func body(content: Content) -> some View {
