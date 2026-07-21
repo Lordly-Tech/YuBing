@@ -10,6 +10,7 @@ import UIKit
 private typealias AudioPlatformImage = UIImage
 #endif
 
+// Music playback and album surfaces are adapted from MeloX (GPL-3.0) for YuBing's local file library.
 private struct MusicAlbum: Identifiable {
     let id: String
     let title: String
@@ -18,12 +19,30 @@ private struct MusicAlbum: Identifiable {
     let genre: String?
     let artworkData: Data?
     let tracks: [LibraryItem]
+
+    var detailText: String {
+        [artist, year, genre]
+            .compactMap { value in
+                guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+                return value
+            }
+            .joined(separator: " · ")
+    }
+}
+
+private enum NowPlayingPage: String, Equatable {
+    case artwork
+    case lyrics
+    case queue
 }
 
 struct MusicLibraryView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
     @State private var query = ""
+    @State private var showsCreatePlaylist = false
+    @State private var newPlaylistName = ""
+    @State private var addToPlaylistItem: LibraryItem?
 
     private var audioTracks: [LibraryItem] {
         store.items(of: .music).sorted(by: .name)
@@ -43,27 +62,33 @@ struct MusicLibraryView: View {
         var grouped: [String: [LibraryItem]] = [:]
         for track in filteredTracks {
             guard let metadata = player.metadataByPath[track.relativePath],
-                  let album = metadata.album?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !album.isEmpty else { continue }
-            let artist = metadata.albumArtist ?? metadata.artist ?? AppLocalization.string("未知艺人")
-            grouped["\(album)|\(artist)", default: []].append(track)
+                  let albumTitle = cleaned(metadata.album) else { continue }
+            let artist = cleaned(metadata.albumArtist) ?? cleaned(metadata.artist) ?? AppLocalization.string("未知艺人")
+            grouped["\(albumTitle)|\(artist)", default: []].append(track)
         }
-        return grouped.compactMap { key, tracks in
+
+        return grouped.compactMap { key, tracks -> MusicAlbum? in
             guard let first = tracks.first,
                   let metadata = player.metadataByPath[first.relativePath],
-                  let title = metadata.album else { return nil }
-            let sortedTracks = tracks.sorted { lhs, rhs in
-                trackIndex(player.metadataByPath[lhs.relativePath]?.trackNumber) <
-                    trackIndex(player.metadataByPath[rhs.relativePath]?.trackNumber)
-            }
+                  let title = cleaned(metadata.album) else { return nil }
             return MusicAlbum(
                 id: key,
                 title: title,
-                artist: metadata.albumArtist ?? metadata.artist ?? AppLocalization.string("未知艺人"),
-                year: metadata.year,
-                genre: metadata.genre,
+                artist: cleaned(metadata.albumArtist) ?? cleaned(metadata.artist) ?? AppLocalization.string("未知艺人"),
+                year: cleaned(metadata.year),
+                genre: cleaned(metadata.genre),
                 artworkData: metadata.artworkData,
-                tracks: sortedTracks
+                tracks: tracks.sorted { lhs, rhs in
+                    let lhsMetadata = player.metadataByPath[lhs.relativePath]
+                    let rhsMetadata = player.metadataByPath[rhs.relativePath]
+                    let lhsDisc = trackIndex(lhsMetadata?.discNumber)
+                    let rhsDisc = trackIndex(rhsMetadata?.discNumber)
+                    if lhsDisc != rhsDisc { return lhsDisc < rhsDisc }
+                    let lhsTrack = trackIndex(lhsMetadata?.trackNumber)
+                    let rhsTrack = trackIndex(rhsMetadata?.trackNumber)
+                    if lhsTrack != rhsTrack { return lhsTrack < rhsTrack }
+                    return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+                }
             )
         }
         .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
@@ -80,13 +105,16 @@ struct MusicLibraryView: View {
                 )
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 30) {
+                    LazyVStack(alignment: .leading, spacing: 28) {
+                        libraryHeader
+                        playlistSection
                         if !albums.isEmpty {
                             albumSection
                         }
                         trackSection
                     }
-                    .frame(maxWidth: 1_100)
+                    .frame(maxWidth: YuBingMetrics.contentMaxWidth, alignment: .leading)
+                    .padding(.horizontal, 18)
                     .padding(.vertical, 20)
                     .frame(maxWidth: .infinity)
                 }
@@ -118,20 +146,53 @@ struct MusicLibraryView: View {
         } message: {
             Text(player.playbackError.map(AppLocalization.string) ?? AppLocalization.string("无法播放此文件。"))
         }
+        .sheet(item: $addToPlaylistItem) { item in
+            AddToPlaylistSheet(item: item)
+        }
+        .alert("新建歌单", isPresented: $showsCreatePlaylist) {
+            TextField("歌单名称", text: $newPlaylistName)
+            Button("取消", role: .cancel) { newPlaylistName = "" }
+            Button("创建") {
+                store.createMusicPlaylist(named: newPlaylistName)
+                newPlaylistName = ""
+            }
+        } message: {
+            Text("创建一个本地音乐歌单。")
+        }
+    }
+
+    private var libraryHeader: some View {
+        HStack(alignment: .lastTextBaseline) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("本地音乐")
+                    .font(.largeTitle.bold())
+                Text("\(filteredTracks.count) 首歌曲 · \(albums.count) 张专辑")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let first = filteredTracks.first {
+                Button {
+                    player.play(first, in: filteredTracks)
+                    store.markOpened(first)
+                } label: {
+                    Label("播放全部", systemImage: "play.fill")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
     }
 
     private var albumSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("专辑")
-                .font(.title2.weight(.bold))
-                .padding(.horizontal, 16)
+            SectionTitle(text: "专辑")
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 14) {
                     ForEach(albums) { album in
                         NavigationLink {
                             AlbumDetailView(album: album)
                         } label: {
-                            VStack(alignment: .leading, spacing: 7) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 AudioArtwork(data: album.artworkData, fallbackSymbol: "square.stack.fill")
                                     .frame(width: 156, height: 156)
                                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -144,24 +205,74 @@ struct MusicLibraryView: View {
                                     .lineLimit(1)
                             }
                             .frame(width: 156, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.trailing, 18)
+            }
+        }
+    }
+
+    private var playlistSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                SectionTitle(text: "歌单")
+                Button {
+                    showsCreatePlaylist = true
+                } label: {
+                    Image(systemName: "plus")
+                        .frame(width: 34, height: 34)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("新建歌单")
+            }
+
+            if store.musicPlaylists.isEmpty {
+                Button {
+                    showsCreatePlaylist = true
+                } label: {
+                    Label("新建歌单", systemImage: "music.note.list")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 14) {
+                        ForEach(store.musicPlaylists) { playlist in
+                            NavigationLink {
+                                MusicPlaylistDetailView(playlist: playlist)
+                            } label: {
+                                MusicPlaylistCard(playlist: playlist)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.trailing, 18)
+                }
             }
         }
     }
 
     private var trackSection: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            Text("\(AppLocalization.string("歌曲")) · \(filteredTracks.count)")
-                .font(.title2.weight(.bold))
-                .padding(.horizontal, 18)
-                .padding(.bottom, 6)
-            ForEach(filteredTracks) { item in
-                AudioTrackRow(item: item, queue: filteredTracks)
-                Divider().padding(.leading, 92)
+            SectionTitle(text: "歌曲")
+                .padding(.bottom, 4)
+            ForEach(Array(filteredTracks.enumerated()), id: \.element.id) { index, item in
+                Button {
+                    player.play(item, in: filteredTracks)
+                    store.markOpened(item)
+                } label: {
+                    LocalTrackRow(item: item, index: index, showsArtwork: true)
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    MusicTrackContextActions(item: item, addToPlaylistItem: $addToPlaylistItem)
+                }
+                if index < filteredTracks.count - 1 {
+                    Divider().padding(.leading, 62)
+                }
             }
         }
     }
@@ -172,82 +283,127 @@ struct MusicLibraryView: View {
             set: { if !$0 { player.playbackError = nil } }
         )
     }
+}
 
-    private func trackIndex(_ value: String?) -> Int {
-        Int(value?.split(separator: "/").first ?? "") ?? Int.max
+private struct SectionTitle: View {
+    let text: String
+
+    var body: some View {
+        Text(AppLocalization.string(text))
+            .font(.title2.bold())
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-private struct AudioTrackRow: View {
+private struct LocalTrackRow: View {
     @EnvironmentObject private var player: AudioPlayerController
     let item: LibraryItem
-    let queue: [LibraryItem]
+    var index: Int? = nil
+    var showsArtwork = false
+    var foregroundStyle: AnyShapeStyle = AnyShapeStyle(.primary)
+    var secondaryStyle: AnyShapeStyle = AnyShapeStyle(.secondary)
 
     private var metadata: EmbeddedAudioMetadata? {
         player.metadataByPath[item.relativePath]
     }
 
     var body: some View {
-        NavigationLink {
-            NowPlayingView(startingItem: item, queueItems: queue)
-        } label: {
-            HStack(spacing: 14) {
-                ZStack {
-                    AudioArtwork(data: metadata?.artworkData, fallbackSymbol: "music.note")
-                    if player.currentItem == item {
-                        Color.black.opacity(0.28)
-                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .foregroundStyle(.white)
-                    }
-                }
-                .frame(width: 60, height: 60)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        HStack(spacing: 12) {
+            if showsArtwork {
+                AudioArtwork(data: metadata?.artworkData, fallbackSymbol: "music.note")
+                    .frame(width: 50, height: 50)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            } else if let index {
+                Text("\(index + 1)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(secondaryStyle)
+                    .frame(width: 28, alignment: .trailing)
+            }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(metadata?.title ?? item.displayName)
-                        .font(.headline)
-                        .lineLimit(1)
-                    Text(artistAndAlbum)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Text(technicalDetail)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(metadata?.title ?? item.displayName)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(foregroundStyle)
+                    .lineLimit(1)
+                Text(detailText)
+                    .font(.caption)
+                    .foregroundStyle(secondaryStyle)
+                    .lineLimit(1)
+            }
 
-                VStack(alignment: .trailing, spacing: 4) {
-                    if metadata?.isLossless == true {
-                        Text("无损")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.pink)
-                    }
-                    Text(item.byteCount.formattedFileSize)
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.tertiary)
-                }
-                .fixedSize(horizontal: true, vertical: false)
+            Spacer(minLength: 8)
+
+            if metadata?.isLossless == true {
+                Text("Lossless")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.pink)
+            }
+            if player.currentItem == item {
+                Image(systemName: player.isPlaying ? "speaker.wave.2.fill" : "speaker.fill")
+                    .foregroundStyle(secondaryStyle)
+                    .accessibilityLabel("当前歌曲")
             }
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
+        .padding(.vertical, 9)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 
-    private var artistAndAlbum: String {
+    private var detailText: String {
         let values = [metadata?.artist, metadata?.album]
-            .compactMap { value -> String? in
-                guard let value, !value.isEmpty else { return nil }
-                return value
-            }
-        return values.isEmpty ? AppLocalization.string("未知艺人") : values.joined(separator: " · ")
+            .compactMap(cleaned)
+        if !values.isEmpty { return values.joined(separator: " · ") }
+        let quality = cleaned(metadata?.qualityDescription)
+        return quality ?? "\(item.fileExtension.uppercased()) · \(item.byteCount.formattedFileSize)"
+    }
+}
+
+private struct MusicPlaylistCard: View {
+    @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var player: AudioPlayerController
+    let playlist: MusicPlaylist
+
+    private var tracks: [LibraryItem] {
+        store.tracks(in: playlist)
     }
 
-    private var technicalDetail: String {
-        let quality = metadata?.qualityDescription ?? ""
-        return quality.isEmpty ? item.fileExtension.uppercased() : quality
+    private var firstArtworkData: Data? {
+        tracks.compactMap { player.metadataByPath[$0.relativePath]?.artworkData }.first
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .topTrailing) {
+                AudioArtwork(data: firstArtworkData, fallbackSymbol: "music.note.list")
+                    .frame(width: 156, height: 156)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                if store.isFavorite(playlist) {
+                    Image(systemName: "star.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.yellow)
+                        .padding(7)
+                        .background(.thinMaterial, in: Circle())
+                        .padding(7)
+                }
+            }
+
+            Text(playlist.name)
+                .font(.headline)
+                .lineLimit(1)
+            Text("\(tracks.count) 首歌曲")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(width: 156, alignment: .leading)
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button {
+                store.toggleFavorite(playlist)
+            } label: {
+                Label(store.isFavorite(playlist) ? "取消收藏歌单" : "收藏歌单", systemImage: store.isFavorite(playlist) ? "star.slash" : "star")
+            }
+        }
     }
 }
 
@@ -255,125 +411,303 @@ private struct AlbumDetailView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
     let album: MusicAlbum
+    @State private var addToPlaylistItem: LibraryItem?
 
     var body: some View {
-        GeometryReader { geometry in
-            let coverSize = min(max(geometry.size.width - 48, 180), 340)
-
-            ZStack {
-                AudioGradientBackground(artworkData: album.artworkData)
-                ScrollView {
-                    VStack(spacing: 20) {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top, spacing: 16) {
                         AudioArtwork(data: album.artworkData, fallbackSymbol: "square.stack.fill")
-                            .frame(width: coverSize, height: coverSize)
+                            .frame(width: 132, height: 132)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .shadow(color: .black.opacity(0.32), radius: 24, y: 14)
 
-                        VStack(spacing: 5) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text(album.title)
-                                .font(.headline)
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
+                                .font(.title2.bold())
+                                .fixedSize(horizontal: false, vertical: true)
                             Text(album.artist)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.85))
-                                .lineLimit(1)
-                            Text([album.genre, album.year].compactMap { $0 }.joined(separator: " · "))
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.72))
-                                .lineLimit(1)
-                        }
-
-                        HStack(spacing: 14) {
-                            Button {
-                                guard let first = album.tracks.first else { return }
-                                player.play(first, in: album.tracks)
-                                store.markOpened(first)
-                            } label: {
-                                Label("播放", systemImage: "play.fill")
-                                    .frame(minWidth: 150)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.white)
-                            .foregroundStyle(.black)
-
-                            Button {
-                                if !player.isShuffleEnabled { player.toggleShuffle() }
-                                guard let track = album.tracks.randomElement() else { return }
-                                player.play(track, in: album.tracks)
-                            } label: {
-                                Image(systemName: "shuffle")
-                            }
-                            .adaptiveGlassButton()
-                        }
-
-                        LazyVStack(spacing: 10) {
-                            ForEach(Array(album.tracks.enumerated()), id: \.element.id) { index, track in
-                                AlbumTrackRow(index: index + 1, item: track, queue: album.tracks)
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                            if !album.detailText.isEmpty {
+                                Text(album.detailText)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
                             }
                         }
-                        .frame(maxWidth: 660)
                     }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: 760)
-                    .padding(24)
-                    .frame(maxWidth: .infinity)
+
+                    Button {
+                        guard let first = album.tracks.first else { return }
+                        player.play(first, in: album.tracks)
+                        store.markOpened(first)
+                    } label: {
+                        Label("播放全部", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(album.tracks.isEmpty)
+                }
+                .padding(.vertical, 8)
+            }
+
+            Section("歌曲") {
+                ForEach(Array(album.tracks.enumerated()), id: \.element.id) { index, track in
+                    Button {
+                        player.play(track, in: album.tracks)
+                        store.markOpened(track)
+                    } label: {
+                        LocalTrackRow(item: track, index: index, showsArtwork: false)
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing) {
+                        Button {
+                            store.toggleFavorite(track)
+                        } label: {
+                            Label(store.isFavorite(track) ? "取消收藏" : "收藏", systemImage: store.isFavorite(track) ? "star.slash" : "star")
+                        }
+                        .tint(.pink)
+                    }
+                    .contextMenu {
+                        MusicTrackContextActions(item: track, addToPlaylistItem: $addToPlaylistItem)
+                    }
                 }
             }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle(album.title)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .immersiveSplitDetail()
+        .sheet(item: $addToPlaylistItem) { item in
+            AddToPlaylistSheet(item: item)
+        }
     }
 }
 
-private struct AlbumTrackRow: View {
+private struct MusicPlaylistDetailView: View {
+    @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
-    let index: Int
-    let item: LibraryItem
-    let queue: [LibraryItem]
+    let playlist: MusicPlaylist
 
-    private var metadata: EmbeddedAudioMetadata? { player.metadataByPath[item.relativePath] }
+    @State private var renameText = ""
+    @State private var showsRename = false
+    @State private var showsDeleteConfirmation = false
+    @State private var addToPlaylistItem: LibraryItem?
+
+    private var currentPlaylist: MusicPlaylist {
+        store.musicPlaylists.first { $0.id == playlist.id } ?? playlist
+    }
+
+    private var tracks: [LibraryItem] {
+        store.tracks(in: currentPlaylist)
+    }
+
+    private var artworkData: Data? {
+        tracks.compactMap { player.metadataByPath[$0.relativePath]?.artworkData }.first
+    }
 
     var body: some View {
-        NavigationLink {
-            NowPlayingView(startingItem: item, queueItems: queue)
-        } label: {
-            HStack(spacing: 14) {
-                Text("\(index)")
-                    .font(.callout.monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.62))
-                    .frame(width: 28, alignment: .trailing)
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top, spacing: 16) {
+                        AudioArtwork(data: artworkData, fallbackSymbol: "music.note.list")
+                            .frame(width: 132, height: 132)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(metadata?.title ?? item.displayName)
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                    Text(metadata?.artist ?? metadata?.album ?? item.fileExtension.uppercased())
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.62))
-                        .lineLimit(1)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(currentPlaylist.name)
+                                .font(.title2.bold())
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("\(tracks.count) 首歌曲")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                            Text(currentPlaylist.updatedAt, format: .dateTime.year().month().day())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    HStack(spacing: 12) {
+                        Button {
+                            guard let first = tracks.first else { return }
+                            player.play(first, in: tracks)
+                            store.markOpened(first)
+                        } label: {
+                            Label("播放全部", systemImage: "play.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(tracks.isEmpty)
+
+                        Button {
+                            store.toggleFavorite(currentPlaylist)
+                        } label: {
+                            Image(systemName: store.isFavorite(currentPlaylist) ? "star.fill" : "star")
+                                .frame(width: 44, height: 36)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel(store.isFavorite(currentPlaylist) ? "取消收藏歌单" : "收藏歌单")
+                    }
                 }
-                Spacer(minLength: 8)
-                if player.currentItem == item {
-                    Image(systemName: player.isPlaying ? "waveform" : "pause.fill")
-                        .foregroundStyle(.white)
+                .padding(.vertical, 8)
+            }
+
+            Section("歌曲") {
+                ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                    Button {
+                        player.play(track, in: tracks)
+                        store.markOpened(track)
+                    } label: {
+                        LocalTrackRow(item: track, index: index, showsArtwork: true)
+                    }
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            store.remove(track, from: currentPlaylist)
+                        } label: {
+                            Label("移出歌单", systemImage: "minus.circle")
+                        }
+                    }
+                    .contextMenu {
+                        MusicTrackContextActions(item: track, addToPlaylistItem: $addToPlaylistItem)
+                        Button(role: .destructive) {
+                            store.remove(track, from: currentPlaylist)
+                        } label: {
+                            Label("移出歌单", systemImage: "minus.circle")
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 15)
-            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
-            .background(.white.opacity(player.currentItem == item ? 0.18 : 0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(.white.opacity(player.currentItem == item ? 0.20 : 0.10), lineWidth: 1)
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .listStyle(.insetGrouped)
+        .navigationTitle(currentPlaylist.name)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .toolbar {
+            ToolbarItem {
+                Menu {
+                    Button {
+                        renameText = currentPlaylist.name
+                        showsRename = true
+                    } label: {
+                        Label("重命名", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        showsDeleteConfirmation = true
+                    } label: {
+                        Label("删除歌单", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+            }
+        }
+        .sheet(item: $addToPlaylistItem) { item in
+            AddToPlaylistSheet(item: item)
+        }
+        .alert("重命名歌单", isPresented: $showsRename) {
+            TextField("歌单名称", text: $renameText)
+            Button("取消", role: .cancel) {}
+            Button("保存") { store.rename(currentPlaylist, to: renameText) }
+        }
+        .confirmationDialog("删除歌单", isPresented: $showsDeleteConfirmation, titleVisibility: .visible) {
+            Button("删除歌单", role: .destructive) {
+                store.delete(currentPlaylist)
+            }
+        } message: {
+            Text("歌单会被删除，歌曲文件仍会保留。")
+        }
+    }
+}
+
+private struct MusicTrackContextActions: View {
+    @EnvironmentObject private var store: LibraryStore
+    let item: LibraryItem
+    @Binding var addToPlaylistItem: LibraryItem?
+
+    var body: some View {
+        Button {
+            store.toggleFavorite(item)
+        } label: {
+            Label(store.isFavorite(item) ? "取消收藏歌曲" : "收藏歌曲", systemImage: store.isFavorite(item) ? "star.slash" : "star")
+        }
+        Button {
+            addToPlaylistItem = item
+        } label: {
+            Label("添加到歌单", systemImage: "text.badge.plus")
+        }
+        ShareLink(item: item.url) {
+            Label("分享", systemImage: "square.and.arrow.up")
+        }
+    }
+}
+
+private struct AddToPlaylistSheet: View {
+    @EnvironmentObject private var store: LibraryStore
+    @Environment(\.dismiss) private var dismiss
+    let item: LibraryItem
+
+    @State private var newPlaylistName = ""
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack {
+                        TextField("新歌单名称", text: $newPlaylistName)
+                        Button("创建并添加") {
+                            store.createMusicPlaylist(named: newPlaylistName, initialTrack: item)
+                            dismiss()
+                        }
+                        .disabled(newPlaylistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+
+                Section("已有歌单") {
+                    if store.musicPlaylists.isEmpty {
+                        ContentUnavailableView("还没有歌单", systemImage: "music.note.list")
+                    } else {
+                        ForEach(store.musicPlaylists) { playlist in
+                            let contains = store.contains(item, in: playlist)
+                            Button {
+                                if contains {
+                                    store.remove(item, from: playlist)
+                                } else {
+                                    store.add(item, to: playlist)
+                                }
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(playlist.name)
+                                            .foregroundStyle(.primary)
+                                        Text("\(store.tracks(in: playlist).count) 首歌曲")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: contains ? "checkmark.circle.fill" : "plus.circle")
+                                        .foregroundStyle(contains ? .tint : .secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("添加到歌单")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
     }
 }
 
@@ -382,47 +716,81 @@ struct MiniPlayerView: View {
     let openPlayer: (LibraryItem) -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            if let item = player.currentItem {
+        if let item = player.currentItem {
+            HStack(spacing: 10) {
                 Button { openPlayer(item) } label: {
                     HStack(spacing: 10) {
                         AudioArtwork(data: player.currentMetadata.artworkData, fallbackSymbol: "music.note")
-                            .frame(width: 46, height: 46)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .frame(width: 42, height: 42)
+                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+
                         VStack(alignment: .leading, spacing: 2) {
                             Text(player.currentMetadata.title ?? item.displayName)
                                 .font(.subheadline.weight(.semibold))
                                 .lineLimit(1)
-                            Text(player.currentMetadata.artist ?? AppLocalization.string("鱼饼音乐"))
-                                .font(.caption2)
+                            Text(player.currentMetadata.artist ?? player.currentMetadata.album ?? AppLocalization.string("本地音乐"))
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                Spacer(minLength: 4)
-                if player.isPreparing { ProgressView().controlSize(.small) }
-                Button { player.togglePlayback() } label: {
-                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title3)
-                        .frame(width: 34, height: 34)
-                }
-                .buttonStyle(.plain)
-                Button { player.playNext() } label: { Image(systemName: "forward.fill") }
+
+                if player.isPreparing {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(width: 36, height: 36)
+                } else {
+                    Button {
+                        player.togglePlayback()
+                    } label: {
+                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.title3.weight(.semibold))
+                            .frame(width: 36, height: 36)
+                            .contentShape(Circle())
+                    }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(player.isPlaying ? "暂停" : "播放")
+                }
+
+                Button {
+                    player.playNext()
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.title3.weight(.semibold))
+                        .frame(width: 36, height: 36)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("下一首")
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .frame(minHeight: 58)
+            .adaptiveGlass(in: RoundedRectangle(cornerRadius: 29, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 29, style: .continuous)
+                    .stroke(.white.opacity(0.16), lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 29, style: .continuous))
+            .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
+            .simultaneousGesture(trackSwipeGesture)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .frame(minHeight: 58)
-        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 29, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 29, style: .continuous)
-                .stroke(.white.opacity(0.16), lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 29, style: .continuous))
-        .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
+    }
+
+    private var trackSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 28)
+            .onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                if value.translation.width < 0 {
+                    player.playNext()
+                } else {
+                    player.playPrevious()
+                }
+            }
     }
 }
 
@@ -430,82 +798,49 @@ struct NowPlayingView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
     @Environment(\.dismiss) private var dismiss
+
     let startingItem: LibraryItem
     var queueItems: [LibraryItem]? = nil
 
-    @State private var showsLyrics = false
+    @State private var page: NowPlayingPage = .artwork
     @State private var showsSleepTimer = false
-    @State private var showsQueue = false
+    @State private var showsSkylineLyrics = false
 
     private var tracks: [LibraryItem] {
         (queueItems ?? store.items(of: .music).sorted(by: .name)).filter { $0.kind == .music }
     }
-    private var activeItem: LibraryItem { player.currentItem ?? startingItem }
+
+    private var activeItem: LibraryItem {
+        player.currentItem ?? startingItem
+    }
 
     var body: some View {
-        GeometryReader { geometry in
-            let horizontalInset: CGFloat = geometry.size.width < 390 ? 18 : 28
-            let isWideLayout = geometry.size.width >= 820 && geometry.size.height >= 560
-            let visualSize = isWideLayout ? wideArtworkSize(in: geometry.size) : artworkSize(in: geometry.size)
-            let visualHeight = showsLyrics ? lyricsHeight(in: geometry.size) : visualSize
-            let contentHeight = max(geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom, 560)
-
+        GeometryReader { proxy in
             ZStack {
-                AudioGradientBackground(artworkData: player.currentMetadata.artworkData)
-                ScrollView(showsIndicators: false) {
-                    if isWideLayout {
-                        VStack(spacing: 0) {
-                            #if os(iOS)
-                            Capsule()
-                                .fill(.white.opacity(0.42))
-                                .frame(width: 36, height: 5)
-                                .padding(.top, 7)
-                                .padding(.bottom, 12)
-                            #endif
+                NowPlayingBackground(artworkData: player.currentMetadata.artworkData)
 
-                            topBar
-                            Spacer(minLength: 34)
-
-                            HStack(alignment: .center, spacing: 44) {
-                                visualPanel(size: visualSize, height: visualHeight)
-                                    .frame(width: visualSize, height: visualHeight)
-                                controlsCard
-                                    .frame(maxWidth: 460)
-                            }
-                            .frame(maxWidth: 1_040)
-                            .frame(maxWidth: .infinity)
-
-                            Spacer(minLength: 40)
-                        }
-                        .frame(minHeight: contentHeight, alignment: .center)
-                    } else {
-                        VStack(spacing: 18) {
-                            #if os(iOS)
-                            Capsule()
-                                .fill(.white.opacity(0.42))
-                                .frame(width: 36, height: 5)
-                                .padding(.top, 7)
-                                .padding(.bottom, -2)
-                            #endif
-
-                            topBar
-                            visualPanel(size: visualSize, height: visualHeight)
-                                .frame(height: visualHeight)
-                            controlsCard
-                        }
-                        .frame(minHeight: contentHeight, alignment: .top)
-                    }
-                    .padding(.horizontal, horizontalInset)
-                    .padding(.top, max(8, geometry.safeAreaInsets.top * 0.18))
-                    .padding(.bottom, max(18, geometry.safeAreaInsets.bottom + 12))
-                    .frame(maxWidth: .infinity)
+                if showsSkylineLyrics, page == .lyrics, proxy.size.width > proxy.size.height, proxy.size.width >= 720 {
+                    SkylineLyricsView(
+                        lyrics: player.currentMetadata.lyrics,
+                        onExit: { showsSkylineLyrics = false }
+                    )
+                    .transition(.opacity)
+                } else if proxy.size.width > proxy.size.height, proxy.size.width >= 720 {
+                    landscapeContent
+                } else {
+                    portraitContent
                 }
-                .foregroundStyle(.white)
             }
+            .foregroundStyle(.white)
         }
+        .preferredColorScheme(.dark)
         .onAppear {
             player.isNowPlayingVisible = true
-            player.setQueue(tracks)
+            if let queueItems {
+                player.setQueue(queueItems)
+            } else if player.queue.isEmpty {
+                player.setQueue(tracks)
+            }
             if player.currentItem != startingItem {
                 player.play(startingItem, in: tracks)
             }
@@ -516,308 +851,945 @@ struct NowPlayingView: View {
         }
         .confirmationDialog("定时关闭", isPresented: $showsSleepTimer, titleVisibility: .visible) {
             ForEach([15, 30, 45, 60, 90], id: \.self) { minutes in
-                Button("\(minutes) \(AppLocalization.string("分钟"))") { player.setSleepTimer(minutes: minutes) }
+                Button("\(minutes) 分钟") { player.setSleepTimer(minutes: minutes) }
             }
             Button("本曲结束") { player.sleepAfterCurrentTrack() }
             if player.sleepTimerEnd != nil || player.stopAfterCurrentTrack {
                 Button("关闭定时", role: .destructive) { player.cancelSleepTimer() }
             }
         }
-        .sheet(isPresented: $showsQueue) {
-            PlaybackQueueView()
-        }
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         #endif
         .immersiveSplitDetail()
+        .animation(.smooth(duration: 0.32), value: page)
+        .onChange(of: page) { _, newPage in
+            if newPage != .lyrics {
+                showsSkylineLyrics = false
+            }
+        }
+    }
+
+    private var portraitContent: some View {
+        VStack(spacing: 0) {
+            dismissalHandle
+
+            pageContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            NowPlayingProgressControl()
+            NowPlayingTransportControls()
+            NowPlayingVolumeControl()
+            NowPlayingPageSelector(page: $page)
+        }
+        .padding(.horizontal, 28)
+        .safeAreaPadding(.top, 4)
+        .safeAreaPadding(.bottom, 8)
+    }
+
+    private var landscapeContent: some View {
+        HStack(spacing: 34) {
+            pageContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            VStack(spacing: 12) {
+                HStack {
+                    dismissalHandle
+                        .frame(height: 44)
+                    if page == .lyrics, player.currentMetadata.lyrics?.lines.isEmpty == false {
+                        Button {
+                            showsSkylineLyrics = true
+                        } label: {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .frame(width: 40, height: 40)
+                                .background(.white.opacity(0.13), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("打开天际歌词")
+                    }
+                }
+
+                NowPlayingArtworkSummary(
+                    item: activeItem,
+                    showsSleepTimer: $showsSleepTimer
+                )
+
+                NowPlayingProgressControl()
+                NowPlayingTransportControls()
+                NowPlayingVolumeControl()
+                NowPlayingPageSelector(page: $page)
+            }
+            .frame(width: 390)
+        }
+        .padding(.horizontal, 32)
+        .safeAreaPadding(.vertical, 18)
+    }
+
+    private var dismissalHandle: some View {
+        Capsule()
+            .fill(.white.opacity(0.52))
+            .frame(width: 38, height: 5)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .contentShape(Rectangle())
+            .onTapGesture { dismiss() }
+            .accessibilityLabel("收起播放器")
     }
 
     @ViewBuilder
-    private func visualPanel(size: CGFloat, height: CGFloat) -> some View {
-        if showsLyrics {
-            SyncedLyricsView(lyrics: player.currentMetadata.lyrics)
-                .padding(.horizontal, 20)
-                .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
-                .adaptiveGlass(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        } else {
-            artworkPanel(size: size)
+    private var pageContent: some View {
+        switch page {
+        case .artwork:
+            NowPlayingArtworkPage(item: activeItem, showsSleepTimer: $showsSleepTimer)
+                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+        case .lyrics:
+            NowPlayingLyricsPage(lyrics: player.currentMetadata.lyrics)
+                .transition(.opacity)
+        case .queue:
+            NowPlayingQueuePage()
+                .transition(.opacity)
+        }
+    }
+}
+
+private struct NowPlayingArtworkPage: View {
+    let item: LibraryItem
+    @Binding var showsSleepTimer: Bool
+
+    var body: some View {
+        GeometryReader { proxy in
+            let artworkSize = max(170, min(proxy.size.width - 28, proxy.size.height - 104))
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 8)
+
+                AudioArtwork(data: metadata.artworkData, fallbackSymbol: "music.note")
+                    .frame(width: artworkSize, height: artworkSize)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: .black.opacity(0.24), radius: 22, y: 12)
+
+                Spacer(minLength: 22)
+
+                NowPlayingArtworkSummary(item: item, showsSleepTimer: $showsSleepTimer)
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 14)
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
     }
 
-    private var topBar: some View {
-        HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.down")
-                    .font(.headline)
-                    .frame(width: 38, height: 38)
-                    .background(.white.opacity(0.12), in: Circle())
-            }
-            .buttonStyle(.plain)
-            Spacer()
-            VStack(spacing: 2) {
-                Text(AppLocalization.string(showsLyrics ? "歌词" : "正在播放"))
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.72))
-                Text(player.currentMetadata.album ?? AppLocalization.string("鱼饼音乐"))
-                    .font(.subheadline.weight(.semibold))
+    @EnvironmentObject private var player: AudioPlayerController
+    private var metadata: EmbeddedAudioMetadata { player.currentMetadata }
+}
+
+private struct NowPlayingArtworkSummary: View {
+    @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var player: AudioPlayerController
+    let item: LibraryItem
+    @Binding var showsSleepTimer: Bool
+    @State private var addToPlaylistItem: LibraryItem?
+
+    var body: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(player.currentMetadata.title ?? item.displayName)
+                    .font(.title3.weight(.semibold))
                     .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .frame(maxWidth: 200)
-            Spacer()
-            optionsMenu
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .frame(maxWidth: 720)
-        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
-        }
-    }
-
-    private func artworkPanel(size: CGFloat) -> some View {
-        AudioArtwork(data: player.currentMetadata.artworkData, fallbackSymbol: "music.note")
-            .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .shadow(color: .black.opacity(0.34), radius: 24, y: 14)
-    }
-
-    private func artworkSize(in size: CGSize) -> CGFloat {
-        let width = max(size.width - 56, 150)
-        let height = max(size.height - 470, 150)
-        return max(150, min(width, 420, height))
-    }
-
-    private func wideArtworkSize(in size: CGSize) -> CGFloat {
-        max(300, min(440, size.width * 0.34, size.height * 0.56))
-    }
-
-    private func lyricsHeight(in size: CGSize) -> CGFloat {
-        max(240, min(430, size.height - 430))
-    }
-
-    private var metadataPanel: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(player.currentMetadata.title ?? activeItem.displayName)
-                    .font(.title2.weight(.bold))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.72)
                 Text(player.currentMetadata.artist ?? player.currentMetadata.album ?? AppLocalization.string("本地音乐"))
                     .font(.title3)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.white.opacity(0.64))
                     .lineLimit(1)
             }
-            Spacer()
-            Button { store.toggleFavorite(activeItem) } label: {
-                Image(systemName: store.isFavorite(activeItem) ? "star.fill" : "star")
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                store.toggleFavorite(item)
+            } label: {
+                Image(systemName: store.isFavorite(item) ? "star.fill" : "star")
+                    .font(.title3.weight(.medium))
+                    .frame(width: 40, height: 40)
+                    .background(.white.opacity(0.13), in: Circle())
+                    .contentShape(Circle())
             }
-            .adaptiveGlassButton()
+            .buttonStyle(.plain)
+            .accessibilityLabel(store.isFavorite(item) ? "取消收藏" : "收藏")
+
+            Menu {
+                Button {
+                    addToPlaylistItem = item
+                } label: {
+                    Label("添加到歌单", systemImage: "text.badge.plus")
+                }
+                ShareLink(item: item.url) {
+                    Label("分享", systemImage: "square.and.arrow.up")
+                }
+                Button { player.toggleShuffle() } label: {
+                    Label(player.isShuffleEnabled ? "关闭随机播放" : "随机播放", systemImage: "shuffle")
+                }
+                Button { player.cycleRepeatMode() } label: {
+                    Label(player.repeatMode.title, systemImage: player.repeatMode.symbol)
+                }
+                Menu("播放速度") {
+                    ForEach([0.5, 0.75, 1, 1.25, 1.5, 2, 3], id: \.self) { rate in
+                        Button {
+                            player.setPlaybackRate(Float(rate))
+                        } label: {
+                            if player.playbackRate == Float(rate) {
+                                Label("\(rate.formatted())x", systemImage: "checkmark")
+                            } else {
+                                Text("\(rate.formatted())x")
+                            }
+                        }
+                    }
+                }
+                Button { showsSleepTimer = true } label: {
+                    Label("定时关闭", systemImage: "timer")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 40, height: 40)
+                    .background(.white.opacity(0.13), in: Circle())
+                    .contentShape(Circle())
+            }
+            .accessibilityLabel("更多")
+            .sheet(item: $addToPlaylistItem) { item in
+                AddToPlaylistSheet(item: item)
+            }
         }
     }
+}
 
-    private var controlsCard: some View {
-        VStack(spacing: 17) {
-            metadataPanel
-            progressPanel
-            playbackControls
-            volumePanel
-            secondaryControls
-        }
-        .padding(22)
-        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
-        }
-    }
+private struct NowPlayingProgressControl: View {
+    @EnvironmentObject private var player: AudioPlayerController
 
-    private var progressPanel: some View {
-        VStack(spacing: 6) {
+    var body: some View {
+        VStack(spacing: 2) {
             Slider(
-                value: Binding(get: { player.currentTime }, set: { player.seek(to: $0) }),
-                in: 0...max(player.duration, 1)
+                value: Binding(
+                    get: { min(player.currentTime, progressMaximum) },
+                    set: { player.seek(to: $0) }
+                ),
+                in: 0...progressMaximum
             )
             .tint(.white)
+            .accessibilityLabel("播放进度")
+
             HStack {
                 Text(player.currentTime.formattedPlaybackTime)
                 Spacer()
                 Text("-\(max(player.duration - player.currentTime, 0).formattedPlaybackTime)")
             }
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.white.opacity(0.68))
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.white.opacity(0.5))
         }
+        .frame(height: 52)
     }
 
-    private var playbackControls: some View {
-        HStack(spacing: 34) {
-            Button { player.playPrevious() } label: {
-                Image(systemName: "backward.fill").font(.system(size: 34))
-            }
-            Button { player.togglePlayback() } label: {
-                Group {
-                    if player.isPreparing {
-                        ProgressView().tint(.white)
-                    } else {
-                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    }
-                }
-                .font(.system(size: 46, weight: .bold))
-                .frame(width: 64, height: 64)
-            }
-            Button { player.playNext() } label: {
-                Image(systemName: "forward.fill").font(.system(size: 34))
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var optionsMenu: some View {
-        Menu {
-            ShareLink(item: activeItem.url) {
-                Label("分享", systemImage: "square.and.arrow.up")
-            }
-            Button { player.toggleShuffle() } label: {
-                Label(
-                    AppLocalization.string(player.isShuffleEnabled ? "关闭随机播放" : "随机播放"),
-                    systemImage: "shuffle"
-                )
-            }
-            Button { player.cycleRepeatMode() } label: {
-                Label(player.repeatMode.title, systemImage: player.repeatMode.symbol)
-            }
-            Menu("播放速度") {
-                ForEach([0.5, 0.75, 1, 1.25, 1.5, 2, 3], id: \.self) { rate in
-                    Button {
-                        player.setPlaybackRate(Float(rate))
-                    } label: {
-                        if player.playbackRate == Float(rate) {
-                            Label("\(rate.formatted())x", systemImage: "checkmark")
-                        } else {
-                            Text("\(rate.formatted())x")
-                        }
-                    }
-                }
-            }
-            Button { showsSleepTimer = true } label: {
-                Label("定时关闭", systemImage: "timer")
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.headline)
-                .frame(width: 38, height: 38)
-                .background(.white.opacity(0.12), in: Circle())
-        }
-    }
-
-    @ViewBuilder
-    private var volumePanel: some View {
-        #if os(iOS)
-        HStack(spacing: 10) {
-            Image(systemName: "speaker.fill")
-                .font(.caption)
-            SystemVolumeSlider()
-                .frame(height: 24)
-            Image(systemName: "speaker.wave.3.fill")
-                .font(.caption)
-        }
-        .foregroundStyle(.white.opacity(0.68))
-        #else
-        EmptyView()
-        #endif
-    }
-
-    private var secondaryControls: some View {
-        HStack {
-            Button { showsLyrics.toggle() } label: {
-                Image(systemName: "quote.bubble")
-                    .foregroundStyle(showsLyrics ? .white : .white.opacity(0.62))
-                    .frame(width: 44, height: 36)
-            }
-            .accessibilityLabel("歌词")
-            Spacer()
-            #if os(iOS)
-            AirPlayRouteButton()
-                .frame(width: 44, height: 36)
-                .accessibilityLabel("AirPlay")
-            #else
-            Image(systemName: "airplayaudio")
-                .frame(width: 44, height: 36)
-            #endif
-            Spacer()
-            Button { showsQueue = true } label: {
-                Image(systemName: "list.bullet")
-                    .frame(width: 44, height: 36)
-            }
-            .accessibilityLabel("播放队列")
-        }
-        .font(.title3)
-        .buttonStyle(.plain)
+    private var progressMaximum: TimeInterval {
+        max(player.duration, 1)
     }
 }
 
-private struct PlaybackQueueView: View {
+private struct NowPlayingTransportControls: View {
     @EnvironmentObject private var player: AudioPlayerController
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            List(player.queue) { item in
-                Button {
-                    player.play(item, in: player.queue)
-                    dismiss()
-                } label: {
-                    HStack(spacing: 12) {
-                        AudioArtwork(
-                            data: player.metadataByPath[item.relativePath]?.artworkData,
-                            fallbackSymbol: "music.note"
-                        )
-                        .frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        HStack {
+            Spacer()
+            Button { player.playPrevious() } label: {
+                Image(systemName: "backward.fill")
+                    .font(.system(size: 34, weight: .medium))
+                    .frame(width: 64, height: 64)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("上一首")
 
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(player.metadataByPath[item.relativePath]?.title ?? item.displayName)
-                                .font(.headline)
-                                .lineLimit(1)
-                            Text(player.metadataByPath[item.relativePath]?.artist ?? AppLocalization.string("未知艺人"))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+            Spacer()
+            Button { player.togglePlayback() } label: {
+                Group {
+                    if player.isPreparing {
+                        ProgressView()
+                            .controlSize(.large)
+                            .tint(.white)
+                    } else {
+                        Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 48, weight: .medium))
+                    }
+                }
+                .frame(width: 64, height: 64)
+                .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(player.isPlaying ? "暂停" : "播放")
+
+            Spacer()
+            Button { player.playNext() } label: {
+                Image(systemName: "forward.fill")
+                    .font(.system(size: 34, weight: .medium))
+                    .frame(width: 64, height: 64)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("下一首")
+            Spacer()
+        }
+        .frame(height: 82)
+    }
+}
+
+private struct NowPlayingVolumeControl: View {
+    @EnvironmentObject private var player: AudioPlayerController
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "speaker.fill")
+                .font(.caption2)
+            Slider(
+                value: Binding(
+                    get: { player.volume },
+                    set: { player.setVolume($0) }
+                ),
+                in: 0...1
+            )
+            .tint(.white)
+            .accessibilityLabel("音量")
+            Image(systemName: "speaker.wave.3.fill")
+                .font(.caption)
+        }
+        .foregroundStyle(.white.opacity(0.62))
+        .frame(height: 42)
+    }
+}
+
+private struct NowPlayingPageSelector: View {
+    @Binding var page: NowPlayingPage
+
+    var body: some View {
+        HStack {
+            Spacer()
+            pageButton(page: .lyrics, systemImage: "quote.bubble", label: "歌词")
+            Spacer()
+            #if os(iOS)
+            AirPlayRouteButton()
+                .frame(width: 44, height: 44)
+                .accessibilityLabel("AirPlay")
+            #else
+            Image(systemName: "airplayaudio")
+                .font(.title3)
+                .frame(width: 44, height: 44)
+            #endif
+            Spacer()
+            pageButton(page: .queue, systemImage: "list.bullet", label: "播放队列")
+            Spacer()
+        }
+        .foregroundStyle(.white.opacity(0.72))
+        .frame(height: 50)
+    }
+
+    private func pageButton(page destination: NowPlayingPage, systemImage: String, label: String) -> some View {
+        let isSelected = page == destination
+        return Button {
+            withAnimation(.smooth(duration: 0.32)) {
+                page = isSelected ? .artwork : destination
+            }
+        } label: {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .frame(width: 44, height: 44)
+                .background(.white.opacity(isSelected ? 0.2 : 0), in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct NowPlayingLyricsPage: View {
+    @EnvironmentObject private var player: AudioPlayerController
+    let lyrics: TimedLyrics?
+
+    @AppStorage("yubing.lyrics.translationEnabled") private var translationEnabled = true
+    @AppStorage("yubing.lyrics.wordByWord") private var wordByWordEnabled = true
+    @AppStorage("yubing.lyrics.pseudoWordByWord") private var pseudoWordByWordEnabled = true
+    @AppStorage("yubing.lyrics.glowEnabled") private var glowEnabled = true
+    @State private var isBrowsingLyrics = false
+    @State private var browsingGeneration = 0
+
+    private var activeIndex: Int? {
+        lyrics?.lineIndex(at: player.currentTime)
+    }
+
+    var body: some View {
+        Group {
+            if let lyrics, !lyrics.lines.isEmpty {
+                ScrollViewReader { proxy in
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(alignment: .leading, spacing: 24) {
+                            ForEach(Array(lyrics.lines.enumerated()), id: \.element.id) { index, line in
+                                SynchronizedLyricLineView(
+                                    lyrics: lyrics,
+                                    line: line,
+                                    lineIndex: index,
+                                    isActive: index == activeIndex,
+                                    translationEnabled: translationEnabled,
+                                    wordByWordEnabled: wordByWordEnabled,
+                                    pseudoWordByWordEnabled: pseudoWordByWordEnabled,
+                                    glowEnabled: glowEnabled,
+                                    alignment: .leading,
+                                    fontSize: index == activeIndex ? 31 : 26
+                                )
+                                    .id(line.id)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture(count: 2) {
+                                        player.seek(to: line.time)
+                                        isBrowsingLyrics = false
+                                    }
+                            }
                         }
-                        Spacer()
-                        if player.currentItem == item {
-                            Image(systemName: player.isPlaying ? "waveform" : "pause.fill")
-                                .foregroundStyle(.tint)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 96)
+                    }
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 8)
+                            .onChanged { _ in
+                                browsingGeneration += 1
+                                isBrowsingLyrics = true
+                            }
+                            .onEnded { _ in
+                                schedulePlaybackFollowing()
+                            }
+                    )
+                    .onChange(of: activeIndex) { _, newIndex in
+                        guard !isBrowsingLyrics,
+                              let newIndex,
+                              lyrics.lines.indices.contains(newIndex) else { return }
+                        withAnimation(.smooth(duration: 0.24)) {
+                            proxy.scrollTo(lyrics.lines[newIndex].id, anchor: .center)
                         }
                     }
                 }
-                .buttonStyle(.plain)
+            } else if let text = lyrics?.untimedText, !text.isEmpty {
+                ScrollView {
+                    Text(text)
+                        .font(.title3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 32)
+                }
+            } else {
+                ContentUnavailableView("没有歌词", systemImage: "quote.bubble", description: Text("导入同名 LRC 文件，或使用带内嵌歌词的音频。"))
+                    .foregroundStyle(.white)
             }
-            .navigationTitle("播放队列")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+        }
+    }
+
+    private func schedulePlaybackFollowing() {
+        let generation = browsingGeneration
+        Task { @MainActor in
+            do {
+                try await Task.sleep(for: .seconds(2.5))
+            } catch {
+                return
+            }
+            guard generation == browsingGeneration else { return }
+            isBrowsingLyrics = false
+        }
+    }
+}
+
+private enum LyricTextAlignment: Equatable {
+    case leading
+    case center
+
+    var horizontalAlignment: HorizontalAlignment {
+        switch self {
+        case .leading: .leading
+        case .center: .center
+        }
+    }
+
+    var textAlignment: TextAlignment {
+        switch self {
+        case .leading: .leading
+        case .center: .center
+        }
+    }
+
+    var frameAlignment: Alignment {
+        switch self {
+        case .leading: .leading
+        case .center: .center
+        }
+    }
+}
+
+private struct SynchronizedLyricLineView: View {
+    @EnvironmentObject private var player: AudioPlayerController
+    let lyrics: TimedLyrics
+    let line: TimedLyricLine
+    let lineIndex: Int
+    let isActive: Bool
+    let translationEnabled: Bool
+    let wordByWordEnabled: Bool
+    let pseudoWordByWordEnabled: Bool
+    let glowEnabled: Bool
+    var alignment: LyricTextAlignment = .leading
+    var fontSize: CGFloat = 28
+    var primaryColor: Color = .white
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !player.isPlaying)) { _ in
+            let progress = highlightProgress
+            VStack(alignment: alignment.horizontalAlignment, spacing: translationSpacing) {
+                lyricText(progress: progress)
+                if translationEnabled, let translation = cleaned(line.translation) {
+                    Text(translation)
+                        .font(.system(size: max(fontSize * 0.56, 13), weight: .semibold))
+                        .foregroundStyle(.white.opacity(isActive ? 0.68 : 0.36))
+                        .multilineTextAlignment(alignment.textAlignment)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: alignment.frameAlignment)
+            .opacity(isActive ? 1 : 0.45)
+            .animation(.smooth(duration: 0.26), value: isActive)
+        }
+    }
+
+    private func lyricText(progress: Double) -> some View {
+        Text(line.text)
+            .font(.system(size: fontSize, weight: .bold))
+            .foregroundStyle(.white.opacity(isActive ? 0.30 : 0.58))
+            .multilineTextAlignment(alignment.textAlignment)
+            .overlay(alignment: .leading) {
+                if isActive {
+                    Text(line.text)
+                        .font(.system(size: fontSize, weight: .bold))
+                        .foregroundStyle(primaryColor)
+                        .multilineTextAlignment(alignment.textAlignment)
+                        .mask(alignment: .leading) {
+                            GeometryReader { geometry in
+                                Rectangle()
+                                    .frame(width: max(0, geometry.size.width * progress))
+                            }
+                        }
+                        .shadow(color: glowEnabled ? primaryColor.opacity(0.72) : .clear, radius: glowEnabled ? 10 : 0)
+                        .shadow(color: glowEnabled ? primaryColor.opacity(0.36) : .clear, radius: glowEnabled ? 22 : 0)
+                }
+            }
+    }
+
+    private var highlightProgress: Double {
+        guard isActive else { return 0 }
+        let playbackTime = player.isPlaying ? player.playbackPosition() : player.currentTime
+        if wordByWordEnabled, line.isWordSynced {
+            return lyrics.highlightProgress(in: lineIndex, at: playbackTime)
+        }
+        if pseudoWordByWordEnabled {
+            return lyrics.lineProgress(in: lineIndex, at: playbackTime)
+        }
+        return 1
+    }
+
+    private var translationSpacing: CGFloat {
+        translationEnabled && line.translation != nil ? 6 : 0
+    }
+}
+
+private struct SkylineLyricsView: View {
+    @EnvironmentObject private var player: AudioPlayerController
+    let lyrics: TimedLyrics?
+    let onExit: () -> Void
+
+    @AppStorage("yubing.lyrics.translationEnabled") private var translationEnabled = true
+    @AppStorage("yubing.lyrics.wordByWord") private var wordByWordEnabled = true
+    @AppStorage("yubing.lyrics.pseudoWordByWord") private var pseudoWordByWordEnabled = true
+    @AppStorage("yubing.lyrics.glowEnabled") private var glowEnabled = true
+    @AppStorage("yubing.skyline.currentFontSize") private var currentFontSize = 54.0
+    @AppStorage("yubing.skyline.nextFontSize") private var nextFontSize = 24.0
+    @AppStorage("yubing.skyline.ambientFontSize") private var ambientFontSize = 44.0
+    @AppStorage("yubing.skyline.ambientOpacity") private var ambientOpacity = 1.0
+    @AppStorage("yubing.skyline.ambientDrift") private var ambientDrift = 1.0
+
+    @State private var controlsAreVisible = true
+    @State private var showsSettings = false
+    @State private var ambientFieldIsDrifting = false
+
+    private static let ambientSlots: [SkylineLyricSlot] = [
+        .init(id: 0, x: 0.02, y: 0.14, scale: 1.24, blur: 1.8, opacity: 0.22, driftX: 12, driftY: -3),
+        .init(id: 1, x: 0.10, y: 0.72, scale: 1.52, blur: 8.5, opacity: 0.25, driftX: 18, driftY: 4),
+        .init(id: 2, x: 0.20, y: 0.32, scale: 1.08, blur: 1.2, opacity: 0.20, driftX: 10, driftY: -5),
+        .init(id: 3, x: 0.30, y: 0.88, scale: 0.68, blur: 2.4, opacity: 0.17, driftX: 8, driftY: 2),
+        .init(id: 4, x: 0.38, y: 0.60, scale: 0.58, blur: 0.8, opacity: 0.13, driftX: 6, driftY: -2),
+        .init(id: 5, x: 0.47, y: 0.18, scale: 0.42, blur: 5.5, opacity: 0.12, driftX: 4, driftY: 2),
+        .init(id: 6, x: 0.56, y: 0.82, scale: 0.42, blur: 4.0, opacity: 0.11, driftX: -4, driftY: -2),
+        .init(id: 7, x: 0.66, y: 0.64, scale: 0.56, blur: 0.9, opacity: 0.13, driftX: -6, driftY: 3),
+        .init(id: 8, x: 0.75, y: 0.35, scale: 0.78, blur: 1.6, opacity: 0.17, driftX: -8, driftY: -4),
+        .init(id: 9, x: 0.84, y: 0.90, scale: 1.02, blur: 2.4, opacity: 0.20, driftX: -10, driftY: 3),
+        .init(id: 10, x: 0.92, y: 0.70, scale: 1.46, blur: 8.0, opacity: 0.24, driftX: -16, driftY: -3),
+        .init(id: 11, x: 0.98, y: 0.22, scale: 1.30, blur: 1.6, opacity: 0.21, driftX: -12, driftY: 4)
+    ]
+
+    var body: some View {
+        GeometryReader { proxy in
+            let lines = lyrics?.lines ?? []
+            let activeIndex = activeLyricIndex(in: lines)
+            let ambientTexts = ambientTexts(around: activeIndex, in: lines)
+
+            ZStack {
+                Color.black.opacity(0.92)
+                LinearGradient(
+                    colors: [.black.opacity(0.10), .clear, .black.opacity(0.58)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                if let activeIndex, lines.indices.contains(activeIndex) {
+                    ambientField(texts: ambientTexts, activeIndex: activeIndex, size: proxy.size)
+                    currentLyrics(lines: lines, activeIndex: activeIndex, size: proxy.size)
+                } else {
+                    ContentUnavailableView("暂无歌词", systemImage: "quote.bubble")
+                        .foregroundStyle(.white)
+                }
+
+                if controlsAreVisible {
+                    skylineControls
+                        .transition(.opacity)
+                }
+
+                if showsSettings {
+                    skylineSettings
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .contentShape(Rectangle())
+            .clipped()
+            .onTapGesture {
+                withAnimation(.smooth(duration: 0.25)) {
+                    controlsAreVisible.toggle()
+                    if !controlsAreVisible { showsSettings = false }
                 }
             }
         }
+        .ignoresSafeArea()
+        .onAppear {
+            withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) {
+                ambientFieldIsDrifting = true
+            }
+        }
+    }
+
+    private func ambientField(texts: [String], activeIndex: Int, size: CGSize) -> some View {
+        ZStack {
+            ForEach(Self.ambientSlots) { slot in
+                let text = texts[slot.id]
+                Text(verbatim: text)
+                    .font(.system(size: CGFloat(ambientFontSize) * slot.scale, weight: .bold))
+                    .foregroundStyle(.white.opacity(slot.opacity * ambientOpacity))
+                    .blur(radius: slot.blur)
+                    .position(
+                        x: size.width * slot.x + driftOffset(slot.driftX),
+                        y: size.height * slot.y + driftOffset(slot.driftY)
+                    )
+                    .id("\(activeIndex)-\(slot.id)-\(text)")
+                    .animation(.easeInOut(duration: 1.2), value: text)
+            }
+        }
+        .accessibilityHidden(true)
+        .mask {
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: 0.06),
+                    .init(color: .black, location: 0.92),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+    }
+
+    private func currentLyrics(lines: [TimedLyricLine], activeIndex: Int, size: CGSize) -> some View {
+        let line = lines[activeIndex]
+        let nextLine = lines.indices.contains(activeIndex + 1) ? lines[activeIndex + 1] : nil
+
+        return VStack(spacing: 14) {
+            SynchronizedLyricLineView(
+                lyrics: TimedLyrics(lines: lines, untimedText: nil),
+                line: line,
+                lineIndex: activeIndex,
+                isActive: true,
+                translationEnabled: translationEnabled,
+                wordByWordEnabled: wordByWordEnabled,
+                pseudoWordByWordEnabled: pseudoWordByWordEnabled,
+                glowEnabled: glowEnabled,
+                alignment: .center,
+                fontSize: CGFloat(currentFontSize),
+                primaryColor: .white
+            )
+
+            if let nextLine {
+                Text(nextLine.text)
+                    .font(.system(size: CGFloat(nextFontSize), weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.48))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .frame(width: size.width * 0.66)
+        .position(x: size.width * 0.5, y: size.height * 0.5)
+        .id(line.id)
+        .animation(.smooth(duration: 0.45), value: line.id)
+    }
+
+    private var skylineControls: some View {
+        VStack {
+            HStack(spacing: 12) {
+                Spacer()
+                Button {
+                    withAnimation(.smooth(duration: 0.25)) {
+                        showsSettings.toggle()
+                    }
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.title3.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("调整天际歌词")
+
+                Button(action: onExit) {
+                    Image(systemName: "arrow.down.right.and.arrow.up.left")
+                        .font(.title3.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("返回播放器")
+            }
+            Spacer()
+        }
+        .safeAreaPadding(12)
+    }
+
+    private var skylineSettings: some View {
+        HStack {
+            Spacer()
+            VStack(spacing: 16) {
+                SkylineSlider(systemImage: "textformat.size", value: $currentFontSize, range: 36...82, accessibilityLabel: "当前歌词大小")
+                SkylineSlider(systemImage: "textformat", value: $nextFontSize, range: 16...38, accessibilityLabel: "后续歌词大小")
+                SkylineSlider(systemImage: "text.word.spacing", value: $ambientFontSize, range: 24...64, accessibilityLabel: "环境文字大小")
+                SkylineSlider(systemImage: "circle.lefthalf.filled", value: $ambientOpacity, range: 0.2...1.4, accessibilityLabel: "环境文字透明度")
+                SkylineSlider(systemImage: "arrow.left.and.right", value: $ambientDrift, range: 0...2, accessibilityLabel: "环境文字动态幅度")
+            }
+            .padding(16)
+            .frame(width: 280)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(.white.opacity(0.16), lineWidth: 1)
+            }
+            .padding(.trailing, 16)
+        }
+    }
+
+    private func activeLyricIndex(in lines: [TimedLyricLine]) -> Int? {
+        TimedLyrics(lines: lines, untimedText: nil).lineIndex(at: player.currentTime)
+    }
+
+    private func ambientTexts(around activeIndex: Int?, in lines: [TimedLyricLine]) -> [String] {
+        guard let activeIndex, lines.indices.contains(activeIndex) else {
+            return Array(repeating: "", count: Self.ambientSlots.count)
+        }
+
+        let neighborOffsets = [-3, 3, -2, 2, -1, 1]
+        var fragments = neighborOffsets.flatMap { offset -> [String] in
+            let index = activeIndex + offset
+            guard lines.indices.contains(index) else { return [] }
+            return lyricFragments(from: lines[index].text)
+        }
+        if fragments.isEmpty {
+            fragments = lyricFragments(from: lines[activeIndex].text)
+        }
+        guard !fragments.isEmpty else {
+            return Array(repeating: "", count: Self.ambientSlots.count)
+        }
+        return Self.ambientSlots.map { slot in
+            fragments[(slot.id * 5 + activeIndex * 3) % fragments.count]
+        }
+    }
+
+    private func lyricFragments(from text: String) -> [String] {
+        let characters = Array(text.filter { !$0.isWhitespace && !$0.isPunctuation })
+        guard !characters.isEmpty else { return [] }
+        return stride(from: characters.startIndex, to: characters.endIndex, by: 2).map { startIndex in
+            let endIndex = min(startIndex + 2, characters.endIndex)
+            return String(characters[startIndex..<endIndex])
+        }
+    }
+
+    private func driftOffset(_ offset: CGFloat) -> CGFloat {
+        let direction: CGFloat = ambientFieldIsDrifting ? 1 : -1
+        return offset * direction * CGFloat(ambientDrift)
+    }
+}
+
+private struct SkylineSlider: View {
+    let systemImage: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let accessibilityLabel: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .frame(width: 28)
+            Slider(value: $value, in: range)
+        }
+        .foregroundStyle(.white)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+private struct SkylineLyricSlot: Identifiable {
+    let id: Int
+    let x: CGFloat
+    let y: CGFloat
+    let scale: CGFloat
+    let blur: CGFloat
+    let opacity: Double
+    let driftX: CGFloat
+    let driftY: CGFloat
+}
+
+private struct NowPlayingQueuePage: View {
+    @EnvironmentObject private var player: AudioPlayerController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("接下来播放")
+                    .font(.title2.bold())
+                Spacer()
+                Button { player.toggleShuffle() } label: {
+                    Image(systemName: "shuffle")
+                        .frame(width: 40, height: 40)
+                        .background(.white.opacity(player.isShuffleEnabled ? 0.24 : 0.1), in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(player.isShuffleEnabled ? "关闭随机播放" : "开启随机播放")
+
+                Button { player.cycleRepeatMode() } label: {
+                    Image(systemName: player.repeatMode.symbol)
+                        .frame(width: 40, height: 40)
+                        .background(.white.opacity(player.repeatMode == .off ? 0.1 : 0.24), in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(player.repeatMode.title)
+            }
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(player.queue.enumerated()), id: \.element.id) { index, item in
+                        Button {
+                            player.playFromQueue(at: index)
+                        } label: {
+                            LocalTrackRow(
+                                item: item,
+                                showsArtwork: true,
+                                foregroundStyle: AnyShapeStyle(.white),
+                                secondaryStyle: AnyShapeStyle(.white.opacity(0.58))
+                            )
+                        }
+                        .buttonStyle(.plain)
+
+                        if index < player.queue.count - 1 {
+                            Divider()
+                                .overlay(.white.opacity(0.12))
+                                .padding(.leading, 62)
+                        }
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+            .overlay {
+                if player.queue.isEmpty {
+                    ContentUnavailableView("播放队列为空", systemImage: "list.bullet")
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+    }
+}
+
+private struct NowPlayingBackground: View {
+    let artworkData: Data?
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Color.black
+
+                if let image = platformAudioImage(data: artworkData) {
+                    platformAudioImageView(image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
+                        .scaleEffect(1.35)
+                        .blur(radius: 42)
+                        .saturation(1.18)
+                }
+
+                Color.black.opacity(0.18)
+                LinearGradient(
+                    colors: [.black.opacity(0.04), .black.opacity(0.14), .black.opacity(0.52)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+}
+
+private struct AudioArtwork: View {
+    let data: Data?
+    let fallbackSymbol: String
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.secondary.opacity(0.14))
+            if let image = platformAudioImage(data: data) {
+                platformAudioImageView(image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: fallbackSymbol)
+                    .font(.system(size: 34, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .symbolRenderingMode(.hierarchical)
+            }
+        }
+        .clipped()
+        .accessibilityHidden(true)
     }
 }
 
 #if os(iOS)
-private struct SystemVolumeSlider: UIViewRepresentable {
-    func makeUIView(context: Context) -> MPVolumeView {
-        let view = MPVolumeView(frame: .zero)
-        view.showsRouteButton = false
-        view.tintColor = .white
-        return view
-    }
-
-    func updateUIView(_ uiView: MPVolumeView, context: Context) {}
-}
-
 private struct AirPlayRouteButton: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView {
         let view = AVRoutePickerView(frame: .zero)
@@ -830,278 +1802,14 @@ private struct AirPlayRouteButton: UIViewRepresentable {
 }
 #endif
 
-private struct SyncedLyricsView: View {
-    @EnvironmentObject private var player: AudioPlayerController
-    let lyrics: TimedLyrics?
-
-    private var activeIndex: Int? { lyrics?.lineIndex(at: player.currentTime) }
-
-    var body: some View {
-        Group {
-            if let lyrics, !lyrics.lines.isEmpty {
-                ScrollViewReader { proxy in
-                    ScrollView(showsIndicators: false) {
-                        LazyVStack(alignment: .leading, spacing: 26) {
-                            ForEach(Array(lyrics.lines.enumerated()), id: \.element.id) { index, line in
-                                Group {
-                                    if index == activeIndex {
-                                        KaraokeLyricText(lyrics: lyrics, lineIndex: index)
-                                    } else {
-                                        Text(line.text)
-                                            .foregroundStyle(.white.opacity(0.42))
-                                    }
-                                }
-                                    .font(index == activeIndex ? .title.weight(.bold) : .title2.weight(.bold))
-                                    .opacity(index == activeIndex ? 1 : 0.34)
-                                    .id(line.id)
-                                    .onTapGesture { player.seek(to: line.time) }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 90)
-                    }
-                    .onChange(of: activeIndex) { _, newIndex in
-                        guard let newIndex, lyrics.lines.indices.contains(newIndex) else { return }
-                        withAnimation(.easeOut(duration: 0.24)) {
-                            proxy.scrollTo(lyrics.lines[newIndex].id, anchor: .center)
-                        }
-                    }
-                }
-            } else if let text = lyrics?.untimedText {
-                ScrollView { Text(text).font(.title3).frame(maxWidth: .infinity, alignment: .leading) }
-            } else {
-                ContentUnavailableView("没有歌词", systemImage: "quote.bubble", description: Text("导入同名 LRC 文件，或使用带内嵌歌词的音频。"))
-                    .foregroundStyle(.white)
-            }
-        }
-    }
-
+private func cleaned(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
 }
 
-private struct KaraokeLyricText: View {
-    @EnvironmentObject private var player: AudioPlayerController
-    let lyrics: TimedLyrics
-    let lineIndex: Int
-
-    var body: some View {
-        #if os(iOS)
-        DisplayLinkedLyricLabel(
-            text: lyrics.lines[lineIndex].text,
-            progress: { lyrics.highlightProgress(in: lineIndex, at: player.playbackPosition()) },
-            isPlaying: player.isPlaying
-        )
-        #else
-        Text(lyrics.lines[lineIndex].text)
-            .foregroundStyle(.white)
-        #endif
-    }
-}
-
-#if os(iOS)
-private struct DisplayLinkedLyricLabel: UIViewRepresentable {
-    let text: String
-    let progress: () -> Double
-    let isPlaying: Bool
-
-    func makeUIView(context: Context) -> DisplayLinkedLyricUIView {
-        let view = DisplayLinkedLyricUIView()
-        view.progressProvider = progress
-        view.setText(text)
-        view.setAnimating(isPlaying)
-        return view
-    }
-
-    func updateUIView(_ uiView: DisplayLinkedLyricUIView, context: Context) {
-        uiView.progressProvider = progress
-        uiView.setText(text)
-        uiView.setAnimating(isPlaying)
-        uiView.updateHighlight()
-    }
-
-    func sizeThatFits(
-        _ proposal: ProposedViewSize,
-        uiView: DisplayLinkedLyricUIView,
-        context: Context
-    ) -> CGSize? {
-        guard let width = proposal.width else { return nil }
-        return uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-    }
-}
-
-@MainActor
-private final class DisplayLinkedLyricUIView: UIView {
-    var progressProvider: (() -> Double)?
-
-    private let inactiveLabel = UILabel()
-    private let activeLabel = UILabel()
-    private let activeMask = CAShapeLayer()
-    private var displayLink: CADisplayLink?
-    private var currentText = ""
-    private var shouldAnimate = false
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        [inactiveLabel, activeLabel].forEach { label in
-            label.font = .preferredFont(forTextStyle: .title1).bold()
-            label.numberOfLines = 0
-            label.lineBreakMode = .byWordWrapping
-            addSubview(label)
-        }
-        inactiveLabel.textColor = UIColor.white.withAlphaComponent(0.42)
-        activeLabel.textColor = .white
-        activeMask.fillColor = UIColor.black.cgColor
-        activeLabel.layer.mask = activeMask
-    }
-
-    required init?(coder: NSCoder) { nil }
-
-    deinit {
-        displayLink?.invalidate()
-    }
-
-    func setText(_ text: String) {
-        guard currentText != text else { return }
-        currentText = text
-        inactiveLabel.text = text
-        activeLabel.text = text
-        invalidateIntrinsicContentSize()
-        setNeedsLayout()
-    }
-
-    func setAnimating(_ isAnimating: Bool) {
-        shouldAnimate = isAnimating
-        updateDisplayLink()
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        updateDisplayLink()
-    }
-
-    private func updateDisplayLink() {
-        if shouldAnimate, window != nil, displayLink == nil {
-            let link = CADisplayLink(target: DisplayLinkProxy(owner: self), selector: #selector(DisplayLinkProxy.fire))
-            let maximum = Float(UIScreen.main.maximumFramesPerSecond)
-            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: maximum, preferred: maximum)
-            link.add(to: .main, forMode: .common)
-            displayLink = link
-        } else if (!shouldAnimate || window == nil), let displayLink {
-            displayLink.invalidate()
-            self.displayLink = nil
-        }
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        inactiveLabel.frame = bounds
-        activeLabel.frame = bounds
-        updateHighlight()
-    }
-
-    override func sizeThatFits(_ size: CGSize) -> CGSize {
-        inactiveLabel.sizeThatFits(size)
-    }
-
-    func updateHighlight() {
-        let progress = min(max(progressProvider?() ?? 0, 0), 1)
-        let maskPath = UIBezierPath()
-        let textLength = max((currentText as NSString).length, 1)
-        let highlightedLocation = min(max(CGFloat(textLength) * progress, 0), CGFloat(textLength))
-        let textRect = activeLabel.textRect(forBounds: bounds, limitedToNumberOfLines: 0)
-        let font = activeLabel.font ?? .preferredFont(forTextStyle: .title1)
-        let lineHeight = font.lineHeight
-        let lineCount = max(Int((textRect.height / lineHeight).rounded()), 1)
-
-        if lineCount == 1 {
-            maskPath.append(UIBezierPath(rect: CGRect(
-                x: textRect.minX,
-                y: textRect.minY,
-                width: textRect.width * progress,
-                height: textRect.height
-            )))
-        } else {
-            let charactersPerLine = CGFloat(textLength) / CGFloat(lineCount)
-            for line in 0..<lineCount {
-                let lineStart = CGFloat(line) * charactersPerLine
-                let lineProgress = min(max((highlightedLocation - lineStart) / charactersPerLine, 0), 1)
-                guard lineProgress > 0 else { continue }
-                maskPath.append(UIBezierPath(rect: CGRect(
-                    x: textRect.minX,
-                    y: textRect.minY + CGFloat(line) * lineHeight,
-                    width: textRect.width * lineProgress,
-                    height: lineHeight
-                )))
-            }
-        }
-
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        activeMask.frame = bounds
-        activeMask.path = maskPath.cgPath
-        CATransaction.commit()
-    }
-}
-
-@MainActor
-private final class DisplayLinkProxy: NSObject {
-    weak var owner: DisplayLinkedLyricUIView?
-
-    init(owner: DisplayLinkedLyricUIView) {
-        self.owner = owner
-    }
-
-    @objc func fire() {
-        owner?.updateHighlight()
-    }
-}
-
-private extension UIFont {
-    func bold() -> UIFont {
-        guard let descriptor = fontDescriptor.withSymbolicTraits(.traitBold) else { return self }
-        return UIFont(descriptor: descriptor, size: pointSize)
-    }
-}
-#endif
-
-private struct AudioGradientBackground: View {
-    let artworkData: Data?
-
-    var body: some View {
-        ZStack {
-            Color(red: 0.09, green: 0.10, blue: 0.12)
-            if let image = platformAudioImage(data: artworkData) {
-                platformAudioImageView(image)
-                    .resizable()
-                    .scaledToFill()
-                    .blur(radius: 58)
-                    .scaleEffect(1.30)
-                    .opacity(0.94)
-            }
-            Rectangle().fill(.ultraThinMaterial).opacity(0.18)
-            Color.black.opacity(0.24)
-        }
-        .ignoresSafeArea()
-    }
-}
-
-private struct AudioArtwork: View {
-    let data: Data?
-    let fallbackSymbol: String
-
-    var body: some View {
-        ZStack {
-            Rectangle().fill(.white.opacity(0.12))
-            if let image = platformAudioImage(data: data) {
-                platformAudioImageView(image).resizable().scaledToFill()
-            } else {
-                Color.white.opacity(0.10)
-                Image(systemName: fallbackSymbol)
-                    .font(.system(size: 46, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.88))
-            }
-        }
-        .clipped()
-    }
+private func trackIndex(_ value: String?) -> Int {
+    Int(value?.split(separator: "/").first ?? "") ?? Int.max
 }
 
 private func platformAudioImage(data: Data?) -> AudioPlatformImage? {

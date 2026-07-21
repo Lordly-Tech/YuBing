@@ -230,6 +230,7 @@ final class AudioPlayerController: ObservableObject {
     @Published private(set) var currentMetadata = EmbeddedAudioMetadata.empty
     @Published private(set) var metadataByPath: [String: EmbeddedAudioMetadata] = [:]
     @Published private(set) var playbackRate: Float = 1
+    @Published private(set) var volume: Double = 1
     @Published private(set) var repeatMode: AudioRepeatMode = .off
     @Published private(set) var isShuffleEnabled = false
     @Published private(set) var sleepTimerEnd: Date?
@@ -238,16 +239,23 @@ final class AudioPlayerController: ObservableObject {
     @Published var isNowPlayingVisible = false
 
     private let player = AVPlayer()
+    private let persistence = AudioPlaybackPersistence()
+    private var playbackQueue = AudioPlaybackQueue()
     private var timeObserver: Any?
     private var endObserver: NSObjectProtocol?
+    private var audioSessionObservers: [NSObjectProtocol] = []
     private var preparationTask: Task<Void, Never>?
     private var sleepTask: Task<Void, Never>?
     private var playbackGeneration = UUID()
+    private var lastPersistedSecond = -1
+    private var shouldResumeAfterInterruption = false
 
     init() {
         configureAudioSession()
         configureRemoteCommands()
+        configureAudioSessionObservers()
         player.automaticallyWaitsToMinimizeStalling = true
+        player.volume = Float(volume)
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
             queue: .main
@@ -255,6 +263,7 @@ final class AudioPlayerController: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.currentTime = time.seconds.isFinite ? time.seconds : 0
+                self.persistProgressIfNeeded()
             }
         }
         endObserver = NotificationCenter.default.addObserver(
@@ -264,6 +273,7 @@ final class AudioPlayerController: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in self?.handlePlaybackEnded() }
         }
+        restorePlaybackSnapshot()
     }
 
     deinit {
@@ -271,27 +281,39 @@ final class AudioPlayerController: ObservableObject {
         sleepTask?.cancel()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        for observer in audioSessionObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     func play(_ item: LibraryItem, in items: [LibraryItem]? = nil) {
-        if let items {
-            queue = items.filter { $0.kind == .music }
+        if let items, !items.isEmpty {
+            let filtered = items.filter { $0.kind == .music }
+            let index = filtered.firstIndex(of: item) ?? 0
+            playbackQueue.replace(with: filtered, startingAt: index)
         } else if queue.isEmpty {
-            queue = [item]
+            playbackQueue.replace(with: [item], startingAt: 0)
+        } else if !playbackQueue.select(item: item) {
+            playbackQueue.replace(with: queue + [item], startingAt: queue.count)
         }
+        syncQueueState()
+        preparePlayback(for: item, startAt: 0, autoplay: true)
+    }
 
+    private func preparePlayback(for item: LibraryItem, startAt: TimeInterval, autoplay: Bool) {
         preparationTask?.cancel()
         let generation = UUID()
         playbackGeneration = generation
         currentItem = item
         currentMetadata = metadataByPath[item.relativePath] ?? .empty
-        currentTime = 0
+        currentTime = max(0, startAt)
         duration = 0
         isPlaying = false
         isPreparing = true
         playbackError = nil
         player.pause()
         player.replaceCurrentItem(with: nil)
+        persistSnapshot()
 
         preparationTask = Task { [weak self] in
             guard let self else { return }
@@ -302,12 +324,13 @@ final class AudioPlayerController: ObservableObject {
                 guard !Task.isCancelled, self.playbackGeneration == generation else { return }
                 self.metadataByPath[item.relativePath] = loadedMetadata
                 self.currentMetadata = loadedMetadata
-                self.startPlayback(url: url, sourceItem: item)
+                self.startPlayback(url: url, sourceItem: item, startAt: startAt, autoplay: autoplay)
             } catch {
                 guard !Task.isCancelled, self.playbackGeneration == generation else { return }
                 self.isPreparing = false
                 self.playbackError = error.localizedDescription
                 self.updateNowPlayingInfo()
+                self.persistSnapshot()
             }
         }
     }
@@ -315,7 +338,10 @@ final class AudioPlayerController: ObservableObject {
     func setQueue(_ items: [LibraryItem]) {
         let filtered = items.filter { $0.kind == .music }
         guard !filtered.isEmpty, filtered != queue else { return }
-        queue = filtered
+        let selectedIndex = currentItem.flatMap { filtered.firstIndex(of: $0) } ?? 0
+        playbackQueue.replace(with: filtered, startingAt: selectedIndex)
+        syncQueueState()
+        persistSnapshot()
     }
 
     func loadMetadata(for item: LibraryItem) async -> EmbeddedAudioMetadata {
@@ -330,8 +356,12 @@ final class AudioPlayerController: ObservableObject {
     }
 
     func togglePlayback() {
-        guard currentItem != nil, !isPreparing else {
+        guard let currentItem, !isPreparing else {
             if currentItem == nil, let first = queue.first { play(first, in: queue) }
+            return
+        }
+        guard player.currentItem != nil else {
+            preparePlayback(for: currentItem, startAt: currentTime, autoplay: true)
             return
         }
         if isPlaying {
@@ -342,12 +372,14 @@ final class AudioPlayerController: ObservableObject {
             isPlaying = true
         }
         updateNowPlayingInfo()
+        persistSnapshot()
     }
 
     func pause() {
         player.pause()
         isPlaying = false
         updateNowPlayingInfo()
+        persistSnapshot()
     }
 
     func seek(to seconds: TimeInterval) {
@@ -355,6 +387,7 @@ final class AudioPlayerController: ObservableObject {
         player.seek(to: CMTime(seconds: clamped, preferredTimescale: 600))
         currentTime = clamped
         updateNowPlayingElapsedTime()
+        persistSnapshot()
     }
 
     func playbackPosition() -> TimeInterval {
@@ -367,6 +400,13 @@ final class AudioPlayerController: ObservableObject {
         player.defaultRate = playbackRate
         if isPlaying { player.rate = playbackRate }
         updateNowPlayingInfo()
+        persistSnapshot()
+    }
+
+    func setVolume(_ value: Double) {
+        volume = min(max(value, 0), 1)
+        player.volume = Float(volume)
+        persistSnapshot()
     }
 
     func cycleRepeatMode() {
@@ -375,10 +415,13 @@ final class AudioPlayerController: ObservableObject {
         case .all: repeatMode = .one
         case .one: repeatMode = .off
         }
+        persistSnapshot()
     }
 
     func toggleShuffle() {
-        isShuffleEnabled.toggle()
+        playbackQueue.toggleShuffle()
+        syncQueueState()
+        persistSnapshot()
     }
 
     func setSleepTimer(minutes: Int?) {
@@ -419,30 +462,38 @@ final class AudioPlayerController: ObservableObject {
             isPlaying = false
             return
         }
-        if isShuffleEnabled, queue.count > 1 {
-            let candidates = queue.filter { $0 != currentItem }
-            if let next = candidates.randomElement() { play(next, in: queue) }
-            return
-        }
-        guard let currentItem, let index = queue.firstIndex(of: currentItem) else {
-            play(queue[0], in: queue)
-            return
-        }
-        play(queue[(index + 1) % queue.count], in: queue)
-    }
-
-    func playPrevious() {
-        guard currentTime < 4,
-              let currentItem,
-              let index = queue.firstIndex(of: currentItem),
-              !queue.isEmpty else {
+        guard playbackQueue.move(by: 1, wraps: repeatMode == .all),
+              let next = playbackQueue.currentItem else {
+            pause()
             seek(to: 0)
             return
         }
-        play(queue[(index - 1 + queue.count) % queue.count], in: queue)
+        syncQueueState()
+        preparePlayback(for: next, startAt: 0, autoplay: true)
     }
 
-    private func startPlayback(url: URL, sourceItem: LibraryItem) {
+    func playPrevious() {
+        guard currentTime < 4, !queue.isEmpty else {
+            seek(to: 0)
+            return
+        }
+        guard playbackQueue.move(by: -1, wraps: repeatMode == .all),
+              let previous = playbackQueue.currentItem else {
+            seek(to: 0)
+            return
+        }
+        syncQueueState()
+        preparePlayback(for: previous, startAt: 0, autoplay: true)
+    }
+
+    func playFromQueue(at index: Int) {
+        guard playbackQueue.select(index: index),
+              let item = playbackQueue.currentItem else { return }
+        syncQueueState()
+        preparePlayback(for: item, startAt: 0, autoplay: true)
+    }
+
+    private func startPlayback(url: URL, sourceItem: LibraryItem, startAt: TimeInterval, autoplay: Bool) {
         guard currentItem == sourceItem else { return }
         #if os(iOS)
         try? AVAudioSession.sharedInstance().setActive(true)
@@ -452,10 +503,19 @@ final class AudioPlayerController: ObservableObject {
         playerItem.audioTimePitchAlgorithm = .timeDomain
         player.replaceCurrentItem(with: playerItem)
         player.defaultRate = playbackRate
-        player.playImmediately(atRate: playbackRate)
         isPreparing = false
-        isPlaying = true
+        if startAt > 0 {
+            player.seek(to: CMTime(seconds: startAt, preferredTimescale: 600))
+            currentTime = startAt
+        }
+        if autoplay {
+            player.playImmediately(atRate: playbackRate)
+            isPlaying = true
+        } else {
+            isPlaying = false
+        }
         updateNowPlayingInfo()
+        persistSnapshot()
 
         Task { [weak self, weak playerItem] in
             guard let self, let playerItem else { return }
@@ -463,6 +523,7 @@ final class AudioPlayerController: ObservableObject {
                self.currentItem == sourceItem {
                 self.duration = loadedDuration.seconds.isFinite ? loadedDuration.seconds : 0
                 self.updateNowPlayingInfo()
+                self.persistSnapshot()
             }
         }
     }
@@ -478,18 +539,89 @@ final class AudioPlayerController: ObservableObject {
             seek(to: 0)
             player.playImmediately(atRate: playbackRate)
             isPlaying = true
+            updateNowPlayingInfo()
+            persistSnapshot()
             return
         }
-        guard let currentItem,
-              let index = queue.firstIndex(of: currentItem) else {
+        guard !queue.isEmpty else {
             pause()
             return
         }
-        if repeatMode == .off, index == queue.count - 1, !isShuffleEnabled {
+        guard playbackQueue.move(by: 1, wraps: repeatMode == .all),
+              let next = playbackQueue.currentItem else {
             pause()
+            seek(to: 0)
             return
         }
-        playNext()
+        syncQueueState()
+        preparePlayback(for: next, startAt: 0, autoplay: true)
+    }
+
+    private func restorePlaybackSnapshot() {
+        guard let snapshot = persistence.load(), !snapshot.queue.isEmpty else { return }
+        playbackQueue.restore(
+            items: snapshot.queue,
+            currentIndex: snapshot.currentIndex,
+            isShuffled: snapshot.isShuffled,
+            shuffledOrder: snapshot.shuffledOrder
+        )
+        syncQueueState()
+        guard !queue.isEmpty else {
+            persistence.clear()
+            return
+        }
+        repeatMode = AudioRepeatMode(rawValue: snapshot.repeatMode) ?? .off
+        playbackRate = min(max(snapshot.playbackRate, 0.5), 3)
+        setVolume(snapshot.volume)
+        currentItem = playbackQueue.currentItem
+        currentTime = max(snapshot.progress, 0)
+        if let currentItem {
+            currentMetadata = metadataByPath[currentItem.relativePath] ?? .empty
+            Task { @MainActor [weak self, currentItem] in
+                guard let self else { return }
+                let metadata = await self.loadMetadata(for: currentItem)
+                guard self.currentItem == currentItem else { return }
+                self.currentMetadata = metadata
+                let asset = AVURLAsset(url: currentItem.url)
+                if let loadedDuration = try? await asset.load(.duration), loadedDuration.seconds.isFinite {
+                    self.duration = loadedDuration.seconds
+                }
+                self.updateNowPlayingInfo()
+            }
+        }
+    }
+
+    private func syncQueueState() {
+        queue = playbackQueue.items
+        isShuffleEnabled = playbackQueue.isShuffled
+    }
+
+    private func persistProgressIfNeeded() {
+        guard currentItem != nil else { return }
+        let second = Int(currentTime)
+        guard second != lastPersistedSecond else { return }
+        lastPersistedSecond = second
+        updateNowPlayingElapsedTime()
+        persistSnapshot()
+    }
+
+    private func persistSnapshot() {
+        guard !queue.isEmpty else {
+            persistence.clear()
+            return
+        }
+        persistence.save(
+            AudioPlaybackSnapshot(
+                queue: queue,
+                currentIndex: playbackQueue.currentIndex,
+                progress: currentTime,
+                repeatMode: repeatMode.rawValue,
+                isShuffled: isShuffleEnabled,
+                shuffledOrder: playbackQueue.persistedShuffleOrder,
+                playbackRate: playbackRate,
+                volume: volume
+            )
+        )
     }
 
     private func configureAudioSession() {
@@ -501,6 +633,61 @@ final class AudioPlayerController: ObservableObject {
         }
         #endif
     }
+
+    private func configureAudioSessionObservers() {
+        #if os(iOS)
+        let center = NotificationCenter.default
+        let session = AVAudioSession.sharedInstance()
+        audioSessionObservers.append(
+            center.addObserver(
+                forName: AVAudioSession.interruptionNotification,
+                object: session,
+                queue: .main
+            ) { [weak self] notification in
+                Task { @MainActor in self?.handleAudioInterruption(notification) }
+            }
+        )
+        audioSessionObservers.append(
+            center.addObserver(
+                forName: AVAudioSession.routeChangeNotification,
+                object: session,
+                queue: .main
+            ) { [weak self] notification in
+                Task { @MainActor in self?.handleAudioRouteChange(notification) }
+            }
+        )
+        #endif
+    }
+
+    #if os(iOS)
+    private func handleAudioInterruption(_ notification: Notification) {
+        guard let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
+        switch type {
+        case .began:
+            shouldResumeAfterInterruption = isPlaying
+            pause()
+        case .ended:
+            let rawOptions = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let shouldResume = AVAudioSession.InterruptionOptions(rawValue: rawOptions).contains(.shouldResume)
+            if shouldResume, shouldResumeAfterInterruption {
+                togglePlayback()
+            }
+            shouldResumeAfterInterruption = false
+        @unknown default:
+            break
+        }
+    }
+
+    private func handleAudioRouteChange(_ notification: Notification) {
+        guard let rawReason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              AVAudioSession.RouteChangeReason(rawValue: rawReason) == .oldDeviceUnavailable else {
+            return
+        }
+        shouldResumeAfterInterruption = false
+        pause()
+    }
+    #endif
 
     private func configureRemoteCommands() {
         let commands = MPRemoteCommandCenter.shared()

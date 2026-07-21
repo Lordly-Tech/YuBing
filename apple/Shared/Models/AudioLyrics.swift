@@ -4,14 +4,55 @@ import Foundation
 struct TimedLyricWord: Identifiable, Hashable, Sendable {
     let id: String
     let time: TimeInterval
+    let endTime: TimeInterval?
     let text: String
+
+    init(id: String, time: TimeInterval, endTime: TimeInterval? = nil, text: String) {
+        self.id = id
+        self.time = time
+        self.endTime = endTime
+        self.text = text
+    }
 }
 
 struct TimedLyricLine: Identifiable, Hashable, Sendable {
     let id: String
     let time: TimeInterval
+    let duration: TimeInterval?
     let text: String
     let words: [TimedLyricWord]
+    let translation: String?
+
+    init(
+        id: String,
+        time: TimeInterval,
+        duration: TimeInterval? = nil,
+        text: String,
+        words: [TimedLyricWord] = [],
+        translation: String? = nil
+    ) {
+        self.id = id
+        self.time = time
+        self.duration = duration
+        self.text = text
+        self.words = words
+        self.translation = translation
+    }
+
+    var isWordSynced: Bool {
+        !words.isEmpty
+    }
+
+    func attachingTranslation(_ translation: String?) -> TimedLyricLine {
+        TimedLyricLine(
+            id: id,
+            time: time,
+            duration: duration,
+            text: text,
+            words: words,
+            translation: translation
+        )
+    }
 }
 
 struct TimedLyrics: Equatable, Hashable, Sendable {
@@ -54,11 +95,13 @@ struct TimedLyrics: Equatable, Hashable, Sendable {
         let line = lines[lineIndex]
         guard !line.text.isEmpty else { return 0 }
         if !line.words.isEmpty {
-            let nextLineTime = lines.indices.contains(lineIndex + 1) ? lines[lineIndex + 1].time : line.time + 4
+            let nextLineTime = line.duration.map { line.time + $0 }
+                ?? (lines.indices.contains(lineIndex + 1) ? lines[lineIndex + 1].time : line.time + 4)
             var completedCharacters = 0
             for (index, word) in line.words.enumerated() {
                 let wordCount = word.text.count
-                let endTime = line.words.indices.contains(index + 1) ? line.words[index + 1].time : nextLineTime
+                let endTime = word.endTime
+                    ?? (line.words.indices.contains(index + 1) ? line.words[index + 1].time : nextLineTime)
                 if time < word.time {
                     break
                 }
@@ -74,17 +117,27 @@ struct TimedLyrics: Equatable, Hashable, Sendable {
             }
             return min(1, Double(completedCharacters) / Double(line.text.count))
         }
-        let nextTime = lines.indices.contains(lineIndex + 1) ? lines[lineIndex + 1].time : line.time + 4
+        let nextTime = line.duration.map { line.time + $0 }
+            ?? (lines.indices.contains(lineIndex + 1) ? lines[lineIndex + 1].time : line.time + 4)
         let duration = max(nextTime - line.time, 0.8)
         return min(max((time - line.time) / duration, 0), 1)
+    }
+
+    func lineProgress(in lineIndex: Int, at time: TimeInterval) -> Double {
+        highlightProgress(in: lineIndex, at: time)
     }
 }
 
 enum AudioLyricsLoader {
     static func load(sidecarFor audioURL: URL, embeddedText: String?) -> TimedLyrics? {
-        if let sidecar = sidecarURL(for: audioURL),
-           let text = decodedText(at: sidecar) {
-            let lyrics = LRCParser.parse(text)
+        let sidecars = sidecarTexts(for: audioURL)
+        if sidecars.hasAnyLyrics {
+            let lyrics = UnifiedAudioLyricParser.parse(
+                yrc: sidecars.yrc ?? "",
+                lrc: sidecars.lrc ?? "",
+                translatedYRC: sidecars.translatedYRC ?? "",
+                translatedLRC: sidecars.translatedLRC ?? ""
+            )
             if !lyrics.isEmpty { return lyrics }
         }
         guard let embeddedText else { return nil }
@@ -92,23 +145,57 @@ enum AudioLyricsLoader {
         return lyrics.isEmpty ? nil : lyrics
     }
 
-    private static func sidecarURL(for audioURL: URL) -> URL? {
+    private struct SidecarTexts {
+        var lrc: String?
+        var yrc: String?
+        var translatedLRC: String?
+        var translatedYRC: String?
+
+        var hasAnyLyrics: Bool {
+            [lrc, yrc, translatedLRC, translatedYRC].contains { text in
+                guard let text else { return false }
+                return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+        }
+    }
+
+    private static func sidecarTexts(for audioURL: URL) -> SidecarTexts {
+        SidecarTexts(
+            lrc: decodedText(at: sidecarURL(for: audioURL, suffixes: [".lrc"])),
+            yrc: decodedText(at: sidecarURL(for: audioURL, suffixes: [".yrc"])),
+            translatedLRC: decodedText(at: sidecarURL(
+                for: audioURL,
+                suffixes: [".translation.lrc", ".translated.lrc", ".trans.lrc", ".tlrc", ".zh.lrc"]
+            )),
+            translatedYRC: decodedText(at: sidecarURL(
+                for: audioURL,
+                suffixes: [".translation.yrc", ".translated.yrc", ".trans.yrc", ".tyrc", ".zh.yrc"]
+            ))
+        )
+    }
+
+    private static func sidecarURL(for audioURL: URL, suffixes: [String]) -> URL? {
         let directory = audioURL.deletingLastPathComponent()
         let stem = audioURL.deletingPathExtension().lastPathComponent
-        let exact = directory.appendingPathComponent("\(stem).lrc")
-        if FileManager.default.fileExists(atPath: exact.path) { return exact }
+        for suffix in suffixes {
+            let exact = directory.appendingPathComponent("\(stem)\(suffix)")
+            if FileManager.default.fileExists(atPath: exact.path) { return exact }
+        }
         let entries = try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         )
         return entries?.first {
-            $0.pathExtension.lowercased() == "lrc" &&
-            $0.deletingPathExtension().lastPathComponent.compare(stem, options: .caseInsensitive) == .orderedSame
+            let filename = $0.lastPathComponent.lowercased()
+            return suffixes.contains { suffix in
+                filename == "\(stem)\(suffix)".lowercased()
+            }
         }
     }
 
-    private static func decodedText(at url: URL) -> String? {
+    private static func decodedText(at url: URL?) -> String? {
+        guard let url else { return nil }
         guard let data = try? Data(contentsOf: url) else { return nil }
         let gb18030 = String.Encoding(
             rawValue: CFStringConvertEncodingToNSStringEncoding(
@@ -354,7 +441,7 @@ enum LRCParser {
             lhs.time == rhs.time ? lhs.text < rhs.text : lhs.time < rhs.time
         }
         let untimedText = unique.isEmpty && !untimed.isEmpty ? untimed.joined(separator: "\n") : nil
-        return TimedLyrics(lines: unique, untimedText: untimedText)
+        return TimedLyrics(lines: inferDurations(in: unique), untimedText: untimedText)
     }
 
     private static func parseOffset(in text: String) -> TimeInterval {
@@ -418,5 +505,166 @@ enum LRCParser {
         return ["[ar:", "[ti:", "[al:", "[by:", "[offset:", "[re:", "[ve:"].contains {
             lower.hasPrefix($0)
         }
+    }
+
+    private static func inferDurations(in lines: [TimedLyricLine]) -> [TimedLyricLine] {
+        lines.enumerated().map { index, line in
+            let nextTime = lines.indices.contains(index + 1) ? lines[index + 1].time : nil
+            let duration = nextTime.map { max($0 - line.time, 0.8) } ?? estimatedLastLineDuration(for: line.text)
+            return TimedLyricLine(
+                id: line.id,
+                time: line.time,
+                duration: duration,
+                text: line.text,
+                words: line.words,
+                translation: line.translation
+            )
+        }
+    }
+
+    private static func estimatedLastLineDuration(for text: String) -> TimeInterval {
+        let visibleCharacterCount = text.filter { !$0.isWhitespace }.count
+        return min(max(Double(visibleCharacterCount) * 0.32, 2), 8)
+    }
+}
+
+enum UnifiedAudioLyricParser {
+    static func parse(
+        yrc: String,
+        lrc: String,
+        translatedYRC: String = "",
+        translatedLRC: String = ""
+    ) -> TimedLyrics {
+        let yrcLines = YRCParser.parse(yrc)
+        let lrcLyrics = LRCParser.parse(lrc)
+        let baseLines = yrcLines.isEmpty ? lrcLyrics.lines : yrcLines
+        guard !baseLines.isEmpty else { return lrcLyrics }
+
+        let yrcTranslations = YRCParser.parse(translatedYRC)
+        let translatedYRCLines = yrcTranslations.isEmpty ? LRCParser.parse(translatedYRC).lines : yrcTranslations
+        let translatedLRCLines = LRCParser.parse(translatedLRC).lines
+        let directlyTranslated = attachTranslations(translatedYRCLines, to: baseLines)
+        let translated = translatedLRCLines.isEmpty
+            ? directlyTranslated
+            : attachTranslations(translatedLRCLines, to: directlyTranslated)
+
+        return TimedLyrics(lines: translated, untimedText: lrcLyrics.untimedText)
+    }
+
+    private static func attachTranslations(
+        _ translations: [TimedLyricLine],
+        to lines: [TimedLyricLine]
+    ) -> [TimedLyricLine] {
+        guard !translations.isEmpty else { return lines }
+
+        var lineIndex = 0
+        var translationsByLineIndex: [Int: String] = [:]
+        for translation in translations {
+            while lineIndex + 1 < lines.count {
+                let currentDistance = abs(lines[lineIndex].time - translation.time)
+                let nextDistance = abs(lines[lineIndex + 1].time - translation.time)
+                guard nextDistance < currentDistance else { break }
+                lineIndex += 1
+            }
+
+            let normalized = translation.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard abs(lines[lineIndex].time - translation.time) <= 0.85,
+                  !normalized.isEmpty,
+                  normalized != lines[lineIndex].text.trimmingCharacters(in: .whitespacesAndNewlines),
+                  translationsByLineIndex[lineIndex] == nil else { continue }
+            translationsByLineIndex[lineIndex] = normalized
+        }
+
+        return lines.enumerated().map { index, line in
+            line.attachingTranslation(translationsByLineIndex[index] ?? line.translation)
+        }
+    }
+}
+
+enum YRCParser {
+    private static let syllableExpression = try! NSRegularExpression(
+        pattern: #"\((\d+),(\d+),[^)]*\)"#
+    )
+
+    static func parse(_ source: String) -> [TimedLyricLine] {
+        source
+            .split(whereSeparator: \Character.isNewline)
+            .compactMap { parseLine(String($0).trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .sorted { $0.time < $1.time }
+    }
+
+    private static func parseLine(_ line: String) -> TimedLyricLine? {
+        guard line.first == "[",
+              let closingBracket = line.firstIndex(of: "]") else {
+            return parseCredits(line)
+        }
+
+        let timing = line[line.index(after: line.startIndex)..<closingBracket]
+            .split(separator: ",", omittingEmptySubsequences: false)
+        guard timing.count >= 2,
+              let startMilliseconds = Int(timing[0]),
+              let durationMilliseconds = Int(timing[1]) else { return nil }
+
+        let start = TimeInterval(startMilliseconds) / 1000
+        let duration = TimeInterval(durationMilliseconds) / 1000
+        let content = String(line[line.index(after: closingBracket)...])
+        let contentRange = NSRange(content.startIndex..<content.endIndex, in: content)
+        let matches = syllableExpression.matches(in: content, range: contentRange)
+        guard !matches.isEmpty else {
+            let text = content.trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty else { return nil }
+            return TimedLyricLine(id: "\(start)-\(text)", time: start, duration: duration, text: text)
+        }
+
+        let storage = content as NSString
+        let words = matches.enumerated().compactMap { index, match -> TimedLyricWord? in
+            guard let wordStartMilliseconds = integer(in: match.range(at: 1), from: storage),
+                  let wordDurationMilliseconds = integer(in: match.range(at: 2), from: storage) else { return nil }
+            let textStart = NSMaxRange(match.range)
+            let textEnd = index + 1 < matches.count ? matches[index + 1].range.location : storage.length
+            guard textEnd >= textStart else { return nil }
+            let text = storage.substring(with: NSRange(location: textStart, length: textEnd - textStart))
+            guard !text.isEmpty else { return nil }
+            let time = TimeInterval(wordStartMilliseconds) / 1000
+            let endTime = time + TimeInterval(wordDurationMilliseconds) / 1000
+            return TimedLyricWord(id: "\(time)-\(index)-\(text)", time: time, endTime: endTime, text: text)
+        }
+
+        let text = words.map(\.text).joined()
+        guard !text.isEmpty else { return nil }
+        return TimedLyricLine(id: "\(start)-\(text)", time: start, duration: duration, text: text, words: words)
+    }
+
+    private static func parseCredits(_ line: String) -> TimedLyricLine? {
+        guard line.first == "{",
+              let data = line.data(using: .utf8),
+              let credits = try? JSONDecoder().decode(YRCCredits.self, from: data) else { return nil }
+        let text = credits.items.compactMap(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        let time = TimeInterval(credits.timestamp) / 1000
+        return TimedLyricLine(id: "\(time)-\(text)", time: time, text: text)
+    }
+
+    private static func integer(in range: NSRange, from string: NSString) -> Int? {
+        guard range.location != NSNotFound else { return nil }
+        return Int(string.substring(with: range))
+    }
+}
+
+private struct YRCCredits: Decodable {
+    struct Item: Decodable {
+        let text: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case text = "tx"
+        }
+    }
+
+    let timestamp: Int
+    let items: [Item]
+
+    private enum CodingKeys: String, CodingKey {
+        case timestamp = "t"
+        case items = "c"
     }
 }

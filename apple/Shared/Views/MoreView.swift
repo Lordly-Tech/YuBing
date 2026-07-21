@@ -20,6 +20,7 @@ struct MoreView: View {
         List {
             featuresSection
             identitySection
+            openSourceSection
             languageSection
             librarySection
             permissionSection
@@ -95,6 +96,20 @@ struct MoreView: View {
                 Spacer(minLength: 0)
             }
             .padding(.vertical, 8)
+        }
+    }
+
+    private var openSourceSection: some View {
+        Section("开源") {
+            Link(destination: URL(string: "https://github.com/Lordly-Tech/YuBing")!) {
+                MoreButtonRow(
+                    title: "GitHub 开源仓库",
+                    subtitle: "Lordly-Tech/YuBing",
+                    systemImage: "chevron.left.forwardslash.chevron.right",
+                    tint: .indigo,
+                    showsChevron: false
+                )
+            }
         }
     }
 

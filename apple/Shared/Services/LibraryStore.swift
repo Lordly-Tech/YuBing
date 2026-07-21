@@ -7,11 +7,35 @@ struct LibraryAlert: Identifiable {
     let message: String
 }
 
+struct MusicPlaylist: Identifiable, Codable, Hashable, Sendable {
+    let id: UUID
+    var name: String
+    var trackPaths: [String]
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        trackPaths: [String] = [],
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.name = name
+        self.trackPaths = trackPaths
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
 @MainActor
 final class LibraryStore: ObservableObject {
     @Published private(set) var items: [LibraryItem] = []
     @Published private(set) var favoritePaths: Set<String>
     @Published private(set) var recentPaths: [String]
+    @Published private(set) var musicPlaylists: [MusicPlaylist]
+    @Published private(set) var favoriteMusicPlaylistIDs: Set<UUID>
     @Published var alert: LibraryAlert?
 
     let libraryURL: URL
@@ -19,6 +43,8 @@ final class LibraryStore: ObservableObject {
     private let fileManager = FileManager.default
     private let favoritesKey = "folio.favoritePaths"
     private let recentsKey = "folio.recentPaths"
+    private let musicPlaylistsKey = "yubing.musicPlaylists"
+    private let favoriteMusicPlaylistsKey = "yubing.favoriteMusicPlaylistIDs"
 
     init() {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
@@ -26,11 +52,17 @@ final class LibraryStore: ObservableObject {
         libraryURL = documents.appendingPathComponent("YuBing Library", isDirectory: true)
         favoritePaths = Set(UserDefaults.standard.stringArray(forKey: favoritesKey) ?? [])
         recentPaths = UserDefaults.standard.stringArray(forKey: recentsKey) ?? []
+        musicPlaylists = Self.loadMusicPlaylists(key: musicPlaylistsKey)
+        favoriteMusicPlaylistIDs = Set(
+            (UserDefaults.standard.stringArray(forKey: favoriteMusicPlaylistsKey) ?? [])
+                .compactMap { UUID(uuidString: $0) }
+        )
 
         do {
             try fileManager.createDirectory(at: libraryURL, withIntermediateDirectories: true)
             try seedWelcomeFileIfNeeded()
             items = Self.scanLibrary(at: libraryURL)
+            pruneMissingPlaylistTracks()
         } catch {
             alert = LibraryAlert(title: "无法打开资料库", message: error.localizedDescription)
         }
@@ -52,6 +84,75 @@ final class LibraryStore: ObservableObject {
         items.filter { $0.kind == kind }
     }
 
+    func tracks(in playlist: MusicPlaylist) -> [LibraryItem] {
+        playlist.trackPaths.compactMap { path in
+            items.first { $0.relativePath == path && $0.kind == .music }
+        }
+    }
+
+    func contains(_ item: LibraryItem, in playlist: MusicPlaylist) -> Bool {
+        playlist.trackPaths.contains(item.relativePath)
+    }
+
+    func isFavorite(_ playlist: MusicPlaylist) -> Bool {
+        favoriteMusicPlaylistIDs.contains(playlist.id)
+    }
+
+    func createMusicPlaylist(named name: String, initialTrack: LibraryItem? = nil) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            alert = LibraryAlert(title: "名称不可用", message: "歌单名称不能为空。")
+            return
+        }
+        let initialPaths = initialTrack.map { [$0.relativePath] } ?? []
+        musicPlaylists.insert(MusicPlaylist(name: trimmed, trackPaths: initialPaths), at: 0)
+        persistMusicPlaylists()
+    }
+
+    func rename(_ playlist: MusicPlaylist, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            alert = LibraryAlert(title: "名称不可用", message: "歌单名称不能为空。")
+            return
+        }
+        guard let index = musicPlaylists.firstIndex(where: { $0.id == playlist.id }) else { return }
+        musicPlaylists[index].name = trimmed
+        musicPlaylists[index].updatedAt = Date()
+        persistMusicPlaylists()
+    }
+
+    func delete(_ playlist: MusicPlaylist) {
+        musicPlaylists.removeAll { $0.id == playlist.id }
+        favoriteMusicPlaylistIDs.remove(playlist.id)
+        persistMusicPlaylists()
+        persistFavoriteMusicPlaylists()
+    }
+
+    func toggleFavorite(_ playlist: MusicPlaylist) {
+        if favoriteMusicPlaylistIDs.contains(playlist.id) {
+            favoriteMusicPlaylistIDs.remove(playlist.id)
+        } else {
+            favoriteMusicPlaylistIDs.insert(playlist.id)
+        }
+        persistFavoriteMusicPlaylists()
+    }
+
+    func add(_ item: LibraryItem, to playlist: MusicPlaylist) {
+        guard item.kind == .music,
+              let index = musicPlaylists.firstIndex(where: { $0.id == playlist.id }) else { return }
+        guard !musicPlaylists[index].trackPaths.contains(item.relativePath) else { return }
+        musicPlaylists[index].trackPaths.append(item.relativePath)
+        musicPlaylists[index].updatedAt = Date()
+        persistMusicPlaylists()
+    }
+
+    func remove(_ item: LibraryItem, from playlist: MusicPlaylist) {
+        guard let index = musicPlaylists.firstIndex(where: { $0.id == playlist.id }) else { return }
+        musicPlaylists[index].trackPaths.removeAll { $0 == item.relativePath }
+        musicPlaylists[index].updatedAt = Date()
+        persistMusicPlaylists()
+    }
+
     func children(of folder: URL) -> [LibraryItem] {
         let normalizedFolder = folder.standardizedFileURL
         return items.filter { item in
@@ -67,6 +168,7 @@ final class LibraryStore: ObservableObject {
         items = Self.scanLibrary(at: libraryURL)
         favoritePaths = favoritePaths.filter { path in items.contains(where: { $0.relativePath == path }) }
         recentPaths = recentPaths.filter { path in items.contains(where: { $0.relativePath == path }) }
+        pruneMissingPlaylistTracks()
         persistState()
     }
 
@@ -243,6 +345,47 @@ final class LibraryStore: ObservableObject {
     private func persistState() {
         UserDefaults.standard.set(Array(favoritePaths), forKey: favoritesKey)
         UserDefaults.standard.set(recentPaths, forKey: recentsKey)
+    }
+
+    private func persistMusicPlaylists() {
+        if let data = try? JSONEncoder().encode(musicPlaylists) {
+            UserDefaults.standard.set(data, forKey: musicPlaylistsKey)
+        }
+    }
+
+    private func persistFavoriteMusicPlaylists() {
+        UserDefaults.standard.set(
+            favoriteMusicPlaylistIDs.map(\.uuidString),
+            forKey: favoriteMusicPlaylistsKey
+        )
+    }
+
+    private func pruneMissingPlaylistTracks() {
+        let availableMusicPaths = Set(items.filter { $0.kind == .music }.map(\.relativePath))
+        var changed = false
+        musicPlaylists = musicPlaylists.map { playlist in
+            var playlist = playlist
+            let paths = playlist.trackPaths.filter { availableMusicPaths.contains($0) }
+            if paths != playlist.trackPaths {
+                playlist.trackPaths = paths
+                playlist.updatedAt = Date()
+                changed = true
+            }
+            return playlist
+        }
+        favoriteMusicPlaylistIDs = favoriteMusicPlaylistIDs.filter { id in
+            musicPlaylists.contains { $0.id == id }
+        }
+        if changed { persistMusicPlaylists() }
+        persistFavoriteMusicPlaylists()
+    }
+
+    private static func loadMusicPlaylists(key: String) -> [MusicPlaylist] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let playlists = try? JSONDecoder().decode([MusicPlaylist].self, from: data) else {
+            return []
+        }
+        return playlists
     }
 
     private func seedWelcomeFileIfNeeded() throws {
