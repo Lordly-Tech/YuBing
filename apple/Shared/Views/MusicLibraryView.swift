@@ -690,7 +690,7 @@ private struct AddToPlaylistSheet: View {
                                     }
                                     Spacer()
                                     Image(systemName: contains ? "checkmark.circle.fill" : "plus.circle")
-                                        .foregroundStyle(contains ? .tint : .secondary)
+                                        .foregroundStyle(contains ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                                 }
                             }
                             .buttonStyle(.plain)
