@@ -816,22 +816,29 @@ struct NowPlayingView: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let isLandscapePlayer = proxy.size.width > proxy.size.height
+                && proxy.size.width >= 720
+                && proxy.size.height >= 520
+
             ZStack {
                 NowPlayingBackground(artworkData: player.currentMetadata.artworkData)
 
-                if showsSkylineLyrics, page == .lyrics, proxy.size.width > proxy.size.height, proxy.size.width >= 720 {
-                    SkylineLyricsView(
-                        lyrics: player.currentMetadata.lyrics,
-                        onExit: { showsSkylineLyrics = false }
-                    )
-                    .transition(.opacity)
-                } else if proxy.size.width > proxy.size.height, proxy.size.width >= 720 {
+                if isLandscapePlayer {
                     landscapeContent
                 } else {
                     portraitContent
                 }
+
+                if showsSkylineLyrics, page == .lyrics, isLandscapePlayer {
+                    SkylineLyricsView(
+                        lyrics: player.currentMetadata.lyrics,
+                        onExit: { showsSkylineLyrics = false }
+                    )
+                    .zIndex(1)
+                }
             }
             .foregroundStyle(.white)
+            .simultaneousGesture(dismissDragGesture)
         }
         .preferredColorScheme(.dark)
         .onAppear {
@@ -889,41 +896,80 @@ struct NowPlayingView: View {
     }
 
     private var landscapeContent: some View {
-        HStack(spacing: 34) {
-            pageContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        GeometryReader { proxy in
+            let controlWidth = min(max(proxy.size.width * 0.34, 320), 430)
+            let artworkSide = min(max(proxy.size.height * 0.28, 150), 240)
+            let spacing = min(max(proxy.size.width * 0.035, 18), 38)
 
-            VStack(spacing: 12) {
-                HStack {
-                    dismissalHandle
-                        .frame(height: 44)
-                    if page == .lyrics, player.currentMetadata.lyrics?.lines.isEmpty == false {
-                        Button {
-                            showsSkylineLyrics = true
-                        } label: {
-                            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .frame(width: 40, height: 40)
-                                .background(.white.opacity(0.13), in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("打开天际歌词")
-                    }
-                }
+            HStack(spacing: spacing) {
+                landscapeControlPanel(artworkSide: artworkSide)
+                    .frame(width: controlWidth, maxHeight: .infinity)
 
-                NowPlayingArtworkSummary(
-                    item: activeItem,
-                    showsSleepTimer: $showsSleepTimer
-                )
-
-                NowPlayingProgressControl()
-                NowPlayingTransportControls()
-                NowPlayingVolumeControl()
-                NowPlayingPageSelector(page: $page)
+                landscapePagePanel
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(width: 390)
+            .frame(maxWidth: 1_180, maxHeight: .infinity)
+            .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 32)
         .safeAreaPadding(.vertical, 18)
+    }
+
+    private func landscapeControlPanel(artworkSide: CGFloat) -> some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                dismissalHandle
+                    .frame(height: 44)
+
+                if page == .lyrics, player.currentMetadata.lyrics?.lines.isEmpty == false {
+                    Button {
+                        showsSkylineLyrics = true
+                    } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.title3.weight(.medium))
+                            .frame(width: 40, height: 40)
+                            .background(.white.opacity(0.13), in: Circle())
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("打开全屏天际歌词")
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            AudioArtwork(data: player.currentMetadata.artworkData, fallbackSymbol: "music.note")
+                .frame(width: artworkSide, height: artworkSide)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .shadow(color: .black.opacity(0.24), radius: 22, y: 12)
+
+            NowPlayingArtworkSummary(
+                item: activeItem,
+                showsSleepTimer: $showsSleepTimer
+            )
+
+            NowPlayingProgressControl()
+            NowPlayingTransportControls()
+            NowPlayingVolumeControl()
+            NowPlayingPageSelector(page: $page)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private var landscapePagePanel: some View {
+        switch page {
+        case .artwork:
+            NowPlayingArtworkPage(item: activeItem, showsSleepTimer: $showsSleepTimer)
+                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+        case .lyrics:
+            NowPlayingLyricsPage(lyrics: player.currentMetadata.lyrics)
+                .transition(.opacity)
+        case .queue:
+            NowPlayingQueuePage()
+                .transition(.opacity)
+        }
     }
 
     private var dismissalHandle: some View {
@@ -935,6 +981,17 @@ struct NowPlayingView: View {
             .contentShape(Rectangle())
             .onTapGesture { dismiss() }
             .accessibilityLabel("收起播放器")
+    }
+
+    private var dismissDragGesture: some Gesture {
+        DragGesture(minimumDistance: 18, coordinateSpace: .local)
+            .onEnded { value in
+                guard value.translation.height > 90,
+                      value.translation.height > abs(value.translation.width) * 1.4 else {
+                    return
+                }
+                dismiss()
+            }
     }
 
     @ViewBuilder

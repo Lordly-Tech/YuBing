@@ -255,6 +255,11 @@ final class AudioPlayerController: ObservableObject {
         configureRemoteCommands()
         configureAudioSessionObservers()
         player.automaticallyWaitsToMinimizeStalling = true
+        #if os(iOS)
+        if #available(iOS 14.0, *) {
+            player.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
+        }
+        #endif
         player.volume = Float(volume)
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
@@ -368,6 +373,9 @@ final class AudioPlayerController: ObservableObject {
             player.pause()
             isPlaying = false
         } else {
+            #if os(iOS)
+            try? activateAudioSession()
+            #endif
             player.playImmediately(atRate: playbackRate)
             isPlaying = true
         }
@@ -496,7 +504,7 @@ final class AudioPlayerController: ObservableObject {
     private func startPlayback(url: URL, sourceItem: LibraryItem, startAt: TimeInterval, autoplay: Bool) {
         guard currentItem == sourceItem else { return }
         #if os(iOS)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        try? activateAudioSession()
         #endif
         let playerItem = AVPlayerItem(url: url)
         playerItem.preferredForwardBufferDuration = 20
@@ -627,7 +635,7 @@ final class AudioPlayerController: ObservableObject {
     private func configureAudioSession() {
         #if os(iOS)
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try activateAudioSession()
         } catch {
             // Foreground playback can still work when a route is temporarily unavailable.
         }
@@ -656,10 +664,45 @@ final class AudioPlayerController: ObservableObject {
                 Task { @MainActor in self?.handleAudioRouteChange(notification) }
             }
         )
+        audioSessionObservers.append(
+            center.addObserver(
+                forName: UIApplication.didEnterBackgroundNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.refreshAudioSessionForAppStateChange() }
+            }
+        )
+        audioSessionObservers.append(
+            center.addObserver(
+                forName: UIApplication.willEnterForegroundNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.refreshAudioSessionForAppStateChange() }
+            }
+        )
         #endif
     }
 
     #if os(iOS)
+    private func activateAudioSession() throws {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(
+            .playback,
+            mode: .default,
+            options: [.allowAirPlay, .allowBluetoothA2DP]
+        )
+        try session.setActive(true)
+    }
+
+    private func refreshAudioSessionForAppStateChange() {
+        if currentItem != nil {
+            try? activateAudioSession()
+            updateNowPlayingInfo()
+        }
+    }
+
     private func handleAudioInterruption(_ notification: Notification) {
         guard let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
@@ -671,6 +714,7 @@ final class AudioPlayerController: ObservableObject {
             let rawOptions = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             let shouldResume = AVAudioSession.InterruptionOptions(rawValue: rawOptions).contains(.shouldResume)
             if shouldResume, shouldResumeAfterInterruption {
+                try? activateAudioSession()
                 togglePlayback()
             }
             shouldResumeAfterInterruption = false
