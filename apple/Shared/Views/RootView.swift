@@ -29,6 +29,7 @@ struct RootView: View {
         #if os(iOS)
         .fullScreenCover(item: $presentedPlayer) { item in
             NowPlayingView(startingItem: item)
+                .presentationBackground(.clear)
         }
         #else
         .sheet(item: $presentedPlayer) { item in

@@ -804,7 +804,6 @@ struct NowPlayingView: View {
 
     @State private var page: NowPlayingPage = .artwork
     @State private var showsSleepTimer = false
-    @State private var showsSkylineLyrics = false
 
     private var tracks: [LibraryItem] {
         (queueItems ?? store.items(of: .music).sorted(by: .name)).filter { $0.kind == .music }
@@ -816,29 +815,21 @@ struct NowPlayingView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let isLandscapePlayer = proxy.size.width > proxy.size.height
-                && proxy.size.width >= 720
-                && proxy.size.height >= 520
-
             ZStack {
                 NowPlayingBackground(artworkData: player.currentMetadata.artworkData)
 
-                if isLandscapePlayer {
-                    landscapeContent
+                if proxy.size.width > proxy.size.height {
+                    NowPlayingLandscapeView(
+                        page: $page,
+                        showsSleepTimer: $showsSleepTimer,
+                        item: activeItem,
+                        onDismiss: { dismiss() }
+                    )
                 } else {
                     portraitContent
                 }
-
-                if showsSkylineLyrics, page == .lyrics, isLandscapePlayer {
-                    SkylineLyricsView(
-                        lyrics: player.currentMetadata.lyrics,
-                        onExit: { showsSkylineLyrics = false }
-                    )
-                    .zIndex(1)
-                }
             }
             .foregroundStyle(.white)
-            .simultaneousGesture(dismissDragGesture)
         }
         .preferredColorScheme(.dark)
         .onAppear {
@@ -870,12 +861,7 @@ struct NowPlayingView: View {
         .toolbar(.hidden, for: .tabBar)
         #endif
         .immersiveSplitDetail()
-        .animation(.smooth(duration: 0.32), value: page)
-        .onChange(of: page) { _, newPage in
-            if newPage != .lyrics {
-                showsSkylineLyrics = false
-            }
-        }
+        .animation(.smooth(duration: 0.4), value: page)
     }
 
     private var portraitContent: some View {
@@ -895,84 +881,6 @@ struct NowPlayingView: View {
         .safeAreaPadding(.bottom, 8)
     }
 
-    private var landscapeContent: some View {
-        GeometryReader { proxy in
-            let controlWidth = min(max(proxy.size.width * 0.34, 320), 430)
-            let artworkSide = min(max(proxy.size.height * 0.28, 150), 240)
-            let spacing = min(max(proxy.size.width * 0.035, 18), 38)
-
-            HStack(spacing: spacing) {
-                landscapeControlPanel(artworkSide: artworkSide)
-                    .frame(width: controlWidth)
-                    .frame(maxHeight: .infinity)
-
-                landscapePagePanel
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .frame(maxWidth: 1_180, maxHeight: .infinity)
-            .frame(maxWidth: .infinity)
-        }
-        .padding(.horizontal, 32)
-        .safeAreaPadding(.vertical, 18)
-    }
-
-    private func landscapeControlPanel(artworkSide: CGFloat) -> some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 12) {
-                dismissalHandle
-                    .frame(height: 44)
-
-                if page == .lyrics, player.currentMetadata.lyrics?.lines.isEmpty == false {
-                    Button {
-                        showsSkylineLyrics = true
-                    } label: {
-                        Image(systemName: "arrow.up.left.and.arrow.down.right")
-                            .font(.title3.weight(.medium))
-                            .frame(width: 40, height: 40)
-                            .background(.white.opacity(0.13), in: Circle())
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("打开全屏天际歌词")
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            AudioArtwork(data: player.currentMetadata.artworkData, fallbackSymbol: "music.note")
-                .frame(width: artworkSide, height: artworkSide)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .shadow(color: .black.opacity(0.24), radius: 22, y: 12)
-
-            NowPlayingArtworkSummary(
-                item: activeItem,
-                showsSleepTimer: $showsSleepTimer
-            )
-
-            NowPlayingProgressControl()
-            NowPlayingTransportControls()
-            NowPlayingVolumeControl()
-            NowPlayingPageSelector(page: $page)
-
-            Spacer(minLength: 0)
-        }
-    }
-
-    @ViewBuilder
-    private var landscapePagePanel: some View {
-        switch page {
-        case .artwork:
-            NowPlayingArtworkPage(item: activeItem, showsSleepTimer: $showsSleepTimer)
-                .transition(.opacity.combined(with: .scale(scale: 0.97)))
-        case .lyrics:
-            NowPlayingLyricsPage(lyrics: player.currentMetadata.lyrics)
-                .transition(.opacity)
-        case .queue:
-            NowPlayingQueuePage()
-                .transition(.opacity)
-        }
-    }
-
     private var dismissalHandle: some View {
         Capsule()
             .fill(.white.opacity(0.52))
@@ -981,16 +889,10 @@ struct NowPlayingView: View {
             .frame(height: 52)
             .contentShape(Rectangle())
             .onTapGesture { dismiss() }
+            .accessibilityElement()
             .accessibilityLabel("收起播放器")
-    }
-
-    private var dismissDragGesture: some Gesture {
-        DragGesture(minimumDistance: 18, coordinateSpace: .local)
-            .onEnded { value in
-                guard value.translation.height > 90,
-                      value.translation.height > abs(value.translation.width) * 1.4 else {
-                    return
-                }
+            .accessibilityHint("轻点收起，或向下拖动播放器")
+            .accessibilityAction {
                 dismiss()
             }
     }
@@ -1002,12 +904,199 @@ struct NowPlayingView: View {
             NowPlayingArtworkPage(item: activeItem, showsSleepTimer: $showsSleepTimer)
                 .transition(.opacity.combined(with: .scale(scale: 0.97)))
         case .lyrics:
-            NowPlayingLyricsPage(lyrics: player.currentMetadata.lyrics)
+            NowPlayingLyricsPage(
+                item: activeItem,
+                showsSleepTimer: $showsSleepTimer,
+                lyrics: player.currentMetadata.lyrics
+            )
                 .transition(.opacity)
         case .queue:
             NowPlayingQueuePage()
                 .transition(.opacity)
         }
+    }
+}
+
+private struct NowPlayingLandscapeView: View {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @EnvironmentObject private var player: AudioPlayerController
+
+    @Binding var page: NowPlayingPage
+    @Binding var showsSleepTimer: Bool
+
+    let item: LibraryItem
+    let onDismiss: () -> Void
+
+    @State private var showsLyricsControls = true
+    @State private var showsSkylineLyrics = false
+
+    var body: some View {
+        ZStack {
+            if showsSkylineLyrics, page == .lyrics {
+                SkylineLyricsView(
+                    lyrics: player.currentMetadata.lyrics,
+                    onExit: exitSkylineLyrics
+                )
+                .transition(.opacity)
+            } else {
+                standardPlayer
+                    .transition(.opacity)
+            }
+        }
+        .onChange(of: page) { _, newPage in
+            if newPage != .lyrics {
+                showsLyricsControls = true
+                showsSkylineLyrics = false
+            }
+        }
+        .animation(
+            accessibilityReduceMotion ? nil : .smooth(duration: 0.4),
+            value: showsSkylineLyrics
+        )
+    }
+
+    private var standardPlayer: some View {
+        VStack(spacing: 0) {
+            dismissalHandle
+
+            GeometryReader { proxy in
+                let artworkSide = min(
+                    proxy.size.height,
+                    proxy.size.width * 0.43,
+                    460
+                )
+
+                HStack(spacing: landscapeSpacing(for: proxy.size.width)) {
+                    artwork(side: artworkSide)
+
+                    rightPanel
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: 1_100, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, 20)
+        .safeAreaPadding(.top, 2)
+        .safeAreaPadding(.bottom, 8)
+    }
+
+    private var dismissalHandle: some View {
+        Button(action: onDismiss) {
+            Capsule()
+                .fill(.white.opacity(0.52))
+                .frame(width: 38, height: 5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(height: 28)
+        .accessibilityLabel("收起播放器")
+        .accessibilityHint("轻点收起，或向下拖动播放器")
+    }
+
+    private func artwork(side: CGFloat) -> some View {
+        AudioArtwork(data: player.currentMetadata.artworkData, fallbackSymbol: "music.note")
+            .frame(width: side, height: side)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .scaleEffect(player.isPlaying ? 1 : 0.9)
+            .shadow(color: .black.opacity(0.28), radius: 24, y: 12)
+            .animation(.smooth(duration: 0.45), value: player.isPlaying)
+    }
+
+    private var rightPanel: some View {
+        VStack(spacing: 0) {
+            songHeader
+
+            pageContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if page != .lyrics || showsLyricsControls {
+                NowPlayingPageSelector(page: $page)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+    }
+
+    private var songHeader: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(player.currentMetadata.title ?? item.displayName)
+                    .font(.headline)
+                    .lineLimit(1)
+
+                Text(player.currentMetadata.artist ?? player.currentMetadata.album ?? AppLocalization.string("本地音乐"))
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.64))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if page == .lyrics, player.currentMetadata.lyrics?.lines.isEmpty == false {
+                Button(action: enterSkylineLyrics) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.title3.weight(.medium))
+                        .frame(width: 40, height: 40)
+                        .background(.white.opacity(0.13), in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("打开全屏天际歌词")
+            }
+
+            NowPlayingSongActions(item: item, showsSleepTimer: $showsSleepTimer)
+        }
+        .frame(height: 52)
+    }
+
+    @ViewBuilder
+    private var pageContent: some View {
+        switch page {
+        case .artwork:
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                NowPlayingProgressControl()
+                NowPlayingTransportControls()
+                NowPlayingVolumeControl()
+                Spacer(minLength: 0)
+            }
+            .transition(.opacity)
+        case .lyrics:
+            NowPlayingLyricsPage(
+                item: item,
+                showsSleepTimer: $showsSleepTimer,
+                lyrics: player.currentMetadata.lyrics,
+                presentation: .landscape,
+                onToggleInterface: toggleLyricsControls
+            )
+            .accessibilityAction(
+                named: showsLyricsControls ? "隐藏播放器控制" : "显示播放器控制"
+            ) {
+                toggleLyricsControls()
+            }
+            .transition(.opacity)
+        case .queue:
+            NowPlayingQueuePage()
+                .transition(.opacity)
+        }
+    }
+
+    private func landscapeSpacing(for width: CGFloat) -> CGFloat {
+        min(max(width * 0.035, 18), 38)
+    }
+
+    private func toggleLyricsControls() {
+        withAnimation(accessibilityReduceMotion ? nil : .smooth(duration: 0.3)) {
+            showsLyricsControls.toggle()
+        }
+    }
+
+    private func enterSkylineLyrics() {
+        showsSkylineLyrics = true
+    }
+
+    private func exitSkylineLyrics() {
+        showsSkylineLyrics = false
     }
 }
 
@@ -1025,7 +1114,9 @@ private struct NowPlayingArtworkPage: View {
                 AudioArtwork(data: metadata.artworkData, fallbackSymbol: "music.note")
                     .frame(width: artworkSize, height: artworkSize)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .scaleEffect(player.isPlaying ? 1 : 0.9)
                     .shadow(color: .black.opacity(0.24), radius: 22, y: 12)
+                    .animation(.smooth(duration: 0.45), value: player.isPlaying)
 
                 Spacer(minLength: 22)
 
@@ -1042,11 +1133,9 @@ private struct NowPlayingArtworkPage: View {
 }
 
 private struct NowPlayingArtworkSummary: View {
-    @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
     let item: LibraryItem
     @Binding var showsSleepTimer: Bool
-    @State private var addToPlaylistItem: LibraryItem?
 
     var body: some View {
         HStack(spacing: 14) {
@@ -1061,6 +1150,20 @@ private struct NowPlayingArtworkSummary: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
+            NowPlayingSongActions(item: item, showsSleepTimer: $showsSleepTimer)
+        }
+    }
+}
+
+private struct NowPlayingSongActions: View {
+    @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var player: AudioPlayerController
+    let item: LibraryItem
+    @Binding var showsSleepTimer: Bool
+    @State private var addToPlaylistItem: LibraryItem?
+
+    var body: some View {
+        HStack(spacing: 10) {
             Button {
                 store.toggleFavorite(item)
             } label: {
@@ -1266,9 +1369,18 @@ private struct NowPlayingPageSelector: View {
     }
 }
 
+private enum NowPlayingLyricsPresentation: Equatable {
+    case portrait
+    case landscape
+}
+
 private struct NowPlayingLyricsPage: View {
     @EnvironmentObject private var player: AudioPlayerController
+    let item: LibraryItem
+    @Binding var showsSleepTimer: Bool
     let lyrics: TimedLyrics?
+    let presentation: NowPlayingLyricsPresentation
+    let onToggleInterface: (() -> Void)?
 
     @AppStorage("yubing.lyrics.translationEnabled") private var translationEnabled = true
     @AppStorage("yubing.lyrics.wordByWord") private var wordByWordEnabled = true
@@ -1277,11 +1389,59 @@ private struct NowPlayingLyricsPage: View {
     @State private var isBrowsingLyrics = false
     @State private var browsingGeneration = 0
 
+    init(
+        item: LibraryItem,
+        showsSleepTimer: Binding<Bool>,
+        lyrics: TimedLyrics?,
+        presentation: NowPlayingLyricsPresentation = .portrait,
+        onToggleInterface: (() -> Void)? = nil
+    ) {
+        self.item = item
+        _showsSleepTimer = showsSleepTimer
+        self.lyrics = lyrics
+        self.presentation = presentation
+        self.onToggleInterface = onToggleInterface
+    }
+
     private var activeIndex: Int? {
         lyrics?.lineIndex(at: player.currentTime)
     }
 
     var body: some View {
+        VStack(spacing: presentation == .portrait ? 18 : 0) {
+            if presentation == .portrait {
+                songHeader
+            }
+
+            lyricsContent
+        }
+        .padding(.bottom, presentation == .portrait ? 12 : 0)
+    }
+
+    private var songHeader: some View {
+        HStack(spacing: 12) {
+            AudioArtwork(data: player.currentMetadata.artworkData, fallbackSymbol: "music.note")
+                .frame(width: 68, height: 68)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(player.currentMetadata.title ?? item.displayName)
+                    .font(.headline)
+                    .lineLimit(1)
+
+                Text(player.currentMetadata.artist ?? player.currentMetadata.album ?? AppLocalization.string("本地音乐"))
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.64))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            NowPlayingSongActions(item: item, showsSleepTimer: $showsSleepTimer)
+        }
+    }
+
+    @ViewBuilder
+    private var lyricsContent: some View {
         Group {
             if let lyrics, !lyrics.lines.isEmpty {
                 ScrollViewReader { proxy in
@@ -1302,10 +1462,7 @@ private struct NowPlayingLyricsPage: View {
                                 )
                                     .id(line.id)
                                     .contentShape(Rectangle())
-                                    .onTapGesture(count: 2) {
-                                        player.seek(to: line.time)
-                                        isBrowsingLyrics = false
-                                    }
+                                    .gesture(lyricTapGesture(for: line))
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1338,9 +1495,18 @@ private struct NowPlayingLyricsPage: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 32)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onToggleInterface?()
+                }
             } else {
                 ContentUnavailableView("没有歌词", systemImage: "quote.bubble", description: Text("导入同名 LRC 文件，或使用带内嵌歌词的音频。"))
                     .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onToggleInterface?()
+                    }
             }
         }
     }
@@ -1356,6 +1522,20 @@ private struct NowPlayingLyricsPage: View {
             guard generation == browsingGeneration else { return }
             isBrowsingLyrics = false
         }
+    }
+
+    private func lyricTapGesture(for line: TimedLyricLine) -> some Gesture {
+        TapGesture(count: 2)
+            .exclusively(before: TapGesture(count: 1))
+            .onEnded { gesture in
+                switch gesture {
+                case .first:
+                    player.seek(to: line.time)
+                    isBrowsingLyrics = false
+                case .second:
+                    onToggleInterface?()
+                }
+            }
     }
 }
 

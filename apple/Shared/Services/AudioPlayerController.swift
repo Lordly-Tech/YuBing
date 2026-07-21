@@ -239,6 +239,7 @@ final class AudioPlayerController: ObservableObject {
     @Published var isNowPlayingVisible = false
 
     private let player = AVPlayer()
+    private let nowPlayingSession = AudioNowPlayingSession()
     private let persistence = AudioPlaybackPersistence()
     private var playbackQueue = AudioPlaybackQueue()
     private var timeObserver: Any?
@@ -251,15 +252,9 @@ final class AudioPlayerController: ObservableObject {
     private var shouldResumeAfterInterruption = false
 
     init() {
-        configureAudioSession()
-        configureRemoteCommands()
+        configureNowPlayingSession()
         configureAudioSessionObservers()
         player.automaticallyWaitsToMinimizeStalling = true
-        #if os(iOS)
-        if #available(iOS 14.0, *) {
-            player.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
-        }
-        #endif
         player.volume = Float(volume)
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
@@ -374,7 +369,14 @@ final class AudioPlayerController: ObservableObject {
             isPlaying = false
         } else {
             #if os(iOS)
-            try? activateAudioSession()
+            do {
+                try activateAudioSession()
+            } catch {
+                playbackError = error.localizedDescription
+                updateNowPlayingInfo()
+                persistSnapshot()
+                return
+            }
             #endif
             player.playImmediately(atRate: playbackRate)
             isPlaying = true
@@ -503,9 +505,6 @@ final class AudioPlayerController: ObservableObject {
 
     private func startPlayback(url: URL, sourceItem: LibraryItem, startAt: TimeInterval, autoplay: Bool) {
         guard currentItem == sourceItem else { return }
-        #if os(iOS)
-        try? activateAudioSession()
-        #endif
         let playerItem = AVPlayerItem(url: url)
         playerItem.preferredForwardBufferDuration = 20
         playerItem.audioTimePitchAlgorithm = .timeDomain
@@ -517,6 +516,17 @@ final class AudioPlayerController: ObservableObject {
             currentTime = startAt
         }
         if autoplay {
+            #if os(iOS)
+            do {
+                try activateAudioSession()
+            } catch {
+                playbackError = error.localizedDescription
+                isPlaying = false
+                updateNowPlayingInfo()
+                persistSnapshot()
+                return
+            }
+            #endif
             player.playImmediately(atRate: playbackRate)
             isPlaying = true
         } else {
@@ -545,6 +555,9 @@ final class AudioPlayerController: ObservableObject {
         }
         if repeatMode == .one {
             seek(to: 0)
+            #if os(iOS)
+            try? activateAudioSession()
+            #endif
             player.playImmediately(atRate: playbackRate)
             isPlaying = true
             updateNowPlayingInfo()
@@ -632,16 +645,6 @@ final class AudioPlayerController: ObservableObject {
         )
     }
 
-    private func configureAudioSession() {
-        #if os(iOS)
-        do {
-            try activateAudioSession()
-        } catch {
-            // Foreground playback can still work when a route is temporarily unavailable.
-        }
-        #endif
-    }
-
     private func configureAudioSessionObservers() {
         #if os(iOS)
         let center = NotificationCenter.default
@@ -664,43 +667,14 @@ final class AudioPlayerController: ObservableObject {
                 Task { @MainActor in self?.handleAudioRouteChange(notification) }
             }
         )
-        audioSessionObservers.append(
-            center.addObserver(
-                forName: UIApplication.didEnterBackgroundNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in self?.refreshAudioSessionForAppStateChange() }
-            }
-        )
-        audioSessionObservers.append(
-            center.addObserver(
-                forName: UIApplication.willEnterForegroundNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in self?.refreshAudioSessionForAppStateChange() }
-            }
-        )
         #endif
     }
 
     #if os(iOS)
     private func activateAudioSession() throws {
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(
-            .playback,
-            mode: .default,
-            options: [.allowAirPlay, .allowBluetoothA2DP]
-        )
+        try session.setCategory(.playback, mode: .default)
         try session.setActive(true)
-    }
-
-    private func refreshAudioSessionForAppStateChange() {
-        if currentItem != nil {
-            try? activateAudioSession()
-            updateNowPlayingInfo()
-        }
     }
 
     private func handleAudioInterruption(_ notification: Notification) {
@@ -714,7 +688,6 @@ final class AudioPlayerController: ObservableObject {
             let rawOptions = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             let shouldResume = AVAudioSession.InterruptionOptions(rawValue: rawOptions).contains(.shouldResume)
             if shouldResume, shouldResumeAfterInterruption {
-                try? activateAudioSession()
                 togglePlayback()
             }
             shouldResumeAfterInterruption = false
@@ -733,77 +706,190 @@ final class AudioPlayerController: ObservableObject {
     }
     #endif
 
-    private func configureRemoteCommands() {
-        let commands = MPRemoteCommandCenter.shared()
-        commands.playCommand.isEnabled = true
-        commands.pauseCommand.isEnabled = true
-        commands.nextTrackCommand.isEnabled = true
-        commands.previousTrackCommand.isEnabled = true
-        commands.changePlaybackPositionCommand.isEnabled = true
-        commands.changePlaybackRateCommand.isEnabled = true
-        commands.changePlaybackRateCommand.supportedPlaybackRates = [0.5, 0.75, 1, 1.25, 1.5, 2, 3].map {
-            NSNumber(value: $0)
+    private func configureNowPlayingSession() {
+        nowPlayingSession.onPlay = { [weak self] in
+            guard let self, !self.isPlaying else { return }
+            self.togglePlayback()
         }
-        commands.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                if !self.isPlaying { self.togglePlayback() }
-            }
-            return .success
+        nowPlayingSession.onPause = { [weak self] in
+            self?.pause()
         }
-        commands.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.pause() }
-            return .success
+        nowPlayingSession.onNext = { [weak self] in
+            self?.playNext()
         }
-        commands.nextTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.playNext() }
-            return .success
+        nowPlayingSession.onPrevious = { [weak self] in
+            self?.playPrevious()
         }
-        commands.previousTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.playPrevious() }
-            return .success
-        }
-        commands.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            Task { @MainActor in self?.seek(to: event.positionTime) }
-            return .success
-        }
-        commands.changePlaybackRateCommand.addTarget { [weak self] event in
-            guard let event = event as? MPChangePlaybackRateCommandEvent else { return .commandFailed }
-            Task { @MainActor in self?.setPlaybackRate(event.playbackRate) }
-            return .success
+        nowPlayingSession.onSeek = { [weak self] position in
+            self?.seek(to: position)
         }
     }
 
     private func updateNowPlayingInfo() {
         guard let currentItem else {
-            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            nowPlayingSession.clear()
             return
         }
-        var info: [String: Any] = [
-            MPMediaItemPropertyTitle: currentMetadata.title ?? currentItem.displayName,
-            MPMediaItemPropertyAlbumTitle: currentMetadata.album ?? "鱼饼",
-            MPMediaItemPropertyPlaybackDuration: duration,
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? playbackRate : 0,
-            MPNowPlayingInfoPropertyDefaultPlaybackRate: playbackRate,
-            MPNowPlayingInfoPropertyAssetURL: currentItem.url
-        ]
-        if let artist = currentMetadata.artist { info[MPMediaItemPropertyArtist] = artist }
-        if let albumArtist = currentMetadata.albumArtist { info[MPMediaItemPropertyAlbumArtist] = albumArtist }
-        if let genre = currentMetadata.genre { info[MPMediaItemPropertyGenre] = genre }
-        if let year = currentMetadata.year { info[MPMediaItemPropertyReleaseDate] = year }
-        if let artwork = mediaArtwork(from: currentMetadata.artworkData) {
-            info[MPMediaItemPropertyArtwork] = artwork
-        }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        nowPlayingSession.setItem(
+            currentItem,
+            metadata: currentMetadata,
+            duration: duration,
+            queueIndex: playbackQueue.currentIndex,
+            queueCount: queue.count
+        )
+        nowPlayingSession.updatePlayback(
+            position: currentTime,
+            duration: duration,
+            isPlaying: isPlaying,
+            playbackRate: playbackRate
+        )
     }
 
     private func updateNowPlayingElapsedTime() {
-        guard var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
-        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
-        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? playbackRate : 0
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        nowPlayingSession.updatePlayback(
+            position: currentTime,
+            duration: duration,
+            isPlaying: isPlaying,
+            playbackRate: playbackRate
+        )
+    }
+}
+
+@MainActor
+private final class AudioNowPlayingSession {
+    var onPlay: (() -> Void)?
+    var onPause: (() -> Void)?
+    var onNext: (() -> Void)?
+    var onPrevious: (() -> Void)?
+    var onSeek: ((TimeInterval) -> Void)?
+
+    private let nowPlayingCenter = MPNowPlayingInfoCenter.default()
+    private let commandCenter = MPRemoteCommandCenter.shared()
+    private var commandTargets: [(MPRemoteCommand, Any)] = []
+    private var nowPlayingInfo: [String: Any] = [:]
+    private var representedPath: String?
+
+    init() {
+        installRemoteCommands()
+    }
+
+    deinit {
+        for (command, target) in commandTargets {
+            command.removeTarget(target)
+        }
+    }
+
+    func setItem(
+        _ item: LibraryItem,
+        metadata: EmbeddedAudioMetadata,
+        duration: TimeInterval,
+        queueIndex: Int,
+        queueCount: Int
+    ) {
+        representedPath = item.relativePath
+        nowPlayingInfo = [
+            MPMediaItemPropertyTitle: metadata.title ?? item.displayName,
+            MPMediaItemPropertyAlbumTitle: metadata.album ?? "鱼饼",
+            MPMediaItemPropertyPlaybackDuration: max(duration, 0),
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
+            MPNowPlayingInfoPropertyIsLiveStream: false,
+            MPNowPlayingInfoPropertyPlaybackQueueIndex: max(queueIndex, 0),
+            MPNowPlayingInfoPropertyPlaybackQueueCount: max(queueCount, 1),
+            MPNowPlayingInfoPropertyAssetURL: item.url
+        ]
+        if let artist = metadata.artist {
+            nowPlayingInfo[MPMediaItemPropertyArtist] = artist
+        }
+        if let albumArtist = metadata.albumArtist {
+            nowPlayingInfo[MPMediaItemPropertyAlbumArtist] = albumArtist
+        }
+        if let genre = metadata.genre {
+            nowPlayingInfo[MPMediaItemPropertyGenre] = genre
+        }
+        if let year = metadata.year {
+            nowPlayingInfo[MPMediaItemPropertyReleaseDate] = year
+        }
+        if let artwork = mediaArtwork(from: metadata.artworkData) {
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        }
+        nowPlayingCenter.nowPlayingInfo = nowPlayingInfo
+    }
+
+    func updatePlayback(
+        position: TimeInterval,
+        duration: TimeInterval,
+        isPlaying: Bool,
+        playbackRate: Float
+    ) {
+        guard representedPath != nil else { return }
+        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = max(duration, 0)
+        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = max(position, 0)
+        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? playbackRate : 0
+        nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = playbackRate
+        nowPlayingCenter.nowPlayingInfo = nowPlayingInfo
+        #if os(iOS)
+        nowPlayingCenter.playbackState = isPlaying ? .playing : .paused
+        #endif
+        commandCenter.playCommand.isEnabled = !isPlaying
+        commandCenter.pauseCommand.isEnabled = isPlaying
+    }
+
+    func clear() {
+        representedPath = nil
+        nowPlayingInfo = [:]
+        nowPlayingCenter.nowPlayingInfo = nil
+        #if os(iOS)
+        nowPlayingCenter.playbackState = .stopped
+        #endif
+    }
+
+    private func installRemoteCommands() {
+        commandCenter.playCommand.isEnabled = true
+        commandCenter.pauseCommand.isEnabled = false
+        commandCenter.togglePlayPauseCommand.isEnabled = false
+        commandCenter.nextTrackCommand.isEnabled = true
+        commandCenter.previousTrackCommand.isEnabled = true
+        commandCenter.changePlaybackPositionCommand.isEnabled = true
+        commandCenter.stopCommand.isEnabled = false
+        commandCenter.skipForwardCommand.isEnabled = false
+        commandCenter.skipBackwardCommand.isEnabled = false
+        commandCenter.seekForwardCommand.isEnabled = false
+        commandCenter.seekBackwardCommand.isEnabled = false
+        commandCenter.changePlaybackRateCommand.isEnabled = false
+        commandCenter.changeRepeatModeCommand.isEnabled = false
+        commandCenter.changeShuffleModeCommand.isEnabled = false
+
+        addTarget(to: commandCenter.playCommand) { [weak self] _ in
+            Task { @MainActor in self?.onPlay?() }
+            return .success
+        }
+        addTarget(to: commandCenter.pauseCommand) { [weak self] _ in
+            Task { @MainActor in self?.onPause?() }
+            return .success
+        }
+        addTarget(to: commandCenter.nextTrackCommand) { [weak self] _ in
+            Task { @MainActor in self?.onNext?() }
+            return .success
+        }
+        addTarget(to: commandCenter.previousTrackCommand) { [weak self] _ in
+            Task { @MainActor in self?.onPrevious?() }
+            return .success
+        }
+        addTarget(to: commandCenter.changePlaybackPositionCommand) { [weak self] event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else {
+                return .commandFailed
+            }
+            Task { @MainActor in self?.onSeek?(event.positionTime) }
+            return .success
+        }
+    }
+
+    private func addTarget(
+        to command: MPRemoteCommand,
+        handler: @escaping (MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus
+    ) {
+        let target = command.addTarget(handler: handler)
+        commandTargets.append((command, target))
     }
 
     private func mediaArtwork(from data: Data?) -> MPMediaItemArtwork? {

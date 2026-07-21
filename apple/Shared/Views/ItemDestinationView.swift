@@ -21,7 +21,11 @@ struct ItemDestinationView: View {
                     DocumentPreviewScreen(item: item, message: "此漫画格式由系统预览打开。PDF 与图片可直接传到 Watch 阅读。")
                 }
             case .music:
+                #if os(iOS)
+                MusicPlayerDestinationBridge(item: item)
+                #else
                 NowPlayingView(startingItem: item)
+                #endif
             case .video:
                 VideoPlayerScreen(item: item)
             case .photo:
@@ -33,6 +37,30 @@ struct ItemDestinationView: View {
         .onAppear { store.markOpened(item) }
     }
 }
+
+#if os(iOS)
+private struct MusicPlayerDestinationBridge: View {
+    @Environment(\.dismiss) private var dismiss
+    let item: LibraryItem
+    @State private var presentedItem: LibraryItem?
+
+    var body: some View {
+        Color.clear
+            .navigationTitle(item.displayName)
+            .onAppear {
+                if presentedItem == nil {
+                    presentedItem = item
+                }
+            }
+            .fullScreenCover(item: $presentedItem, onDismiss: {
+                dismiss()
+            }) { item in
+                NowPlayingView(startingItem: item)
+                    .presentationBackground(.clear)
+            }
+    }
+}
+#endif
 
 private struct DocumentPreviewScreen: View {
     @EnvironmentObject private var store: LibraryStore
