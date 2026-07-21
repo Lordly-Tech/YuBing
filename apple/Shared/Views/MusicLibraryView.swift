@@ -903,7 +903,8 @@ struct NowPlayingView: View {
 
             HStack(spacing: spacing) {
                 landscapeControlPanel(artworkSide: artworkSide)
-                    .frame(width: controlWidth, maxHeight: .infinity)
+                    .frame(width: controlWidth)
+                    .frame(maxHeight: .infinity)
 
                 landscapePagePanel
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
