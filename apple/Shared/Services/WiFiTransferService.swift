@@ -28,13 +28,12 @@ final class WiFiTransferService: ObservableObject {
         do {
             let newListener = try NWListener(using: .tcp, on: .any)
             newListener.service = NWListener.Service(name: "鱼饼", type: "_yubing._tcp")
-            newListener.stateUpdateHandler = { [weak self, weak newListener] state in
+            newListener.stateUpdateHandler = { [weak self] state in
                 guard let self else { return }
                 switch state {
                 case .ready:
-                    self.listener = newListener
                     self.isStarting = false
-                    let port = newListener?.port?.rawValue ?? 0
+                    let port = self.listener?.port?.rawValue ?? 0
                     if let host = Self.localIPv4Address() {
                         self.update(running: true, address: "http://\(host):\(port)", status: "等待电脑上传")
                     } else {
@@ -42,10 +41,11 @@ final class WiFiTransferService: ObservableObject {
                     }
                 case .failed(let error):
                     self.isStarting = false
+                    self.listener = nil
                     self.update(running: false, address: nil, status: Self.message(for: error))
-                    newListener?.cancel()
                 case .cancelled:
                     self.isStarting = false
+                    self.listener = nil
                     self.update(running: false, address: nil, status: "已停止")
                 default:
                     break
@@ -54,6 +54,7 @@ final class WiFiTransferService: ObservableObject {
             newListener.newConnectionHandler = { [weak self] connection in
                 self?.accept(connection)
             }
+            self.listener = newListener
             newListener.start(queue: queue)
         } catch {
             isStarting = false
