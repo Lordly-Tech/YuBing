@@ -2,6 +2,7 @@ import SwiftUI
 
 enum AppSection: String, CaseIterable, Identifiable {
     case home
+    case discover
     case music
     case reading
     case gallery
@@ -12,6 +13,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     var title: LocalizedStringKey {
         switch self {
         case .home: "首页"
+        case .discover: "发现"
         case .music: "音乐"
         case .reading: "阅读"
         case .gallery: "图库"
@@ -22,6 +24,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .home: "square.grid.2x2"
+        case .discover: "safari"
         case .music: "music.note.list"
         case .reading: "books.vertical"
         case .gallery: "photo.on.rectangle.angled"

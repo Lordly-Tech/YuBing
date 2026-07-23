@@ -30,7 +30,14 @@ targets:
     type: application
     platform: iOS
     sources:
-      - path: Shared
+      - path: App
+      - path: AudioCodecBridge
+      - path: Components
+      - path: Design
+      - path: Models
+      - path: Resources
+      - path: Services
+      - path: Views
     dependencies:
       - target: YuBingWatch
         embed: true
@@ -78,13 +85,20 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: false
-        SWIFT_OBJC_BRIDGING_HEADER: Shared/AudioCodecBridge/YuBingAudioCodec.h
+        SWIFT_OBJC_BRIDGING_HEADER: AudioCodecBridge/YuBingAudioCodec.h
         PROVISIONING_PROFILE_SPECIFIER: $(IOS_PROFILE_NAME)
   YuBingMac:
     type: application
     platform: macOS
     sources:
-      - path: Shared
+      - path: App
+      - path: AudioCodecBridge
+      - path: Components
+      - path: Design
+      - path: Models
+      - path: Resources
+      - path: Services
+      - path: Views
     dependencies:
       - package: FFmpegLibav
         product: FFmpeg
@@ -99,14 +113,14 @@ targets:
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         ENABLE_HARDENED_RUNTIME: true
-        SWIFT_OBJC_BRIDGING_HEADER: Shared/AudioCodecBridge/YuBingAudioCodec.h
+        SWIFT_OBJC_BRIDGING_HEADER: AudioCodecBridge/YuBingAudioCodec.h
   YuBingWatch:
     type: application
     platform: watchOS
     sources:
       - path: Watch
-      - path: Shared/Models/AudioLyrics.swift
-      - path: Shared/Resources/Localizable.xcstrings
+      - path: Models/AudioLyrics.swift
+      - path: Resources/Localizable.xcstrings
     entitlements:
       path: Config/YuBingWatch.entitlements
     settings:

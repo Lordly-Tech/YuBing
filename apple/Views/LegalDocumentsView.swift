@@ -22,8 +22,8 @@ enum LegalDocument: String, Identifiable {
         }
     }
 
-    var effectiveDate: String { "2026 年 7 月 20 日" }
-    var updatedDate: String { "2026 年 7 月 20 日" }
+    var effectiveDate: String { "2026 年 7 月 23 日" }
+    var updatedDate: String { "2026 年 7 月 23 日" }
 
     var sections: [LegalDocumentSection] {
         switch self {
@@ -68,6 +68,13 @@ enum LegalDocument: String, Identifiable {
                     ]
                 ),
                 LegalDocumentSection(
+                    title: "在线音乐服务",
+                    paragraphs: [
+                        "当你打开音乐发现、在线歌单或专辑，或播放在线曲目时，应用会直接向网易云音乐及其图片服务发送只读请求。请求可能包含歌单、专辑或歌曲标识、内容分类以及网络服务正常工作所需的设备和网络信息。",
+                        "这些请求不会经过鱼饼自有服务器；第三方如何处理请求与日志由其服务条款和隐私规则决定。你不使用在线音乐功能时，鱼饼不会为该功能主动发起内容请求。"
+                    ]
+                ),
+                LegalDocumentSection(
                     title: "信息安全",
                     paragraphs: [
                         "我们会尽力使用系统提供的安全机制保护你的数据，但任何电子存储和传输方式都无法做到绝对安全。请妥善保管设备和备份。"
@@ -101,8 +108,8 @@ enum LegalDocument: String, Identifiable {
                 LegalDocumentSection(
                     title: "服务说明",
                     paragraphs: [
-                        "本应用提供本地文件管理、阅读、音乐播放、图片/视频查看、局域网传输和 Apple Watch 同步等功能。",
-                        "不同设备、系统版本和文件格式的可用性可能不同，部分功能依赖系统权限、网络环境、Apple Music、本地文件格式或 Apple Watch 配对状态。"
+                        "本应用提供本地文件管理、阅读、音乐播放、在线音乐发现、图片/视频查看、局域网传输和 Apple Watch 同步等功能。",
+                        "不同设备、系统版本和文件格式的可用性可能不同，部分功能依赖系统权限、网络环境、第三方音乐服务、本地文件格式或 Apple Watch 配对状态。"
                     ],
                     bullets: [
                         "本应用当前不提供账号体系或强制云端同步服务。",
@@ -114,7 +121,7 @@ enum LegalDocument: String, Identifiable {
                     bullets: [
                         "你应确保导入、分享、传输和播放的内容拥有合法来源或相关授权。",
                         "你不得使用本应用存储、传播或处理违法、侵权、恶意、欺诈或其他被禁止的内容。",
-                        "你不得对本应用进行破解、反编译、逆向、篡改或绕过安全限制。"
+                        "你不得利用本应用攻击第三方服务、绕过音乐内容的付费或版权限制，或实施其他违法行为。"
                     ]
                 ),
                 LegalDocumentSection(
@@ -126,7 +133,7 @@ enum LegalDocument: String, Identifiable {
                 LegalDocumentSection(
                     title: "知识产权",
                     paragraphs: [
-                        "本应用的代码、界面、图标、文案和品牌标识归开发者或相关权利方所有。你保留自己内容的权利，但不会因为使用本应用而取得应用本身的知识产权。"
+                        "鱼饼源代码依照 GNU General Public License version 3 发布，你可以在该许可证范围内使用、研究、修改和分发。MeloX 及其他第三方代码、资源和品牌仍受各自许可证与权利声明约束。你保留自己导入内容的权利。"
                     ]
                 ),
                 LegalDocumentSection(

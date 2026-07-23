@@ -48,6 +48,16 @@ struct MoreView: View {
     private var featuresSection: some View {
         Section("功能") {
             NavigationLink {
+                GalleryView()
+            } label: {
+                MoreRowLabel(
+                    title: "图库",
+                    systemImage: "photo.on.rectangle.angled",
+                    tint: .green
+                )
+            }
+
+            NavigationLink {
                 FavoriteLibraryView()
             } label: {
                 MoreRowLabel(title: "收藏", systemImage: "star", tint: .yellow)
@@ -101,6 +111,17 @@ struct MoreView: View {
 
     private var openSourceSection: some View {
         Section("开源") {
+            NavigationLink {
+                OpenSourceLicensesView()
+            } label: {
+                MoreRowLabel(
+                    title: "开源与许可证",
+                    subtitle: "GPL-3.0 与 MeloX 致谢",
+                    systemImage: "scroll",
+                    tint: .teal
+                )
+            }
+
             Link(destination: URL(string: "https://github.com/Lordly-Tech/YuBing")!) {
                 MoreButtonRow(
                     title: "GitHub 开源仓库",

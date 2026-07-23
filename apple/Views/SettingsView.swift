@@ -19,6 +19,7 @@ struct SettingsView: View {
             identitySection
             languageSection
             librarySection
+            playerSection
             permissionSection
             legalSection
         }
@@ -102,6 +103,22 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             } label: {
                 SettingsRowLabel(title: "收藏项目", systemImage: "star", tint: .yellow)
+            }
+        }
+    }
+
+    private var playerSection: some View {
+        Section("播放器") {
+            NavigationLink {
+                MeloXLyricsSettingsView(wrapsInNavigation: false)
+            } label: {
+                SettingsButtonRow(
+                    title: "歌词动效",
+                    subtitle: "错峰、逐字辉光与逐字抬升",
+                    systemImage: "quote.bubble",
+                    tint: .pink,
+                    showsChevron: false
+                )
             }
         }
     }

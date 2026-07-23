@@ -8,6 +8,7 @@ extension Notification.Name {
 
 struct RootView: View {
     @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var player: AudioPlayerController
     @State private var presentedPlayer: LibraryItem?
 
     #if os(iOS)
@@ -34,7 +35,7 @@ struct RootView: View {
         #else
         .sheet(item: $presentedPlayer) { item in
             NowPlayingView(startingItem: item)
-                .frame(minWidth: 360, minHeight: 560)
+                .frame(minWidth: 860, minHeight: 560)
         }
         #endif
         .alert(item: $store.alert) { alert in
@@ -44,10 +45,22 @@ struct RootView: View {
                 dismissButton: .default(Text("好"))
             )
         }
+        .alert("播放失败", isPresented: playbackErrorPresented) {
+            Button("好", role: .cancel) { player.playbackError = nil }
+        } message: {
+            Text(player.playbackError ?? "无法播放当前歌曲。")
+        }
     }
 
     private func presentPlayer(_ item: LibraryItem) {
         presentedPlayer = item
+    }
+
+    private var playbackErrorPresented: Binding<Bool> {
+        Binding(
+            get: { player.playbackError != nil },
+            set: { if !$0 { player.playbackError = nil } }
+        )
     }
 }
 
@@ -63,9 +76,9 @@ private struct CompactRootView: View {
     var body: some View {
         TabView(selection: $selection) {
             compactTab(.home) { DashboardView() }
+            compactTab(.discover) { MeloXDiscoverView() }
             compactTab(.music) { MusicLibraryView() }
             compactTab(.reading) { ReadingLibraryView() }
-            compactTab(.gallery) { GalleryView() }
             compactTab(.more) { MoreView() }
         }
         .overlay(alignment: .bottom) {
@@ -171,6 +184,8 @@ private struct SidebarView: View {
             Section {
                 Label(AppSection.home.title, systemImage: AppSection.home.symbol)
                     .tag(AppSection.home)
+                Label(AppSection.discover.title, systemImage: AppSection.discover.symbol)
+                    .tag(AppSection.discover)
                 Label(AppSection.music.title, systemImage: AppSection.music.symbol)
                     .tag(AppSection.music)
                 Label(AppSection.reading.title, systemImage: AppSection.reading.symbol)
@@ -200,6 +215,8 @@ private struct SectionDestinationView: View {
         switch section {
         case .home:
             DashboardView()
+        case .discover:
+            MeloXDiscoverView()
         case .music:
             MusicLibraryView()
         case .reading:

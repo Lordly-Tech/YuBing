@@ -235,6 +235,7 @@ final class AudioPlayerController: ObservableObject {
     @Published private(set) var isShuffleEnabled = false
     @Published private(set) var sleepTimerEnd: Date?
     @Published private(set) var stopAfterCurrentTrack = false
+    @Published private(set) var seekRevision = 0
     @Published var playbackError: String?
     @Published var isNowPlayingVisible = false
 
@@ -315,6 +316,13 @@ final class AudioPlayerController: ObservableObject {
         player.replaceCurrentItem(with: nil)
         persistSnapshot()
 
+        if !item.url.isFileURL {
+            let metadata = metadataByPath[item.relativePath] ?? .empty
+            currentMetadata = metadata
+            startPlayback(url: item.url, sourceItem: item, startAt: startAt, autoplay: autoplay)
+            return
+        }
+
         preparationTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -346,6 +354,7 @@ final class AudioPlayerController: ObservableObject {
 
     func loadMetadata(for item: LibraryItem) async -> EmbeddedAudioMetadata {
         if let cached = metadataByPath[item.relativePath] { return cached }
+        guard item.url.isFileURL else { return .empty }
         let metadata = await EmbeddedAudioMetadata.load(from: item.url)
         metadataByPath[item.relativePath] = metadata
         if currentItem == item {
@@ -353,6 +362,13 @@ final class AudioPlayerController: ObservableObject {
             updateNowPlayingInfo()
         }
         return metadata
+    }
+
+    func registerMetadata(_ metadata: EmbeddedAudioMetadata, for item: LibraryItem) {
+        metadataByPath[item.relativePath] = metadata
+        guard currentItem == item else { return }
+        currentMetadata = metadata
+        updateNowPlayingInfo()
     }
 
     func togglePlayback() {
@@ -396,6 +412,7 @@ final class AudioPlayerController: ObservableObject {
         let clamped = min(max(0, seconds), max(duration, 0))
         player.seek(to: CMTime(seconds: clamped, preferredTimescale: 600))
         currentTime = clamped
+        seekRevision += 1
         updateNowPlayingElapsedTime()
         persistSnapshot()
     }
@@ -403,6 +420,10 @@ final class AudioPlayerController: ObservableObject {
     func playbackPosition() -> TimeInterval {
         let seconds = player.currentTime().seconds
         return seconds.isFinite ? seconds : currentTime
+    }
+
+    func estimatedProgress(at _: Date = Date()) -> TimeInterval {
+        playbackPosition()
     }
 
     func setPlaybackRate(_ rate: Float) {
@@ -627,6 +648,7 @@ final class AudioPlayerController: ObservableObject {
     }
 
     private func persistSnapshot() {
+        guard currentItem?.url.isFileURL != false else { return }
         guard !queue.isEmpty else {
             persistence.clear()
             return

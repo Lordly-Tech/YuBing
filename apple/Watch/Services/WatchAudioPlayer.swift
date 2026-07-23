@@ -235,6 +235,11 @@ final class WatchAudioPlayer: ObservableObject {
         updateNowPlaying()
     }
 
+    func playbackPosition() -> TimeInterval {
+        let seconds = player.currentTime().seconds
+        return seconds.isFinite ? seconds : currentTime
+    }
+
     func setPlaybackRate(_ rate: Float) {
         playbackRate = min(max(rate, 0.5), 2)
         player.defaultRate = playbackRate

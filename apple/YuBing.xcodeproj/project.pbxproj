@@ -41,9 +41,44 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		F00000000000000000000004 /* Shared */ = {
+		F00000000000000000000004 /* App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Shared;
+			path = App;
+			sourceTree = "<group>";
+		};
+		F00000000000000000000007 /* AudioCodecBridge */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AudioCodecBridge;
+			sourceTree = "<group>";
+		};
+		F00000000000000000000008 /* Components */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Components;
+			sourceTree = "<group>";
+		};
+		F00000000000000000000009 /* Design */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Design;
+			sourceTree = "<group>";
+		};
+		F0000000000000000000000A /* Models */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Models;
+			sourceTree = "<group>";
+		};
+		F0000000000000000000000B /* Resources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		F0000000000000000000000C /* Services */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Services;
+			sourceTree = "<group>";
+		};
+		F0000000000000000000000D /* Views */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Views;
 			sourceTree = "<group>";
 		};
 		F00000000000000000000005 /* Watch */ = {
@@ -68,7 +103,14 @@
 		F00000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
-				F00000000000000000000004 /* Shared */,
+				F00000000000000000000004 /* App */,
+				F00000000000000000000007 /* AudioCodecBridge */,
+				F00000000000000000000008 /* Components */,
+				F00000000000000000000009 /* Design */,
+				F0000000000000000000000A /* Models */,
+				F0000000000000000000000B /* Resources */,
+				F0000000000000000000000C /* Services */,
+				F0000000000000000000000D /* Views */,
 				F00000000000000000000005 /* Watch */,
 				F00000000000000000000006 /* Config */,
 				F00000000000000000000003 /* Products */,
@@ -103,7 +145,14 @@
 				F00000000000000000000042 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				F00000000000000000000004 /* Shared */,
+				F00000000000000000000004 /* App */,
+				F00000000000000000000007 /* AudioCodecBridge */,
+				F00000000000000000000008 /* Components */,
+				F00000000000000000000009 /* Design */,
+				F0000000000000000000000A /* Models */,
+				F0000000000000000000000B /* Resources */,
+				F0000000000000000000000C /* Services */,
+				F0000000000000000000000D /* Views */,
 			);
 			name = YuBing;
 			packageProductDependencies = (
@@ -125,7 +174,14 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				F00000000000000000000004 /* Shared */,
+				F00000000000000000000004 /* App */,
+				F00000000000000000000007 /* AudioCodecBridge */,
+				F00000000000000000000008 /* Components */,
+				F00000000000000000000009 /* Design */,
+				F0000000000000000000000A /* Models */,
+				F0000000000000000000000B /* Resources */,
+				F0000000000000000000000C /* Services */,
+				F0000000000000000000000D /* Views */,
 			);
 			name = YuBingMac;
 			packageProductDependencies = (

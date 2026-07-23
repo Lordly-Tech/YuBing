@@ -5,6 +5,7 @@ struct YuBingApp: App {
     @AppStorage(AppLocalization.preferenceKey) private var appLanguageRaw = AppLanguage.system.rawValue
     @StateObject private var store = LibraryStore()
     @StateObject private var player = AudioPlayerController()
+    @StateObject private var meloXMusic = MeloXMusicService()
     @StateObject private var readingStore = ReadingStore()
     @StateObject private var wifiTransfer = WiFiTransferService()
     #if os(iOS)
@@ -17,9 +18,11 @@ struct YuBingApp: App {
                 .environment(\.locale, Locale(identifier: appLanguage.localeIdentifier))
                 .environmentObject(store)
                 .environmentObject(player)
+                .environmentObject(meloXMusic)
                 .environmentObject(readingStore)
                 .environmentObject(wifiTransfer)
                 .onAppear { wifiTransfer.attach(store: store) }
+                .onAppear { meloXMusic.attach(player: player) }
                 #if os(iOS)
                 .environmentObject(watchTransfer)
                 .onAppear { watchTransfer.attach(readingStore: readingStore) }
