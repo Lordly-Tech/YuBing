@@ -115,7 +115,7 @@ struct NowPlayingLyricsPage: View {
         case .portrait:
             226
         case .landscape:
-            50
+            0
         }
     }
 

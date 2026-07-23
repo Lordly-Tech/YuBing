@@ -238,11 +238,12 @@ final class AudioPlayerController: ObservableObject {
     @Published private(set) var seekRevision = 0
     @Published var playbackError: String?
 
-    private let player = AVPlayer()
-    private let nowPlayingSession = AudioNowPlayingSession()
+    private let player: AVPlayer
+    private let nowPlayingSession: AudioNowPlayingSession
     private let persistence = AudioPlaybackPersistence()
     private var playbackQueue = AudioPlaybackQueue()
     private var timeObserver: Any?
+    private var timeControlObserver: NSKeyValueObservation?
     private var endObserver: NSObjectProtocol?
     private var audioSessionObservers: [NSObjectProtocol] = []
     private var preparationTask: Task<Void, Never>?
@@ -252,10 +253,21 @@ final class AudioPlayerController: ObservableObject {
     private var shouldResumeAfterInterruption = false
 
     init() {
+        let player = AVPlayer()
+        self.player = player
+        nowPlayingSession = AudioNowPlayingSession(player: player)
         configureNowPlayingSession()
         configureAudioSessionObservers()
         player.automaticallyWaitsToMinimizeStalling = true
+        player.preventsDisplaySleepDuringVideoPlayback = false
         player.volume = Float(volume)
+        timeControlObserver = player.observe(\.timeControlStatus, options: [.initial, .new]) {
+            [weak self] _, _ in
+            guard let controller = self else { return }
+            Task { @MainActor [controller] in
+                controller.synchronizePlaybackStateWithPlayer()
+            }
+        }
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
             queue: .main
@@ -270,8 +282,12 @@ final class AudioPlayerController: ObservableObject {
             forName: .AVPlayerItemDidPlayToEndTime,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in self?.handlePlaybackEnded() }
+        ) { [weak self] notification in
+            Task { @MainActor in
+                guard let self,
+                      notification.object as? AVPlayerItem === self.player.currentItem else { return }
+                self.handlePlaybackEnded()
+            }
         }
         restorePlaybackSnapshot()
     }
@@ -279,6 +295,7 @@ final class AudioPlayerController: ObservableObject {
     deinit {
         preparationTask?.cancel()
         sleepTask?.cancel()
+        timeControlObserver?.invalidate()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
         for observer in audioSessionObservers {
@@ -666,6 +683,27 @@ final class AudioPlayerController: ObservableObject {
         )
     }
 
+    private func synchronizePlaybackStateWithPlayer() {
+        guard player.currentItem != nil, !isPreparing else { return }
+
+        let isActuallyPlaying: Bool
+        switch player.timeControlStatus {
+        case .playing:
+            isActuallyPlaying = true
+        case .paused:
+            isActuallyPlaying = false
+        case .waitingToPlayAtSpecifiedRate:
+            isActuallyPlaying = false
+        @unknown default:
+            return
+        }
+
+        guard isPlaying != isActuallyPlaying else { return }
+        isPlaying = isActuallyPlaying
+        updateNowPlayingElapsedTime()
+        persistSnapshot()
+    }
+
     private func configureAudioSessionObservers() {
         #if os(iOS)
         let center = NotificationCenter.default
@@ -784,13 +822,29 @@ private final class AudioNowPlayingSession {
     var onPrevious: (() -> Void)?
     var onSeek: ((TimeInterval) -> Void)?
 
+    #if os(iOS)
+    private let playbackSession: MPNowPlayingSession
+
+    private var nowPlayingCenter: MPNowPlayingInfoCenter {
+        playbackSession.nowPlayingInfoCenter
+    }
+
+    private var commandCenter: MPRemoteCommandCenter {
+        playbackSession.remoteCommandCenter
+    }
+    #else
     private let nowPlayingCenter = MPNowPlayingInfoCenter.default()
     private let commandCenter = MPRemoteCommandCenter.shared()
+    #endif
     private var commandTargets: [(MPRemoteCommand, Any)] = []
     private var nowPlayingInfo: [String: Any] = [:]
     private var representedPath: String?
 
-    init() {
+    init(player: AVPlayer) {
+        #if os(iOS)
+        playbackSession = MPNowPlayingSession(players: [player])
+        playbackSession.automaticallyPublishesNowPlayingInfo = false
+        #endif
         installRemoteCommands()
     }
 
@@ -807,6 +861,9 @@ private final class AudioNowPlayingSession {
         queueIndex: Int,
         queueCount: Int
     ) {
+        #if os(iOS)
+        playbackSession.becomeActiveIfPossible(completion: nil)
+        #endif
         representedPath = item.relativePath
         nowPlayingInfo = [
             MPMediaItemPropertyTitle: metadata.title ?? item.displayName,

@@ -141,6 +141,12 @@ enum AudioLyricsLoader {
             if !lyrics.isEmpty { return lyrics }
         }
         guard let embeddedText else { return nil }
+
+        let yrcLines = YRCParser.parse(embeddedText)
+        if !yrcLines.isEmpty {
+            return TimedLyrics(lines: yrcLines, untimedText: nil)
+        }
+
         let lyrics = LRCParser.parse(embeddedText)
         return lyrics.isEmpty ? nil : lyrics
     }

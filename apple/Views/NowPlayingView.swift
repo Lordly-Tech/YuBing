@@ -52,15 +52,12 @@ struct NowPlayingView: View {
 
                 if proxy.size.width > proxy.size.height {
                     NowPlayingLandscapeView(
-                        page: $page,
-                        showsLyricsControls: $showsLyricsControls,
                         showsSleepTimer: $showsSleepTimer,
                         song: song,
                         lyrics: lyrics,
                         lyricError: lyricError,
                         highlightedLyricID: highlightedLyricID,
-                        artworkNamespace: pageArtworkNamespace,
-                        onDismiss: { dismiss() }
+                        artworkNamespace: pageArtworkNamespace
                     )
                 } else {
                     portraitContent

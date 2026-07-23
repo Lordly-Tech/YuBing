@@ -16,7 +16,7 @@ final class AppSettings {
     var lyricsDimAmount = 1.0
     var lyricsTapToSeek = true
     var lyricsWordByWord = true
-    var lyricsPseudoWordByWord = false
+    var lyricsPseudoWordByWord = true
     var lyricsGlowEnabled = true
     var lyricsGlowIntensity = 1.0
     var lyricsTranslationEnabled = true

@@ -197,6 +197,14 @@ struct NowPlayingPageSelector: View {
 
             Spacer()
 
+            #if os(iOS)
+            AirPlayRouteButton()
+                .frame(width: 44, height: 44)
+                .accessibilityLabel("AirPlay")
+
+            Spacer()
+            #endif
+
             pageButton(
                 page: .queue,
                 systemImage: "list.bullet",
@@ -259,6 +267,7 @@ private struct SystemVolumeSlider: UIViewRepresentable {
 
         let volumeView = context.coordinator.volumeView
         volumeView.showsVolumeSlider = true
+        volumeView.showsRouteButton = false
         volumeView.tintColor = .white
         volumeView.frame = container.bounds
         volumeView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -269,6 +278,7 @@ private struct SystemVolumeSlider: UIViewRepresentable {
     func updateUIView(_ container: UIView, context: Context) {
         let volumeView = context.coordinator.volumeView
         volumeView.showsVolumeSlider = true
+        volumeView.showsRouteButton = false
         volumeView.tintColor = .white
         volumeView.frame = container.bounds
     }
@@ -282,6 +292,22 @@ private struct SystemVolumeSlider: UIViewRepresentable {
             width: proposal.width ?? 200,
             height: proposal.height ?? 32
         )
+    }
+}
+
+private struct AirPlayRouteButton: UIViewRepresentable {
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let routePicker = AVRoutePickerView(frame: .zero)
+        routePicker.prioritizesVideoDevices = false
+        routePicker.tintColor = .white
+        routePicker.activeTintColor = .systemPink
+        return routePicker
+    }
+
+    func updateUIView(_ routePicker: AVRoutePickerView, context: Context) {
+        routePicker.prioritizesVideoDevices = false
+        routePicker.tintColor = .white
+        routePicker.activeTintColor = .systemPink
     }
 }
 #endif
