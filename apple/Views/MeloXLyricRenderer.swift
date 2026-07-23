@@ -216,7 +216,7 @@ enum MeloXTimedLyricTextBuilder {
     ) -> [TimedCharacter] {
         syllables.flatMap { syllable in
             let characters = Array(syllable.text)
-            guard !characters.isEmpty else { return [] }
+            guard !characters.isEmpty else { return [TimedCharacter]() }
             let duration = max(syllable.endTime - syllable.startTime, 0)
             let characterDuration = duration / Double(characters.count)
             return characters.enumerated().map { index, character in
