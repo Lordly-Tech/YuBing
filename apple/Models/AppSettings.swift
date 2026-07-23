@@ -29,4 +29,8 @@ final class AppSettings {
     var lyricsFocusCascadeBounceEnabled = true
     var lyricsFocusColorLeadTime = 0.06
     var lyricsAdvanceTime = 0.2
+
+    static let lyricsFocusPositionRange: ClosedRange<Double> = 0...1
+    static let lyricsCurrentLineScaleRange: ClosedRange<Double> = 1.0...2.0
+    static let lyricsFocusColorLeadTimeRange: ClosedRange<Double> = 0...1
 }
