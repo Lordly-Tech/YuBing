@@ -7,7 +7,6 @@ import UIKit
 
 struct MoreView: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
     @EnvironmentObject private var wifiTransfer: WiFiTransferService
     @State private var showsWiFiTransfer = false
     @AppStorage(AppLocalization.preferenceKey) private var appLanguageRaw = AppLanguage.system.rawValue
@@ -47,16 +46,6 @@ struct MoreView: View {
 
     private var featuresSection: some View {
         Section("功能") {
-            NavigationLink {
-                GalleryView()
-            } label: {
-                MoreRowLabel(
-                    title: "图库",
-                    systemImage: "photo.on.rectangle.angled",
-                    tint: .green
-                )
-            }
-
             NavigationLink {
                 FavoriteLibraryView()
             } label: {

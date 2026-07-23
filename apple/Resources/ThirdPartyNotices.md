@@ -2,7 +2,7 @@
 
 ## MeloX
 
-YuBing's music discovery, online playlist and album flows, playback queue, mini-player, portrait and landscape now-playing interfaces, synchronized lyric timeline, staggered focus movement, and per-character glow/lift rendering are adapted from MeloX.
+YuBing's local album detail structure, playback queue, mini-player, portrait and landscape now-playing interfaces, synchronized lyric timeline, staggered focus movement, and per-character glow/lift rendering are adapted from MeloX.
 
 - Source project: https://github.com/youshen2/MeloX
 - License: GNU General Public License version 3

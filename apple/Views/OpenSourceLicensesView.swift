@@ -20,7 +20,7 @@ struct OpenSourceLicensesView: View {
 
             Section("MeloX") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("播放器、横屏布局、歌词动效、发现和专辑体验改编自 youshen2/MeloX。")
+                    Text("播放器、横屏布局、歌词动效和专辑体验改编自 youshen2/MeloX。")
                         .font(.subheadline)
                     Text("MeloX 以 GPL-3.0 发布；鱼饼未包含其 EVA 歌词样式和全屏天际歌词。")
                         .font(.caption)

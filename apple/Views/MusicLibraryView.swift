@@ -17,7 +17,6 @@ struct MusicAlbum: Identifiable {
             .joined(separator: " · ")
     }
 }
-
 struct MusicLibraryView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
@@ -353,98 +352,6 @@ private struct LocalPlaylistCard: View {
                 )
             }
         }
-    }
-}
-
-private struct LocalAlbumDetailView: View {
-    @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
-    let album: MusicAlbum
-    @State private var addToPlaylistItem: LibraryItem?
-
-    var body: some View {
-        ZStack {
-            PlayerArtworkBackground(artworkData: album.artworkData, intensity: 0.28)
-
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    localCollectionHero
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(album.tracks.enumerated()), id: \.element.id) { index, track in
-                            Button {
-                                player.play(track, in: album.tracks)
-                                store.markOpened(track)
-                            } label: {
-                                LocalTrackRow(item: track, index: index)
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                LocalTrackContextActions(item: track, addToPlaylistItem: $addToPlaylistItem)
-                            }
-                            if index < album.tracks.count - 1 {
-                                Divider().padding(.leading, 44)
-                            }
-                        }
-                    }
-                }
-                .frame(maxWidth: 900)
-                .padding(.horizontal, 18)
-                .padding(.bottom, 100)
-                .frame(maxWidth: .infinity)
-            }
-        }
-        .navigationTitle("")
-        .preferredColorScheme(.dark)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        .sheet(item: $addToPlaylistItem) { AddToLocalPlaylistSheet(item: $0) }
-    }
-
-    private var localCollectionHero: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .bottom, spacing: 24) {
-                albumArtwork(size: 210)
-                albumText
-            }
-            .frame(minWidth: 620)
-            VStack(alignment: .leading, spacing: 18) {
-                albumArtwork(size: 220).frame(maxWidth: .infinity)
-                albumText
-            }
-        }
-        .padding(.vertical, 28)
-    }
-
-    private func albumArtwork(size: CGFloat) -> some View {
-        AudioArtwork(data: album.artworkData, fallbackSymbol: "square.stack.fill")
-            .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
-    }
-
-    private var albumText: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(album.title).font(.largeTitle.bold())
-            Text(album.artist).font(.title3.weight(.semibold)).foregroundStyle(.secondary)
-            if !album.detailText.isEmpty {
-                Text(album.detailText).font(.subheadline).foregroundStyle(.secondary)
-            }
-            Text("\(album.tracks.count) 首歌曲")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Button {
-                guard let first = album.tracks.first else { return }
-                player.play(first, in: album.tracks)
-                store.markOpened(first)
-            } label: {
-                Label("播放全部", systemImage: "play.fill")
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.pink)
-            .padding(.top, 4)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

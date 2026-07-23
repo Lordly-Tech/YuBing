@@ -2,8 +2,8 @@ name: YuBing
 options:
   bundleIdPrefix: top.lordly
   deploymentTarget:
-    iOS: "17.0"
-    macOS: "14.0"
+    iOS: "18.0"
+    macOS: "15.0"
     watchOS: "10.0"
   xcodeVersion: "26.0"
 settings:

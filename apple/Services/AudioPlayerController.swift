@@ -237,7 +237,6 @@ final class AudioPlayerController: ObservableObject {
     @Published private(set) var stopAfterCurrentTrack = false
     @Published private(set) var seekRevision = 0
     @Published var playbackError: String?
-    @Published var isNowPlayingVisible = false
 
     private let player = AVPlayer()
     private let nowPlayingSession = AudioNowPlayingSession()

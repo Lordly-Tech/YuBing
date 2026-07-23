@@ -10,6 +10,9 @@ struct RootView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
     @State private var presentedPlayer: LibraryItem?
+    @Namespace private var playerTransitionNamespace
+
+    private let playerTransitionID = "now-playing"
 
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -19,18 +22,36 @@ struct RootView: View {
         Group {
             #if os(iOS)
             if horizontalSizeClass == .compact {
-                CompactRootView(openPlayer: presentPlayer)
+                CompactRootView(
+                    openPlayer: presentPlayer,
+                    playerTransitionID: playerTransitionID,
+                    playerTransitionNamespace: playerTransitionNamespace
+                )
             } else {
-                SplitRootView(openPlayer: presentPlayer)
+                SplitRootView(
+                    openPlayer: presentPlayer,
+                    playerTransitionID: playerTransitionID,
+                    playerTransitionNamespace: playerTransitionNamespace
+                )
             }
             #else
-            SplitRootView(openPlayer: presentPlayer)
+            SplitRootView(
+                openPlayer: presentPlayer,
+                playerTransitionID: playerTransitionID,
+                playerTransitionNamespace: playerTransitionNamespace
+            )
             #endif
         }
         #if os(iOS)
         .fullScreenCover(item: $presentedPlayer) { item in
             NowPlayingView(startingItem: item)
                 .presentationBackground(.clear)
+                .navigationTransition(
+                    .zoom(
+                        sourceID: playerTransitionID,
+                        in: playerTransitionNamespace
+                    )
+                )
         }
         #else
         .sheet(item: $presentedPlayer) { item in
@@ -67,26 +88,30 @@ struct RootView: View {
 private struct CompactRootView: View {
     @EnvironmentObject private var player: AudioPlayerController
     let openPlayer: (LibraryItem) -> Void
+    let playerTransitionID: String
+    let playerTransitionNamespace: Namespace.ID
     @State private var selection: AppSection = .home
 
-    private var hideMiniPlayer: Bool {
-        selection == .reading || selection == .gallery || player.isNowPlayingVisible
+    @ViewBuilder
+    var body: some View {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
+            modernTabs
+        } else {
+            fallbackTabs
+        }
+        #else
+        fallbackTabs
+        #endif
     }
 
-    var body: some View {
+    private var tabs: some View {
         TabView(selection: $selection) {
             compactTab(.home) { DashboardView() }
-            compactTab(.discover) { MeloXDiscoverView() }
             compactTab(.music) { MusicLibraryView() }
             compactTab(.reading) { ReadingLibraryView() }
+            compactTab(.gallery) { GalleryView() }
             compactTab(.more) { MoreView() }
-        }
-        .overlay(alignment: .bottom) {
-            if !hideMiniPlayer, player.currentItem != nil {
-                MiniPlayerView(openPlayer: openPlayer)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 62)
-            }
         }
         #if os(iOS)
         .onReceive(NotificationCenter.default.publisher(for: .yuBingWatchTransferDidStart)) { _ in
@@ -95,6 +120,40 @@ private struct CompactRootView: View {
         #endif
         .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
             if let section = notification.object as? AppSection { selection = section }
+        }
+    }
+
+    #if os(iOS)
+    @available(iOS 26.0, *)
+    private var modernTabs: some View {
+        tabs
+            .tabViewBottomAccessory {
+                if player.currentItem != nil {
+                    MeloXMiniPlayerAccessory {
+                        if let item = player.currentItem { openPlayer(item) }
+                    }
+                    .matchedTransitionSource(
+                        id: playerTransitionID,
+                        in: playerTransitionNamespace
+                    )
+                }
+            }
+            .tabBarMinimizeBehavior(.onScrollDown)
+    }
+    #endif
+
+    private var fallbackTabs: some View {
+        tabs.safeAreaInset(edge: .bottom, spacing: 0) {
+            if player.currentItem != nil {
+                MiniPlayerView {
+                    if let item = player.currentItem { openPlayer(item) }
+                }
+                .matchedTransitionSource(
+                    id: playerTransitionID,
+                    in: playerTransitionNamespace
+                )
+                .background(.bar)
+            }
         }
     }
 
@@ -114,13 +173,11 @@ private struct CompactRootView: View {
 private struct SplitRootView: View {
     @EnvironmentObject private var player: AudioPlayerController
     let openPlayer: (LibraryItem) -> Void
+    let playerTransitionID: String
+    let playerTransitionNamespace: Namespace.ID
     @State private var selection: AppSection? = .home
     @State private var immersiveDetailDepth = 0
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-
-    private var hideMiniPlayer: Bool {
-        selection == .reading || selection == .gallery || player.isNowPlayingVisible
-    }
 
     private var shouldHideSidebar: Bool {
         selection == .reading || immersiveDetailDepth > 0
@@ -136,15 +193,20 @@ private struct SplitRootView: View {
                     .libraryDestinations()
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !hideMiniPlayer, player.currentItem != nil {
+                if player.currentItem != nil {
                     HStack {
                         Spacer(minLength: 0)
-                        MiniPlayerView(openPlayer: openPlayer)
-                            .frame(maxWidth: 660)
+                        MiniPlayerView {
+                            if let item = player.currentItem { openPlayer(item) }
+                        }
+                        .matchedTransitionSource(
+                            id: playerTransitionID,
+                            in: playerTransitionNamespace
+                        )
+                        .frame(maxWidth: 660)
                         Spacer(minLength: 0)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 8)
+                    .background(.bar)
                 }
             }
         }
@@ -184,8 +246,6 @@ private struct SidebarView: View {
             Section {
                 Label(AppSection.home.title, systemImage: AppSection.home.symbol)
                     .tag(AppSection.home)
-                Label(AppSection.discover.title, systemImage: AppSection.discover.symbol)
-                    .tag(AppSection.discover)
                 Label(AppSection.music.title, systemImage: AppSection.music.symbol)
                     .tag(AppSection.music)
                 Label(AppSection.reading.title, systemImage: AppSection.reading.symbol)
@@ -215,8 +275,6 @@ private struct SectionDestinationView: View {
         switch section {
         case .home:
             DashboardView()
-        case .discover:
-            MeloXDiscoverView()
         case .music:
             MusicLibraryView()
         case .reading:
