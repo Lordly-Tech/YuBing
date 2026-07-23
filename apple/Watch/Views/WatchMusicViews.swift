@@ -107,28 +107,16 @@ struct WatchNowPlayingView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Section("播放速度") {
-                        ForEach([0.5, 0.75, 1, 1.25, 1.5, 2], id: \.self) { rate in
-                            Button {
-                                player.setPlaybackRate(Float(rate))
-                            } label: {
-                                if player.playbackRate == Float(rate) {
-                                    Label("\(rate.formatted())x", systemImage: "checkmark")
-                                } else {
-                                    Text("\(rate.formatted())x")
-                                }
-                            }
-                        }
-                    }
+                HStack(spacing: 6) {
                     Button { player.cycleRepeatMode() } label: {
-                        Label(player.repeatMode.title, systemImage: player.repeatMode == .one ? "repeat.1" : "repeat")
+                        Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
                     }
+                    .buttonStyle(.plain)
+
                     Button { player.toggleShuffle() } label: {
-                        Label("随机播放", systemImage: player.isShuffleEnabled ? "shuffle.circle.fill" : "shuffle")
+                        Image(systemName: player.isShuffleEnabled ? "shuffle.circle.fill" : "shuffle")
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -181,6 +169,16 @@ private struct WatchArtworkPlayerView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.headline)
+
+                Picker("播放速度", selection: Binding(
+                    get: { player.playbackRate },
+                    set: { player.setPlaybackRate($0) }
+                )) {
+                    ForEach([0.5, 0.75, 1, 1.25, 1.5, 2], id: \.self) { rate in
+                        Text("\(rate.formatted())x").tag(Float(rate))
+                    }
+                }
+                .pickerStyle(.navigationLink)
 
                 HStack {
                     Text(player.currentTime.watchPlaybackTime)
