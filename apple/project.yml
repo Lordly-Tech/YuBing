@@ -49,40 +49,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: top.lordly.yubing
         PRODUCT_NAME: YuBing
-        GENERATE_INFOPLIST_FILE: true
-        INFOPLIST_KEY_CFBundleDisplayName: "\u9c7c\u997c"
-        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
-        INFOPLIST_KEY_CFBundleIconName: AppIcon
+        GENERATE_INFOPLIST_FILE: false
+        INFOPLIST_FILE: Config/YuBing-Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
-        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
-        INFOPLIST_KEY_UIBackgroundModes: audio
-        INFOPLIST_KEY_UIFileSharingEnabled: true
-        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: true
-        INFOPLIST_KEY_NSCameraUsageDescription: "鱼饼使用相机扫描文档和二维码以快速添加文件。"
-        INFOPLIST_KEY_NSAppleMusicUsageDescription: "用于扫描并导入你已下载到设备的本地音乐。"
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "用于在同一 Wi-Fi 下从电脑向鱼饼快速传入文件。"
-        INFOPLIST_KEY_NSBonjourServices:
-          - _yubing._tcp
-        INFOPLIST_KEY_CFBundleDocumentTypes:
-          - CFBundleTypeName: YuBing Files
-            CFBundleTypeRole: Editor
-            LSHandlerRank: Owner
-            LSItemContentTypes:
-              - public.data
-              - public.content
-              - public.audiovisual-content
-        INFOPLIST_KEY_CFBundleURLTypes:
-          - CFBundleURLName: top.lordly.yubing
-            CFBundleURLSchemes:
-              - yubing
-        INFOPLIST_KEY_UILaunchScreen_Generation: true
-        INFOPLIST_KEY_UISupportedInterfaceOrientations:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationPortraitUpsideDown
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: false
         SWIFT_OBJC_BRIDGING_HEADER: AudioCodecBridge/YuBingAudioCodec.h

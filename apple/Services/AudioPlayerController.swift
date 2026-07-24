@@ -1,12 +1,6 @@
 import AVFoundation
 import Combine
-import MediaPlayer
-
-#if os(macOS)
-import AppKit
-#else
-import UIKit
-#endif
+import Foundation
 
 struct EmbeddedAudioMetadata: Equatable, Sendable {
     var title: String?
@@ -218,7 +212,6 @@ enum AudioRepeatMode: String, CaseIterable, Identifiable {
         }
     }
 }
-
 @MainActor
 final class AudioPlayerController: ObservableObject {
     @Published private(set) var currentItem: LibraryItem?
@@ -238,69 +231,32 @@ final class AudioPlayerController: ObservableObject {
     @Published private(set) var seekRevision = 0
     @Published var playbackError: String?
 
-    private let player: AVPlayer
+    private let engine: AudioPlaybackEngine
     private let nowPlayingSession: AudioNowPlayingSession
     private let persistence = AudioPlaybackPersistence()
     private var playbackQueue = AudioPlaybackQueue()
-    private var timeObserver: Any?
-    private var timeControlObserver: NSKeyValueObservation?
-    private var endObserver: NSObjectProtocol?
-    private var audioSessionObservers: [NSObjectProtocol] = []
     private var preparationTask: Task<Void, Never>?
     private var sleepTask: Task<Void, Never>?
     private var playbackGeneration = UUID()
-    private var lastPersistedSecond = -1
     private var shouldResumeAfterInterruption = false
+    private var isResolvingSource = false
+    private var lastPersistedSecond = -1
+    private var lastProgressUpdateDate = Date()
 
     init() {
-        let player = AVPlayer()
-        self.player = player
-        nowPlayingSession = AudioNowPlayingSession(player: player)
-        configureNowPlayingSession()
-        configureAudioSessionObservers()
-        player.automaticallyWaitsToMinimizeStalling = true
-        player.preventsDisplaySleepDuringVideoPlayback = false
-        player.volume = Float(volume)
-        timeControlObserver = player.observe(\.timeControlStatus, options: [.initial, .new]) {
-            [weak self] _, _ in
-            guard let controller = self else { return }
-            Task { @MainActor [controller] in
-                controller.synchronizePlaybackStateWithPlayer()
-            }
-        }
-        timeObserver = player.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
-            queue: .main
-        ) { [weak self] time in
-            Task { @MainActor in
-                guard let self else { return }
-                self.currentTime = time.seconds.isFinite ? time.seconds : 0
-                self.persistProgressIfNeeded()
-            }
-        }
-        endObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            Task { @MainActor in
-                guard let self,
-                      notification.object as? AVPlayerItem === self.player.currentItem else { return }
-                self.handlePlaybackEnded()
-            }
-        }
+        let engine = AudioPlaybackEngine()
+        self.engine = engine
+        nowPlayingSession = AudioNowPlayingSession(player: engine.nowPlayingPlayer)
+        bindEngine()
+        bindRemoteCommands()
+        engine.setPlaybackRate(playbackRate)
+        engine.setVolume(volume)
         restorePlaybackSnapshot()
     }
 
     deinit {
         preparationTask?.cancel()
         sleepTask?.cancel()
-        timeControlObserver?.invalidate()
-        if let timeObserver { player.removeTimeObserver(timeObserver) }
-        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
-        for observer in audioSessionObservers {
-            NotificationCenter.default.removeObserver(observer)
-        }
     }
 
     func play(_ item: LibraryItem, in items: [LibraryItem]? = nil) {
@@ -327,9 +283,11 @@ final class AudioPlayerController: ObservableObject {
         duration = 0
         isPlaying = false
         isPreparing = true
+        isResolvingSource = true
         playbackError = nil
-        player.pause()
-        player.replaceCurrentItem(with: nil)
+        lastProgressUpdateDate = Date()
+        engine.unload()
+        updateNowPlayingInfo()
         persistSnapshot()
 
         if !item.url.isFileURL {
@@ -351,6 +309,7 @@ final class AudioPlayerController: ObservableObject {
                 self.startPlayback(url: url, sourceItem: item, startAt: startAt, autoplay: autoplay)
             } catch {
                 guard !Task.isCancelled, self.playbackGeneration == generation else { return }
+                self.isResolvingSource = false
                 self.isPreparing = false
                 self.playbackError = error.localizedDescription
                 self.updateNowPlayingInfo()
@@ -365,6 +324,7 @@ final class AudioPlayerController: ObservableObject {
         let selectedIndex = currentItem.flatMap { filtered.firstIndex(of: $0) } ?? 0
         playbackQueue.replace(with: filtered, startingAt: selectedIndex)
         syncQueueState()
+        updateNowPlayingInfo()
         persistSnapshot()
     }
 
@@ -388,71 +348,60 @@ final class AudioPlayerController: ObservableObject {
     }
 
     func togglePlayback() {
-        guard let currentItem, !isPreparing else {
-            if currentItem == nil, let first = queue.first { play(first, in: queue) }
+        guard let currentItem else {
+            if let first = queue.first { play(first, in: queue) }
             return
         }
-        guard player.currentItem != nil else {
-            preparePlayback(for: currentItem, startAt: currentTime, autoplay: true)
-            return
-        }
-        if isPlaying {
-            player.pause()
-            isPlaying = false
-        } else {
-            #if os(iOS)
-            do {
-                try activateAudioSession()
-            } catch {
-                playbackError = error.localizedDescription
-                updateNowPlayingInfo()
+        if engine.hasCurrentItem {
+            if isPlaying {
+                engine.pause()
                 persistSnapshot()
-                return
+            } else {
+                playbackError = nil
+                engine.play()
             }
-            #endif
-            player.playImmediately(atRate: playbackRate)
-            isPlaying = true
+        } else if !isResolvingSource {
+            preparePlayback(for: currentItem, startAt: currentTime, autoplay: true)
         }
-        updateNowPlayingInfo()
-        persistSnapshot()
     }
 
     func pause() {
-        player.pause()
-        isPlaying = false
-        updateNowPlayingInfo()
+        engine.pause()
         persistSnapshot()
     }
 
     func seek(to seconds: TimeInterval) {
-        let clamped = min(max(0, seconds), max(duration, 0))
-        player.seek(to: CMTime(seconds: clamped, preferredTimescale: 600))
+        let maximum = max(duration, 0)
+        let clamped = maximum > 0 ? min(max(0, seconds), maximum) : max(0, seconds)
+        engine.seek(to: clamped)
         currentTime = clamped
         seekRevision += 1
-        updateNowPlayingElapsedTime()
+        lastProgressUpdateDate = Date()
+        updateNowPlayingState()
         persistSnapshot()
     }
 
     func playbackPosition() -> TimeInterval {
-        let seconds = player.currentTime().seconds
-        return seconds.isFinite ? seconds : currentTime
+        engine.hasCurrentItem ? engine.currentTime : currentTime
     }
 
-    func estimatedProgress(at _: Date = Date()) -> TimeInterval {
-        playbackPosition()
+    func estimatedProgress(at date: Date = Date()) -> TimeInterval {
+        guard isPlaying else { return currentTime }
+        let elapsed = max(date.timeIntervalSince(lastProgressUpdateDate), 0)
+        let estimated = currentTime + elapsed * Double(playbackRate)
+        return duration > 0 ? min(estimated, duration) : estimated
     }
 
     func setPlaybackRate(_ rate: Float) {
         playbackRate = min(max(rate, 0.5), 3)
-        player.defaultRate = playbackRate
-        if isPlaying { player.rate = playbackRate }
-        updateNowPlayingInfo()
+        engine.setPlaybackRate(playbackRate)
+        updateNowPlayingState()
         persistSnapshot()
     }
 
     func setVolume(_ value: Double) {
         volume = min(max(value, 0), 1)
-        player.volume = Float(volume)
+        engine.setVolume(volume)
         persistSnapshot()
     }
 
@@ -468,6 +417,7 @@ final class AudioPlayerController: ObservableObject {
     func toggleShuffle() {
         playbackQueue.toggleShuffle()
         syncQueueState()
+        updateNowPlayingInfo()
         persistSnapshot()
     }
 
@@ -506,13 +456,16 @@ final class AudioPlayerController: ObservableObject {
 
     func playNext() {
         guard !queue.isEmpty else {
-            isPlaying = false
+            engine.pause()
             return
         }
         guard playbackQueue.move(by: 1, wraps: repeatMode == .all),
               let next = playbackQueue.currentItem else {
-            pause()
-            seek(to: 0)
+            engine.pause()
+            engine.seek(to: 0)
+            currentTime = 0
+            seekRevision += 1
+            persistSnapshot()
             return
         }
         syncQueueState()
@@ -542,73 +495,41 @@ final class AudioPlayerController: ObservableObject {
 
     private func startPlayback(url: URL, sourceItem: LibraryItem, startAt: TimeInterval, autoplay: Bool) {
         guard currentItem == sourceItem else { return }
-        let playerItem = AVPlayerItem(url: url)
-        playerItem.preferredForwardBufferDuration = 20
-        playerItem.audioTimePitchAlgorithm = .timeDomain
-        player.replaceCurrentItem(with: playerItem)
-        player.defaultRate = playbackRate
-        isPreparing = false
-        if startAt > 0 {
-            player.seek(to: CMTime(seconds: startAt, preferredTimescale: 600))
-            currentTime = startAt
-        }
-        if autoplay {
-            #if os(iOS)
-            do {
-                try activateAudioSession()
-            } catch {
-                playbackError = error.localizedDescription
-                isPlaying = false
-                updateNowPlayingInfo()
-                persistSnapshot()
-                return
-            }
-            #endif
-            player.playImmediately(atRate: playbackRate)
-            isPlaying = true
-        } else {
-            isPlaying = false
-        }
+        isResolvingSource = false
         updateNowPlayingInfo()
-        persistSnapshot()
-
-        Task { [weak self, weak playerItem] in
-            guard let self, let playerItem else { return }
-            if let loadedDuration = try? await playerItem.asset.load(.duration),
-               self.currentItem == sourceItem {
-                self.duration = loadedDuration.seconds.isFinite ? loadedDuration.seconds : 0
-                self.updateNowPlayingInfo()
-                self.persistSnapshot()
-            }
-        }
+        engine.setPlaybackRate(playbackRate)
+        engine.setVolume(volume)
+        engine.load(url: url, startAt: startAt, autoplay: autoplay)
     }
 
     private func handlePlaybackEnded() {
         if stopAfterCurrentTrack {
             stopAfterCurrentTrack = false
-            pause()
-            seek(to: 0)
-            return
-        }
-        if repeatMode == .one {
-            seek(to: 0)
-            #if os(iOS)
-            try? activateAudioSession()
-            #endif
-            player.playImmediately(atRate: playbackRate)
-            isPlaying = true
-            updateNowPlayingInfo()
+            engine.pause()
+            engine.seek(to: 0)
+            currentTime = 0
+            seekRevision += 1
             persistSnapshot()
             return
         }
+        if repeatMode == .one {
+            engine.seek(to: 0)
+            currentTime = 0
+            seekRevision += 1
+            engine.play()
+            return
+        }
         guard !queue.isEmpty else {
-            pause()
+            engine.pause()
             return
         }
         guard playbackQueue.move(by: 1, wraps: repeatMode == .all),
               let next = playbackQueue.currentItem else {
-            pause()
-            seek(to: 0)
+            engine.pause()
+            engine.seek(to: 0)
+            currentTime = 0
+            seekRevision += 1
+            persistSnapshot()
             return
         }
         syncQueueState()
@@ -624,29 +545,16 @@ final class AudioPlayerController: ObservableObject {
             shuffledOrder: snapshot.shuffledOrder
         )
         syncQueueState()
-        guard !queue.isEmpty else {
+        guard let item = playbackQueue.currentItem else {
             persistence.clear()
             return
         }
         repeatMode = AudioRepeatMode(rawValue: snapshot.repeatMode) ?? .off
         playbackRate = min(max(snapshot.playbackRate, 0.5), 3)
-        setVolume(snapshot.volume)
-        currentItem = playbackQueue.currentItem
-        currentTime = max(snapshot.progress, 0)
-        if let currentItem {
-            currentMetadata = metadataByPath[currentItem.relativePath] ?? .empty
-            Task { @MainActor [weak self, currentItem] in
-                guard let self else { return }
-                let metadata = await self.loadMetadata(for: currentItem)
-                guard self.currentItem == currentItem else { return }
-                self.currentMetadata = metadata
-                let asset = AVURLAsset(url: currentItem.url)
-                if let loadedDuration = try? await asset.load(.duration), loadedDuration.seconds.isFinite {
-                    self.duration = loadedDuration.seconds
-                }
-                self.updateNowPlayingInfo()
-            }
-        }
+        volume = min(max(snapshot.volume, 0), 1)
+        engine.setPlaybackRate(playbackRate)
+        engine.setVolume(volume)
+        preparePlayback(for: item, startAt: max(snapshot.progress, 0), autoplay: false)
     }
 
     private func syncQueueState() {
@@ -659,7 +567,6 @@ final class AudioPlayerController: ObservableObject {
         let second = Int(currentTime)
         guard second != lastPersistedSecond else { return }
         lastPersistedSecond = second
-        updateNowPlayingElapsedTime()
         persistSnapshot()
     }
 
@@ -683,95 +590,85 @@ final class AudioPlayerController: ObservableObject {
         )
     }
 
-    private func synchronizePlaybackStateWithPlayer() {
-        guard player.currentItem != nil, !isPreparing else { return }
-
-        let isActuallyPlaying: Bool
-        switch player.timeControlStatus {
-        case .playing:
-            isActuallyPlaying = true
-        case .paused:
-            isActuallyPlaying = false
-        case .waitingToPlayAtSpecifiedRate:
-            isActuallyPlaying = false
-        @unknown default:
-            return
+    private func bindEngine() {
+        engine.onStateChanged = { [weak self] state in
+            guard let self else { return }
+            switch state {
+            case .idle:
+                self.isPlaying = false
+                if !self.isResolvingSource {
+                    self.isPreparing = false
+                }
+            case .loading:
+                self.isPlaying = false
+                self.isPreparing = true
+            case .paused:
+                self.isPlaying = false
+                self.isPreparing = false
+            case .playing:
+                self.isPlaying = true
+                self.isPreparing = false
+                self.playbackError = nil
+            }
+            self.lastProgressUpdateDate = Date()
+            self.updateNowPlayingState()
         }
-
-        guard isPlaying != isActuallyPlaying else { return }
-        isPlaying = isActuallyPlaying
-        updateNowPlayingElapsedTime()
-        persistSnapshot()
-    }
-
-    private func configureAudioSessionObservers() {
-        #if os(iOS)
-        let center = NotificationCenter.default
-        let session = AVAudioSession.sharedInstance()
-        audioSessionObservers.append(
-            center.addObserver(
-                forName: AVAudioSession.interruptionNotification,
-                object: session,
-                queue: .main
-            ) { [weak self] notification in
-                Task { @MainActor in self?.handleAudioInterruption(notification) }
+        engine.onProgressChanged = { [weak self] value in
+            guard let self else { return }
+            self.currentTime = value
+            self.lastProgressUpdateDate = Date()
+            self.persistProgressIfNeeded()
+        }
+        engine.onDurationChanged = { [weak self] value in
+            guard let self else { return }
+            self.duration = value
+            self.updateNowPlayingState()
+            self.persistSnapshot()
+        }
+        engine.onPlaybackEnded = { [weak self] in
+            self?.handlePlaybackEnded()
+        }
+        engine.onFailure = { [weak self] error in
+            guard let self else { return }
+            self.isResolvingSource = false
+            self.isPreparing = false
+            self.isPlaying = false
+            self.playbackError = error.localizedDescription
+            self.updateNowPlayingState()
+            if let playbackError = error as? AudioPlaybackError,
+               case .itemFailed = playbackError {
+                self.engine.unload()
             }
-        )
-        audioSessionObservers.append(
-            center.addObserver(
-                forName: AVAudioSession.routeChangeNotification,
-                object: session,
-                queue: .main
-            ) { [weak self] notification in
-                Task { @MainActor in self?.handleAudioRouteChange(notification) }
+            self.persistSnapshot()
+        }
+        engine.onInterruptionBegan = { [weak self] in
+            guard let self else { return }
+            self.shouldResumeAfterInterruption = self.isPlaying
+            self.engine.pause()
+        }
+        engine.onInterruptionEnded = { [weak self] shouldResume in
+            guard let self else { return }
+            if shouldResume, self.shouldResumeAfterInterruption {
+                self.engine.play()
             }
-        )
-        #endif
-    }
-
-    #if os(iOS)
-    private func activateAudioSession() throws {
-        let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playback, mode: .default)
-        try session.setActive(true)
-    }
-
-    private func handleAudioInterruption(_ notification: Notification) {
-        guard let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
-        switch type {
-        case .began:
-            shouldResumeAfterInterruption = isPlaying
-            pause()
-        case .ended:
-            let rawOptions = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
-            let shouldResume = AVAudioSession.InterruptionOptions(rawValue: rawOptions).contains(.shouldResume)
-            if shouldResume, shouldResumeAfterInterruption {
-                togglePlayback()
-            }
-            shouldResumeAfterInterruption = false
-        @unknown default:
-            break
+            self.shouldResumeAfterInterruption = false
+        }
+        engine.onOutputDeviceDisconnected = { [weak self] in
+            self?.shouldResumeAfterInterruption = false
         }
     }
 
-    private func handleAudioRouteChange(_ notification: Notification) {
-        guard let rawReason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
-              AVAudioSession.RouteChangeReason(rawValue: rawReason) == .oldDeviceUnavailable else {
-            return
-        }
-        shouldResumeAfterInterruption = false
-        pause()
-    }
-    #endif
-
-    private func configureNowPlayingSession() {
+    private func bindRemoteCommands() {
         nowPlayingSession.onPlay = { [weak self] in
-            guard let self, !self.isPlaying else { return }
-            self.togglePlayback()
+            guard let self else { return }
+            if self.engine.hasCurrentItem {
+                self.engine.play()
+            } else if let item = self.currentItem, !self.isResolvingSource {
+                self.preparePlayback(for: item, startAt: self.currentTime, autoplay: true)
+            }
         }
         nowPlayingSession.onPause = { [weak self] in
-            self?.pause()
+            self?.engine.pause()
         }
         nowPlayingSession.onNext = { [weak self] in
             self?.playNext()
@@ -796,188 +693,15 @@ final class AudioPlayerController: ObservableObject {
             queueIndex: playbackQueue.currentIndex,
             queueCount: queue.count
         )
+        updateNowPlayingState()
+    }
+
+    private func updateNowPlayingState() {
         nowPlayingSession.updatePlayback(
             position: currentTime,
             duration: duration,
             isPlaying: isPlaying,
             playbackRate: playbackRate
         )
-    }
-
-    private func updateNowPlayingElapsedTime() {
-        nowPlayingSession.updatePlayback(
-            position: currentTime,
-            duration: duration,
-            isPlaying: isPlaying,
-            playbackRate: playbackRate
-        )
-    }
-}
-
-@MainActor
-private final class AudioNowPlayingSession {
-    var onPlay: (() -> Void)?
-    var onPause: (() -> Void)?
-    var onNext: (() -> Void)?
-    var onPrevious: (() -> Void)?
-    var onSeek: ((TimeInterval) -> Void)?
-
-    #if os(iOS)
-    private let playbackSession: MPNowPlayingSession
-
-    private var nowPlayingCenter: MPNowPlayingInfoCenter {
-        playbackSession.nowPlayingInfoCenter
-    }
-
-    private var commandCenter: MPRemoteCommandCenter {
-        playbackSession.remoteCommandCenter
-    }
-    #else
-    private let nowPlayingCenter = MPNowPlayingInfoCenter.default()
-    private let commandCenter = MPRemoteCommandCenter.shared()
-    #endif
-    private var commandTargets: [(MPRemoteCommand, Any)] = []
-    private var nowPlayingInfo: [String: Any] = [:]
-    private var representedPath: String?
-
-    init(player: AVPlayer) {
-        #if os(iOS)
-        playbackSession = MPNowPlayingSession(players: [player])
-        playbackSession.automaticallyPublishesNowPlayingInfo = false
-        #endif
-        installRemoteCommands()
-    }
-
-    deinit {
-        for (command, target) in commandTargets {
-            command.removeTarget(target)
-        }
-    }
-
-    func setItem(
-        _ item: LibraryItem,
-        metadata: EmbeddedAudioMetadata,
-        duration: TimeInterval,
-        queueIndex: Int,
-        queueCount: Int
-    ) {
-        #if os(iOS)
-        playbackSession.becomeActiveIfPossible(completion: nil)
-        #endif
-        representedPath = item.relativePath
-        nowPlayingInfo = [
-            MPMediaItemPropertyTitle: metadata.title ?? item.displayName,
-            MPMediaItemPropertyAlbumTitle: metadata.album ?? "鱼饼",
-            MPMediaItemPropertyPlaybackDuration: max(duration, 0),
-            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
-            MPNowPlayingInfoPropertyIsLiveStream: false,
-            MPNowPlayingInfoPropertyPlaybackQueueIndex: max(queueIndex, 0),
-            MPNowPlayingInfoPropertyPlaybackQueueCount: max(queueCount, 1),
-            MPNowPlayingInfoPropertyAssetURL: item.url
-        ]
-        if let artist = metadata.artist {
-            nowPlayingInfo[MPMediaItemPropertyArtist] = artist
-        }
-        if let albumArtist = metadata.albumArtist {
-            nowPlayingInfo[MPMediaItemPropertyAlbumArtist] = albumArtist
-        }
-        if let genre = metadata.genre {
-            nowPlayingInfo[MPMediaItemPropertyGenre] = genre
-        }
-        if let year = metadata.year {
-            nowPlayingInfo[MPMediaItemPropertyReleaseDate] = year
-        }
-        if let artwork = mediaArtwork(from: metadata.artworkData) {
-            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
-        }
-        nowPlayingCenter.nowPlayingInfo = nowPlayingInfo
-    }
-
-    func updatePlayback(
-        position: TimeInterval,
-        duration: TimeInterval,
-        isPlaying: Bool,
-        playbackRate: Float
-    ) {
-        guard representedPath != nil else { return }
-        nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = max(duration, 0)
-        nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = max(position, 0)
-        nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? playbackRate : 0
-        nowPlayingInfo[MPNowPlayingInfoPropertyDefaultPlaybackRate] = playbackRate
-        nowPlayingCenter.nowPlayingInfo = nowPlayingInfo
-        #if os(iOS)
-        nowPlayingCenter.playbackState = isPlaying ? .playing : .paused
-        #endif
-        commandCenter.playCommand.isEnabled = !isPlaying
-        commandCenter.pauseCommand.isEnabled = isPlaying
-    }
-
-    func clear() {
-        representedPath = nil
-        nowPlayingInfo = [:]
-        nowPlayingCenter.nowPlayingInfo = nil
-        #if os(iOS)
-        nowPlayingCenter.playbackState = .stopped
-        #endif
-    }
-
-    private func installRemoteCommands() {
-        commandCenter.playCommand.isEnabled = true
-        commandCenter.pauseCommand.isEnabled = false
-        commandCenter.togglePlayPauseCommand.isEnabled = false
-        commandCenter.nextTrackCommand.isEnabled = true
-        commandCenter.previousTrackCommand.isEnabled = true
-        commandCenter.changePlaybackPositionCommand.isEnabled = true
-        commandCenter.stopCommand.isEnabled = false
-        commandCenter.skipForwardCommand.isEnabled = false
-        commandCenter.skipBackwardCommand.isEnabled = false
-        commandCenter.seekForwardCommand.isEnabled = false
-        commandCenter.seekBackwardCommand.isEnabled = false
-        commandCenter.changePlaybackRateCommand.isEnabled = false
-        commandCenter.changeRepeatModeCommand.isEnabled = false
-        commandCenter.changeShuffleModeCommand.isEnabled = false
-
-        addTarget(to: commandCenter.playCommand) { [weak self] _ in
-            Task { @MainActor in self?.onPlay?() }
-            return .success
-        }
-        addTarget(to: commandCenter.pauseCommand) { [weak self] _ in
-            Task { @MainActor in self?.onPause?() }
-            return .success
-        }
-        addTarget(to: commandCenter.nextTrackCommand) { [weak self] _ in
-            Task { @MainActor in self?.onNext?() }
-            return .success
-        }
-        addTarget(to: commandCenter.previousTrackCommand) { [weak self] _ in
-            Task { @MainActor in self?.onPrevious?() }
-            return .success
-        }
-        addTarget(to: commandCenter.changePlaybackPositionCommand) { [weak self] event in
-            guard let event = event as? MPChangePlaybackPositionCommandEvent else {
-                return .commandFailed
-            }
-            Task { @MainActor in self?.onSeek?(event.positionTime) }
-            return .success
-        }
-    }
-
-    private func addTarget(
-        to command: MPRemoteCommand,
-        handler: @escaping (MPRemoteCommandEvent) -> MPRemoteCommandHandlerStatus
-    ) {
-        let target = command.addTarget(handler: handler)
-        commandTargets.append((command, target))
-    }
-
-    private func mediaArtwork(from data: Data?) -> MPMediaItemArtwork? {
-        guard let data else { return nil }
-        #if os(macOS)
-        guard let image = NSImage(data: data) else { return nil }
-        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-        #else
-        guard let image = UIImage(data: data) else { return nil }
-        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-        #endif
     }
 }

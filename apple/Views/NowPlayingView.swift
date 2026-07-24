@@ -57,7 +57,8 @@ struct NowPlayingView: View {
                         lyrics: lyrics,
                         lyricError: lyricError,
                         highlightedLyricID: highlightedLyricID,
-                        artworkNamespace: pageArtworkNamespace
+                        artworkNamespace: pageArtworkNamespace,
+                        onDismiss: { dismiss() }
                     )
                 } else {
                     portraitContent
