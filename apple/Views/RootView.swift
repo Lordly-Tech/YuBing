@@ -185,7 +185,17 @@ private struct SplitRootView: View {
     let playerTransitionID: String
     let playerTransitionNamespace: Namespace.ID
     @State private var selection: AppSection = .home
+
     var body: some View {
+        if #available(iOS 26.0, macOS 26.0, watchOS 26.0, *) {
+            modernNav
+        } else {
+            legacyNav
+        }
+    }
+
+    @ViewBuilder
+    private var modernNav: some View {
         VStack(spacing: 0) {
             NavigationStack {
                 SectionDestinationView(section: selection)
@@ -210,11 +220,30 @@ private struct SplitRootView: View {
                     .padding(.bottom, 18)
             }
         }
-        #if os(iOS)
-        .onReceive(NotificationCenter.default.publisher(for: .yuBingWatchTransferDidStart)) { _ in
-            selection = .home
+        .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
+            if let section = notification.object as? AppSection { selection = section }
         }
-        #endif
+    }
+
+    @ViewBuilder
+    private var legacyNav: some View {
+        VStack(spacing: 0) {
+            SectionNavigationBar(selection: $selection)
+                .padding(.horizontal, 18)
+                .padding(.top, 10)
+                .padding(.bottom, 8)
+
+            NavigationStack {
+                SectionDestinationView(section: selection)
+                    .libraryDestinations()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottom) {
+                floatingMiniPlayer(maxWidth: 720)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 18)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
             if let section = notification.object as? AppSection { selection = section }
         }
@@ -234,6 +263,44 @@ private struct SplitRootView: View {
             .adaptiveGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: .black.opacity(0.2), radius: 22, y: 10)
         }
+    }
+}
+
+private struct SectionNavigationBar: View {
+    @Binding var selection: AppSection
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image("AppIconDisplay")
+                .resizable()
+                .frame(width: 42, height: 42)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            ForEach(AppSection.allCases) { section in
+                Button {
+                    selection = section
+                } label: {
+                    Label(section.title, systemImage: section.symbol)
+                        .font(.subheadline.weight(selection == section ? .semibold : .regular))
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
+                        .background {
+                            if selection == section {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(.primary.opacity(0.1))
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 960)
+        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .frame(maxWidth: .infinity)
     }
 }
 
