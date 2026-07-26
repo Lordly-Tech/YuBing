@@ -228,9 +228,15 @@ private struct SplitRootView: View {
     @ViewBuilder
     private var legacyNav: some View {
         NavigationSplitView {
-            List(AppSection.allCases, selection: $selection) { section in
-                Label(section.title, systemImage: section.symbol)
-                    .tag(section)
+            List {
+                ForEach(AppSection.allCases) { section in
+                    Button {
+                        selection = section
+                    } label: {
+                        Label(section.title, systemImage: section.symbol)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .navigationTitle("鱼饼")
         } detail: {
