@@ -756,6 +756,7 @@ struct WatchImageReaderView: View {
         }
         .task {
             image = Self.decodeImage(at: item.url)
+            resetZoom()
         }
     }
 

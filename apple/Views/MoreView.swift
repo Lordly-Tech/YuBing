@@ -18,8 +18,8 @@ struct MoreView: View {
 
     var body: some View {
         List {
-            featuresSection
             identitySection
+            featuresSection
             openSourceSection
             languageSection
             librarySection
@@ -58,17 +58,6 @@ struct MoreView: View {
                 )
             }
             .buttonStyle(.plain)
-
-            NavigationLink {
-                LyricsEffectsSettingsView()
-            } label: {
-                MoreRowLabel(
-                    title: "歌词动效",
-                    subtitle: lyricsEffectsSummary,
-                    systemImage: "textformat.abc.dottedunderline",
-                    tint: .pink
-                )
-            }
 
             #if os(iOS)
             NavigationLink {
@@ -121,7 +110,7 @@ struct MoreView: View {
 
     private var languageSection: some View {
         Section {
-            Picker(selection: $appLanguageRaw) {
+            Picker(selection: languageSelection) {
                 ForEach(AppLanguage.allCases) { language in
                     Text(language.label).tag(language.rawValue)
                 }
@@ -152,12 +141,6 @@ struct MoreView: View {
                 MoreRowLabel(title: "资料库项目", systemImage: "tray.full", tint: .green)
             }
 
-            LabeledContent {
-                Text("\(store.favorites.count)")
-                    .foregroundStyle(.secondary)
-            } label: {
-                MoreRowLabel(title: "收藏项目", systemImage: "star", tint: .yellow)
-            }
         }
     }
 
@@ -236,6 +219,16 @@ struct MoreView: View {
 
     private var selectedLanguage: AppLanguage {
         AppLanguage(rawValue: appLanguageRaw) ?? .system
+    }
+
+    private var languageSelection: Binding<String> {
+        Binding(
+            get: { appLanguageRaw },
+            set: { newValue in
+                appLanguageRaw = newValue
+                UserDefaults.standard.set(newValue, forKey: AppLocalization.preferenceKey)
+            }
+        )
     }
 
     private var languageSummary: String {

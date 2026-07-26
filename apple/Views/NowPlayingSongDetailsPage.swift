@@ -89,7 +89,6 @@ struct NowPlayingSongDetailsPage: View {
             ("发行年份", metadata.year),
             ("流派", metadata.genre),
             ("格式", song.item.fileExtension.uppercased()),
-            ("音频", metadata.qualityDescription),
             ("比特率", metadata.bitRateDescription),
             ("声道", metadata.channelDescription),
             ("采样率", metadata.sampleRateDescription)

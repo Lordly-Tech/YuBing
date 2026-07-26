@@ -419,12 +419,8 @@ struct NovelReaderView: View {
                     isChapterListPresented = true
                 }
 
-                overlayActionButton(symbol: "bookmark.badge.plus", label: "添加书签") {
+                overlayActionButton(symbol: "bookmark.square", label: "添加书签") {
                     addBookmark()
-                }
-
-                overlayActionButton(symbol: "bookmark.square", label: "书签管理") {
-                    isBookmarkManagerPresented = true
                 }
 
                 overlayActionButton(symbol: "textformat.size", label: "阅读与显示设置") {
@@ -636,6 +632,10 @@ private struct ReaderChapterContent: View {
         CGFloat(max(2, lineSpacing * 0.65))
     }
 
+    private var effectiveLineSpacing: CGFloat {
+        CGFloat(lineSpacing)
+    }
+
     private var paragraphs: [String] {
         let body = readerBodyText(for: chapter)
         let values = body
@@ -674,7 +674,7 @@ private struct ReaderChapterContent: View {
                             Text(paragraph)
                                 .font(bodyFont)
                                 .foregroundStyle(foreground)
-                                .lineSpacing(max(0, lineSpacing))
+                                .lineSpacing(effectiveLineSpacing)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: 720, alignment: .leading)
                                 .id("paragraph-\(index)")
@@ -691,7 +691,8 @@ private struct ReaderChapterContent: View {
                                 .padding(.vertical, 22)
                         }
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: 720, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.horizontal, 24)
                     .padding(.vertical, verticalMargin)
                     .background {
@@ -1567,7 +1568,7 @@ private struct ReaderSettingsSheet: View {
                     }
                     .pickerStyle(.segmented)
                     ReaderValueSlider(title: "字号", value: $values.fontSize, range: 14...32, step: 1, suffix: "")
-                    ReaderValueSlider(title: "行距", value: $values.lineSpacing, range: -8...14, step: 1, suffix: "")
+                    ReaderValueSlider(title: "行距", value: $values.lineSpacing, range: -14...14, step: 1, suffix: "")
                     ReaderValueSlider(title: "上下边距", value: $values.verticalMargin, range: 12...100, step: 2, suffix: " pt")
                 }
 

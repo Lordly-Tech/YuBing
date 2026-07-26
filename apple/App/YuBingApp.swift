@@ -20,6 +20,7 @@ struct YuBingApp: App {
         WindowGroup {
             RootView()
                 .environment(\.locale, Locale(identifier: appLanguage.localeIdentifier))
+                .id(appLanguage.localeIdentifier)
                 .environmentObject(store)
                 .environmentObject(player)
                 .environment(appSettings)

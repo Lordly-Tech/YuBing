@@ -11,6 +11,7 @@ struct MusicPlaylist: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     var name: String
     var trackPaths: [String]
+    var artworkData: Data?
     var createdAt: Date
     var updatedAt: Date
 
@@ -18,12 +19,14 @@ struct MusicPlaylist: Identifiable, Codable, Hashable, Sendable {
         id: UUID = UUID(),
         name: String,
         trackPaths: [String] = [],
+        artworkData: Data? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
         self.id = id
         self.name = name
         self.trackPaths = trackPaths
+        self.artworkData = artworkData
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -153,7 +156,6 @@ final class LibraryStore: ObservableObject {
     }
 
     func rename(_ playlist: MusicPlaylist, to newName: String) {
-        guard !isLikedPlaylist(playlist) else { return }
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             alert = LibraryAlert(title: "名称不可用", message: "歌单名称不能为空。")
@@ -161,6 +163,13 @@ final class LibraryStore: ObservableObject {
         }
         guard let index = musicPlaylists.firstIndex(where: { $0.id == playlist.id }) else { return }
         musicPlaylists[index].name = trimmed
+        musicPlaylists[index].updatedAt = Date()
+        persistMusicPlaylists()
+    }
+
+    func updateArtwork(_ data: Data?, for playlist: MusicPlaylist) {
+        guard let index = musicPlaylists.firstIndex(where: { $0.id == playlist.id }) else { return }
+        musicPlaylists[index].artworkData = data
         musicPlaylists[index].updatedAt = Date()
         persistMusicPlaylists()
     }

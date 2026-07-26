@@ -84,6 +84,7 @@ struct LibraryImportMenu: View {
     @EnvironmentObject private var wifiTransfer: WiFiTransferService
     @State private var isFileImporterPresented = false
     @State private var photoSelection: [PhotosPickerItem] = []
+    @State private var showsImportOptions = false
     @State private var showsWiFiTransfer = false
 
     var destination: URL?
@@ -92,30 +93,15 @@ struct LibraryImportMenu: View {
     var prominent = false
 
     var body: some View {
-        Menu {
-            Button {
-                isFileImporterPresented = true
-            } label: {
-                Label("从文件选择", systemImage: "folder")
-            }
-
-            PhotosPicker(
-                selection: $photoSelection,
-                maxSelectionCount: 0,
-                matching: photoScope.filter
-            ) {
-                Label(photoScope.title, systemImage: "photo.on.rectangle.angled")
-            }
-
-            Button {
-                showsWiFiTransfer = true
-            } label: {
-                Label("同一 Wi-Fi 传输", systemImage: "wifi")
-            }
+        Button {
+            showsImportOptions = true
         } label: {
             Label(AppLocalization.string(title), systemImage: "plus")
         }
         .adaptiveGlassButton(prominent: prominent)
+        .sheet(isPresented: $showsImportOptions) {
+            importOptionsSheet
+        }
         .fileImporter(
             isPresented: $isFileImporterPresented,
             allowedContentTypes: [.item],
@@ -132,12 +118,50 @@ struct LibraryImportMenu: View {
             Task { @MainActor in
                 await importPickerItems(newItems, into: destination, store: store)
                 photoSelection.removeAll()
+                showsImportOptions = false
             }
         }
         .sheet(isPresented: $showsWiFiTransfer) {
             WiFiTransferPanel()
                 .environmentObject(wifiTransfer)
         }
+    }
+
+    private var importOptionsSheet: some View {
+        NavigationStack {
+            List {
+                Button {
+                    showsImportOptions = false
+                    DispatchQueue.main.async {
+                        isFileImporterPresented = true
+                    }
+                } label: {
+                    Label("从文件选择", systemImage: "folder")
+                }
+
+                PhotosPicker(
+                    selection: $photoSelection,
+                    maxSelectionCount: 0,
+                    matching: photoScope.filter
+                ) {
+                    Label(photoScope.title, systemImage: "photo.on.rectangle.angled")
+                }
+
+                Button {
+                    showsWiFiTransfer = true
+                    showsImportOptions = false
+                } label: {
+                    Label("同一 Wi-Fi 传输", systemImage: "wifi")
+                }
+            }
+            .navigationTitle(AppLocalization.string(title))
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { showsImportOptions = false }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 
@@ -160,6 +184,20 @@ struct WiFiTransferPanel: View {
                         .multilineTextAlignment(.center)
                     ShareLink(item: address) {
                         Label("分享地址", systemImage: "square.and.arrow.up")
+                    }
+                }
+                if let progress = transfer.uploadProgress {
+                    VStack(alignment: .leading, spacing: 7) {
+                        ProgressView(value: progress)
+                            .tint(.pink)
+                        HStack {
+                            Text("正在传输")
+                            Spacer()
+                            Text("\(Int(progress * 100))%")
+                                .monospacedDigit()
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
                 }
                 Button {

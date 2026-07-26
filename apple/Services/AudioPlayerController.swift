@@ -312,6 +312,7 @@ final class AudioPlayerController: ObservableObject {
     @Published private(set) var sleepTimerEnd: Date?
     @Published private(set) var stopAfterCurrentTrack = false
     @Published private(set) var seekRevision = 0
+    @Published private(set) var totalListeningTime: TimeInterval
     @Published var playbackError: String?
 
     private let engine: AudioPlaybackEngine
@@ -325,10 +326,13 @@ final class AudioPlayerController: ObservableObject {
     private var isResolvingSource = false
     private var lastPersistedSecond = -1
     private var lastProgressUpdateDate = Date()
+    private var lastListeningTick = Date()
+    private static let totalListeningTimeKey = "yubing.totalListeningTime"
 
     init() {
         let engine = AudioPlaybackEngine()
         self.engine = engine
+        totalListeningTime = UserDefaults.standard.double(forKey: Self.totalListeningTimeKey)
         nowPlayingSession = AudioNowPlayingSession(player: engine.nowPlayingPlayer)
         bindEngine()
         bindRemoteCommands()
@@ -676,6 +680,7 @@ final class AudioPlayerController: ObservableObject {
     private func bindEngine() {
         engine.onStateChanged = { [weak self] state in
             guard let self else { return }
+            self.commitListeningTimeIfNeeded()
             switch state {
             case .idle:
                 self.isPlaying = false
@@ -694,10 +699,12 @@ final class AudioPlayerController: ObservableObject {
                 self.playbackError = nil
             }
             self.lastProgressUpdateDate = Date()
+            self.lastListeningTick = Date()
             self.updateNowPlayingState()
         }
         engine.onProgressChanged = { [weak self] value in
             guard let self else { return }
+            self.commitListeningTimeIfNeeded()
             self.currentTime = value
             self.lastProgressUpdateDate = Date()
             self.persistProgressIfNeeded()
@@ -786,5 +793,18 @@ final class AudioPlayerController: ObservableObject {
             isPlaying: isPlaying,
             playbackRate: playbackRate
         )
+    }
+
+    private func commitListeningTimeIfNeeded() {
+        guard isPlaying else {
+            lastListeningTick = Date()
+            return
+        }
+        let now = Date()
+        let elapsed = now.timeIntervalSince(lastListeningTick)
+        lastListeningTick = now
+        guard elapsed.isFinite, elapsed > 0 else { return }
+        totalListeningTime += min(elapsed, 90)
+        UserDefaults.standard.set(totalListeningTime, forKey: Self.totalListeningTimeKey)
     }
 }

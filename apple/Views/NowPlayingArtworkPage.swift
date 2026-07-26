@@ -77,6 +77,8 @@ struct NowPlayingSongActions: View {
     let onToggleDetails: () -> Void
 
     @State private var addToPlaylistItem: LibraryItem?
+    @State private var showsLyricsEffects = false
+    @State private var showsMoreOptions = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -92,29 +94,8 @@ struct NowPlayingSongActions: View {
             .buttonStyle(.plain)
             .accessibilityLabel(store.isFavorite(song.item) ? "取消收藏" : "收藏")
 
-            Menu {
-                Button(action: onToggleDetails) {
-                    Label(
-                        isShowingDetails ? "返回封面" : "歌曲资料",
-                        systemImage: isShowingDetails ? "music.note" : "info.circle"
-                    )
-                }
-
-                Button {
-                    addToPlaylistItem = song.item
-                } label: {
-                    Label("添加到歌单", systemImage: "text.badge.plus")
-                }
-
-                Button {
-                    showsSleepTimer = true
-                } label: {
-                    Label("定时关闭", systemImage: "timer")
-                }
-
-                ShareLink(item: song.item.url) {
-                    Label("分享", systemImage: "square.and.arrow.up")
-                }
+            Button {
+                showsMoreOptions = true
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.title3.weight(.semibold))
@@ -122,12 +103,27 @@ struct NowPlayingSongActions: View {
                     .background(.white.opacity(0.13), in: .circle)
                     .contentShape(.circle)
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("更多")
+        }
+        .confirmationDialog("更多", isPresented: $showsMoreOptions, titleVisibility: .hidden) {
+            Button(isShowingDetails ? "返回封面" : "歌曲资料") { onToggleDetails() }
+            Button("添加到歌单") { addToPlaylistItem = song.item }
+            Button("定时关闭") { showsSleepTimer = true }
+            Button("歌词动效") { showsLyricsEffects = true }
+            ShareLink(item: song.item.url) {
+                Label("分享", systemImage: "square.and.arrow.up")
+            }
         }
         .sheet(item: $addToPlaylistItem) { item in
             AddToLocalPlaylistSheet(item: item)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showsLyricsEffects) {
+            NavigationStack {
+                LyricsEffectsSettingsView()
+            }
         }
     }
 }

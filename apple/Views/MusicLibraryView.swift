@@ -1,4 +1,6 @@
+import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 // Album and playlist presentation adapted from youshen2/MeloX (GPL-3.0).
 
@@ -74,9 +76,9 @@ struct MusicLibraryView: View {
             if audioTracks.isEmpty {
                 ContentUnavailablePanel(
                     title: "还没有音乐",
-                    message: "支持 MP3、FLAC、WAV、AAC、AIFF、M4A、DSD、DSF、APE、OGG、Opus 与 WMA。",
+                    message: "支持 MP3、FLAC、WAV、AAC、AIFF、M4A、DSD、DSF、APE、OGG、Opus 与 WMA。请从首页添加音乐。",
                     symbol: "music.note.list",
-                    action: AnyView(FileImportButton(title: "添加音乐", prominent: true))
+                    action: nil
                 )
             } else {
                 ScrollView {
@@ -96,15 +98,6 @@ struct MusicLibraryView: View {
         }
         .navigationTitle("音乐")
         .searchable(text: $query, prompt: "搜索歌曲、艺人或专辑")
-        .toolbar {
-            ToolbarItemGroup {
-                #if os(iOS)
-                SystemMusicImportButton()
-                #endif
-                FileImportButton(title: "添加")
-                    .labelStyle(.iconOnly)
-            }
-        }
         .task(id: audioTracks.map(\.relativePath).joined(separator: "|")) {
             for track in audioTracks where player.metadataByPath[track.relativePath] == nil {
                 _ = await player.loadMetadata(for: track)
@@ -314,10 +307,7 @@ private struct LocalPlaylistCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            AudioArtwork(
-                data: tracks.compactMap { player.metadataByPath[$0.relativePath]?.artworkData }.first,
-                fallbackSymbol: store.isLikedPlaylist(playlist) ? "heart.fill" : "music.note.list"
-            )
+            playlistArtwork
             .frame(width: 156, height: 156)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(alignment: .topTrailing) {
@@ -348,6 +338,24 @@ private struct LocalPlaylistCard: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var playlistArtwork: some View {
+        if store.isLikedPlaylist(playlist), playlist.artworkData == nil {
+            Rectangle()
+                .fill(.pink.gradient)
+                .overlay {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 58, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+        } else {
+            AudioArtwork(
+                data: playlist.artworkData ?? tracks.compactMap { player.metadataByPath[$0.relativePath]?.artworkData }.first,
+                fallbackSymbol: store.isLikedPlaylist(playlist) ? "heart.fill" : "music.note.list"
+            )
+        }
+    }
 }
 
 private struct LocalPlaylistDetailView: View {
@@ -357,6 +365,7 @@ private struct LocalPlaylistDetailView: View {
     @State private var addToPlaylistItem: LibraryItem?
     @State private var renameText = ""
     @State private var showsRename = false
+    @State private var showsEditDetails = false
 
     private var currentPlaylist: MusicPlaylist {
         store.musicPlaylists.first(where: { $0.id == playlist.id }) ?? playlist
@@ -368,6 +377,7 @@ private struct LocalPlaylistDetailView: View {
         List {
             Section {
                 HStack {
+                    LocalPlaylistArtworkView(playlist: currentPlaylist, side: 72)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(store.displayName(for: currentPlaylist)).font(.title2.bold())
                         Text("\(tracks.count) 首歌曲").foregroundStyle(.secondary)
@@ -410,6 +420,11 @@ private struct LocalPlaylistDetailView: View {
                             systemImage: store.isFavorite(currentPlaylist) ? "star.slash" : "star"
                         )
                     }
+                    Button {
+                        showsEditDetails = true
+                    } label: {
+                        Label("编辑歌单资料", systemImage: "slider.horizontal.3")
+                    }
                     if !store.isLikedPlaylist(currentPlaylist) {
                         Button {
                             renameText = currentPlaylist.name
@@ -427,10 +442,113 @@ private struct LocalPlaylistDetailView: View {
             }
         }
         .sheet(item: $addToPlaylistItem) { AddToLocalPlaylistSheet(item: $0) }
+        .sheet(isPresented: $showsEditDetails) {
+            PlaylistDetailsEditor(playlist: currentPlaylist)
+        }
         .alert("重命名歌单", isPresented: $showsRename) {
             TextField("歌单名称", text: $renameText)
             Button("取消", role: .cancel) {}
             Button("保存") { store.rename(currentPlaylist, to: renameText) }
+        }
+    }
+}
+
+private struct LocalPlaylistArtworkView: View {
+    @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var player: AudioPlayerController
+    let playlist: MusicPlaylist
+    let side: CGFloat
+
+    private var tracks: [LibraryItem] { store.tracks(in: playlist) }
+
+    var body: some View {
+        Group {
+            if store.isLikedPlaylist(playlist), playlist.artworkData == nil {
+                Rectangle()
+                    .fill(.pink.gradient)
+                    .overlay {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: side * 0.38, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+            } else {
+                AudioArtwork(
+                    data: playlist.artworkData ?? tracks.compactMap { player.metadataByPath[$0.relativePath]?.artworkData }.first,
+                    fallbackSymbol: store.isLikedPlaylist(playlist) ? "heart.fill" : "music.note.list"
+                )
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+private struct PlaylistDetailsEditor: View {
+    @EnvironmentObject private var store: LibraryStore
+    @Environment(\.dismiss) private var dismiss
+    let playlist: MusicPlaylist
+    @State private var name: String
+    @State private var isImporterPresented = false
+    @State private var photoSelection: PhotosPickerItem?
+
+    init(playlist: MusicPlaylist) {
+        self.playlist = playlist
+        _name = State(initialValue: playlist.name)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("歌单名称") {
+                    TextField("名称", text: $name)
+                }
+                Section("歌单图片") {
+                    HStack(spacing: 14) {
+                        LocalPlaylistArtworkView(playlist: playlist, side: 88)
+                        VStack(alignment: .leading, spacing: 10) {
+                            Button { isImporterPresented = true } label: {
+                                Label("从文件选择图片", systemImage: "folder")
+                            }
+                            PhotosPicker(selection: $photoSelection, matching: .images) {
+                                Label("从相册选择图片", systemImage: "photo")
+                            }
+                            if playlist.artworkData != nil {
+                                Button(role: .destructive) {
+                                    store.updateArtwork(nil, for: playlist)
+                                } label: {
+                                    Label("移除图片", systemImage: "trash")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("编辑歌单资料")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        store.rename(playlist, to: name)
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .fileImporter(isPresented: $isImporterPresented, allowedContentTypes: [.image], allowsMultipleSelection: false) { result in
+                guard case .success(let urls) = result, let url = urls.first else { return }
+                let didAccess = url.startAccessingSecurityScopedResource()
+                defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+                if let data = try? Data(contentsOf: url) { store.updateArtwork(data, for: playlist) }
+            }
+            .onChange(of: photoSelection) { _, selection in
+                guard let selection else { return }
+                Task { @MainActor in
+                    if let data = try? await selection.loadTransferable(type: Data.self) {
+                        store.updateArtwork(data, for: playlist)
+                    }
+                    photoSelection = nil
+                }
+            }
         }
     }
 }

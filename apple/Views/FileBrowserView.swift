@@ -36,9 +36,9 @@ struct FileBrowserView: View {
             if visibleItems.isEmpty, query.isEmpty {
                 ContentUnavailablePanel(
                     title: folderURL == nil ? "资料库是空的" : "文件夹是空的",
-                    message: "从相册或文件中选择多个项目，也可以新建文件夹。",
+                    message: "请回到首页添加文件，也可以在这里新建文件夹。",
                     symbol: "folder",
-                    action: AnyView(LibraryImportMenu(destination: currentFolder, title: "添加文件", photoScope: .media, prominent: true))
+                    action: nil
                 )
             } else if visibleItems.isEmpty {
                 ContentUnavailableView.search(text: query)
@@ -164,9 +164,6 @@ struct FileBrowserView: View {
                 Label("新建文件夹", systemImage: "folder.badge.plus")
             }
             .help("新建文件夹")
-
-            LibraryImportMenu(destination: currentFolder, title: "添加", photoScope: .media)
-                .labelStyle(.iconOnly)
         }
     }
 

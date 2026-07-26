@@ -55,9 +55,9 @@ struct ReadingLibraryView: View {
                 if items.isEmpty {
                     ContentUnavailablePanel(
                         title: "还没有书",
-                        message: "支持 TXT、EPUB、MOBI、AZW3、DOC、DOCX 与 PDF。",
+                        message: "支持 TXT、EPUB、MOBI、AZW3、DOC、DOCX 与 PDF。请从首页导入书籍。",
                         symbol: "books.vertical",
-                        action: AnyView(FileImportButton(title: "导入书籍", prominent: true))
+                        action: nil
                     )
                     .frame(maxWidth: .infinity, minHeight: 360, alignment: .topLeading)
                 } else if shelfStyle == .covers {
@@ -98,7 +98,6 @@ struct ReadingLibraryView: View {
                 Button { isFormatGuidePresented = true } label: {
                     Label("支持的阅读格式", systemImage: "info.circle")
                 }
-                FileImportButton(title: "导入").labelStyle(.iconOnly)
             }
         }
         .sheet(isPresented: $isFormatGuidePresented) {
@@ -283,16 +282,12 @@ struct GalleryView: View {
         LibraryGridContent(
             items: media,
             emptyTitle: "图库是空的",
-            emptyMessage: "从系统相册或文件中选择照片与视频。",
+            emptyMessage: "请从首页添加照片或视频。",
             emptySymbol: "photo.on.rectangle.angled",
-            importAction: AnyView(LibraryImportMenu(title: "添加照片或视频", photoScope: .media, prominent: true))
+            importAction: nil
         )
         .navigationTitle("图库")
         .searchable(text: $query, prompt: "搜索照片或视频")
-        .toolbar {
-            LibraryImportMenu(title: "添加", photoScope: .media)
-                .labelStyle(.iconOnly)
-        }
     }
 }
 

@@ -8,6 +8,7 @@ final class WiFiTransferService: ObservableObject {
     @Published private(set) var isStarting = false
     @Published private(set) var address: String?
     @Published private(set) var status = "尚未启动"
+    @Published private(set) var uploadProgress: Double?
 
     private let queue = DispatchQueue(label: "top.lordly.yubing.wifi-transfer", qos: .userInitiated)
     private var listener: NWListener?
@@ -66,6 +67,7 @@ final class WiFiTransferService: ObservableObject {
         listener?.cancel()
         listener = nil
         isStarting = false
+        uploadProgress = nil
         update(running: false, address: nil, status: "已停止")
     }
 
@@ -91,9 +93,14 @@ final class WiFiTransferService: ObservableObject {
                 totalLength = headerRange.upperBound + contentLength
             }
 
+            if let totalLength {
+                self.updateUploadProgress(received: received.count, total: totalLength)
+            }
+
             if let totalLength, received.count >= totalLength {
                 self.handle(request: received, connection: connection)
             } else if complete || error != nil {
+                self.updateUploadProgress(nil)
                 self.respond(connection, status: "400 Bad Request", body: "Incomplete request")
             } else {
                 self.receive(on: connection, data: received, expectedLength: totalLength)
@@ -127,9 +134,11 @@ final class WiFiTransferService: ObservableObject {
         }
         Task { [weak self] in
             guard let self else { return }
+            self.update(running: true, address: self.address, status: "正在导入 \(files.count) 个文件")
             for file in files {
                 await self.importer?(file.data, file.name)
             }
+            self.updateUploadProgress(nil)
             self.update(running: true, address: self.address, status: "已接收 \(files.count) 个文件")
             self.respond(connection, status: "200 OK", body: Self.successPage, contentType: "text/html; charset=utf-8")
         }
@@ -172,6 +181,19 @@ final class WiFiTransferService: ObservableObject {
             self.isRunning = running
             self.address = address
             self.status = status
+        }
+    }
+
+    private func updateUploadProgress(received: Int, total: Int) {
+        guard total > 0 else { return }
+        let progress = min(max(Double(received) / Double(total), 0), 1)
+        updateUploadProgress(progress)
+        update(running: true, address: address, status: "正在接收 \(Int(progress * 100))%")
+    }
+
+    private func updateUploadProgress(_ progress: Double?) {
+        DispatchQueue.main.async {
+            self.uploadProgress = progress
         }
     }
 
@@ -221,10 +243,14 @@ final class WiFiTransferService: ObservableObject {
     }
 
     private static let uploadPage = """
-    <!doctype html><html lang="zh-CN"><meta name="viewport" content="width=device-width"><title>鱼饼传输</title>
-    <style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:680px;margin:60px auto;padding:24px}h1{font-size:34px}form{border:1px solid #ccc;padding:24px;border-radius:8px}input{width:100%;margin:18px 0}button{font-size:18px;padding:12px 22px}</style>
+    <!doctype html><html lang="zh-CN"><meta name="viewport" content="width=device-width,initial-scale=1"><title>鱼饼传输</title>
+    <style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:680px;margin:60px auto;padding:24px;color:#111}h1{font-size:34px}form{border:1px solid #ccc;padding:24px;border-radius:14px}input{width:100%;margin:18px 0}button{font-size:18px;padding:12px 22px;border-radius:999px;border:0;background:#ff2d55;color:white}.progress{display:none;margin-top:18px}.bar{height:12px;background:#eee;border-radius:999px;overflow:hidden}.fill{height:100%;width:0;background:#ff2d55;transition:width .15s ease}.label{margin-top:8px;color:#666;font-size:14px}</style>
     <h1>🐟🍪！无线传输</h1><p>选择文件、照片、视频或音乐，上传后会自动加入鱼饼资料库。</p>
-    <form method="post" enctype="multipart/form-data"><input type="file" name="files" multiple><button type="submit">上传</button></form></html>
+    <form id="uploadForm"><input id="files" type="file" name="files" multiple><button id="submit" type="submit">上传</button><div class="progress" id="progress"><div class="bar"><div class="fill" id="fill"></div></div><div class="label" id="label">准备上传</div></div></form>
+    <script>
+    const form=document.getElementById('uploadForm'),files=document.getElementById('files'),submit=document.getElementById('submit'),progress=document.getElementById('progress'),fill=document.getElementById('fill'),label=document.getElementById('label');
+    form.addEventListener('submit',e=>{e.preventDefault();if(!files.files.length){label.textContent='请先选择文件';progress.style.display='block';return}const data=new FormData();for(const file of files.files){data.append('files',file,file.name)}const xhr=new XMLHttpRequest();xhr.open('POST','/');progress.style.display='block';submit.disabled=true;submit.textContent='上传中';xhr.upload.onprogress=event=>{if(!event.lengthComputable)return;const pct=Math.round(event.loaded/event.total*100);fill.style.width=pct+'%';label.textContent='正在上传 '+pct+'%'};xhr.onload=()=>{document.open();document.write(xhr.responseText);document.close()};xhr.onerror=()=>{submit.disabled=false;submit.textContent='重新上传';label.textContent='上传失败，请重试'};xhr.send(data)});
+    </script></html>
     """
 
     private static let successPage = """

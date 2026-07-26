@@ -175,23 +175,23 @@ private struct SplitRootView: View {
     let openPlayer: (LibraryItem) -> Void
     let playerTransitionID: String
     let playerTransitionNamespace: Namespace.ID
-    @State private var selection: AppSection? = .home
+    @State private var selection: AppSection = .home
     @State private var immersiveDetailDepth = 0
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
-
-    private var shouldHideSidebar: Bool {
-        selection == .reading || immersiveDetailDepth > 0
-    }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(selection: $selection)
-                .navigationSplitViewColumnWidth(min: 210, ideal: YuBingMetrics.sidebarWidth, max: 290)
-        } detail: {
+        VStack(spacing: 0) {
+            if immersiveDetailDepth == 0 {
+                SectionNavigationBar(selection: $selection)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 10)
+                    .padding(.bottom, 8)
+            }
+
             NavigationStack {
-                SectionDestinationView(section: selection ?? .home)
+                SectionDestinationView(section: selection)
                     .libraryDestinations()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if player.currentItem != nil {
                     HStack {
@@ -217,53 +217,46 @@ private struct SplitRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .yuBingImmersiveDetailMode)) { notification in
             guard let delta = notification.object as? Int else { return }
             immersiveDetailDepth = max(0, immersiveDetailDepth + delta)
-            updateSidebarVisibility()
         }
         #endif
         .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
             if let section = notification.object as? AppSection { selection = section }
         }
-        .onAppear {
-            updateSidebarVisibility()
-        }
-        .onChange(of: selection) { _, _ in
-            updateSidebarVisibility()
-        }
-    }
-
-    private func updateSidebarVisibility() {
-        #if os(iOS)
-        columnVisibility = shouldHideSidebar ? .detailOnly : .all
-        #endif
     }
 }
 
-private struct SidebarView: View {
-    @Binding var selection: AppSection?
+private struct SectionNavigationBar: View {
+    @Binding var selection: AppSection
 
     var body: some View {
-        List(selection: $selection) {
-            Section {
-                Label(AppSection.home.title, systemImage: AppSection.home.symbol)
-                    .tag(AppSection.home)
-                Label(AppSection.music.title, systemImage: AppSection.music.symbol)
-                    .tag(AppSection.music)
-                Label(AppSection.reading.title, systemImage: AppSection.reading.symbol)
-                    .tag(AppSection.reading)
-                Label(AppSection.gallery.title, systemImage: AppSection.gallery.symbol)
-                    .tag(AppSection.gallery)
-                Label(AppSection.more.title, systemImage: AppSection.more.symbol)
-                    .tag(AppSection.more)
+        HStack(spacing: 10) {
+            Image("AppIcon")
+                .resizable()
+                .frame(width: 34, height: 34)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            ForEach(AppSection.allCases) { section in
+                Button {
+                    selection = section
+                } label: {
+                    Label(section.title, systemImage: section.symbol)
+                        .font(.subheadline.weight(selection == section ? .semibold : .regular))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background {
+                            if selection == section {
+                                Capsule(style: .continuous)
+                                    .fill(.primary.opacity(0.1))
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
             }
+
+            Spacer(minLength: 0)
         }
-        .navigationTitle("鱼饼")
-        .toolbar {
-            ToolbarItem {
-                FileImportButton(title: "导入")
-                    .labelStyle(.iconOnly)
-                    .help("导入文件")
-            }
-        }
+        .padding(8)
+        .adaptiveGlass(in: Capsule(style: .continuous))
     }
 }
 
