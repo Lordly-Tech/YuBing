@@ -3,7 +3,7 @@
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![Apple platforms](https://img.shields.io/badge/platforms-iPhone%20%7C%20iPad%20%7C%20Mac%20%7C%20Apple%20Watch-black.svg)](#运行环境)
 
-鱼饼是一款使用 SwiftUI 构建的 Apple 平台本地文件与媒体资料库。它把本地阅读、图片、视频、音乐和 Apple Watch 离线传输放在同一个应用中，并提供由 [MeloX](https://github.com/youshen2/MeloX) 改编的专辑、播放器和同步歌词体验。
+你的本地文件、音乐与阅读中心，全平台一张网。
 
 ## 主要功能
 
@@ -26,7 +26,6 @@
 - LRC、YRC、逐字歌词、翻译歌词和无逐字时间时的模拟进度。
 - Apple Music 风格的焦点滚动、距离模糊和点击跳转。
 - 错峰歌词移动、逐字辉光、逐字抬升与长音节轻微放大。
-- 本项目不包含 MeloX 的 EVA 歌词样式或全屏天际歌词。
 
 ### Apple Watch
 
@@ -41,9 +40,6 @@
 - iOS / iPadOS 18.0 或更高版本
 - macOS 15.0 或更高版本
 - watchOS 10.0 或更高版本
-- 真机安装需要可用于代码签名的 Apple Developer 账号
-
-歌词使用 SwiftUI `TextRenderer` 提供完整逐字动效。iOS、iPadOS、macOS 和 watchOS 26 及以上会自动使用系统 Liquid Glass，较低系统使用原生材质回退。
 
 ## 构建
 
@@ -94,14 +90,6 @@ apple/
 ```
 
 ## 致谢
-
-音乐体验的重要部分改编自 [youshen2/MeloX](https://github.com/youshen2/MeloX)，包括专辑详情结构、底部播放条、竖屏与横屏播放页、播放队列、歌词时间线、错峰焦点以及逐字辉光和抬升渲染。鱼饼将数据源适配为本地文件，并明确移除了 EVA 和全屏天际歌词。
-
-MeloX 上游还致谢了以下项目，鱼饼保留这些来源说明：
-
-- [jayfunc/BetterLyrics](https://github.com/jayfunc/BetterLyrics)：逐字歌词渲染、辉光与动画参考。
-- [WXRIW/Lyricify-Lyrics-Helper](https://github.com/WXRIW/Lyricify-Lyrics-Helper)：网易云 YRC 逐字歌词解析参考。
-- [qier222/YesPlayMusic](https://github.com/qier222/YesPlayMusic)：网易云接口与播放器实现参考。
 
 完整第三方说明见 [`apple/Resources/ThirdPartyNotices.md`](apple/Resources/ThirdPartyNotices.md)。各上游项目的代码与资源仍分别受其原始许可证约束。
 
