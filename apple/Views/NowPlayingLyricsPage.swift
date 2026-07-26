@@ -16,7 +16,6 @@ struct NowPlayingLyricsPage: View {
     let isInterfaceHidden: Bool
     let bottomOverlayHeight: CGFloat?
     let artworkNamespace: Namespace.ID
-    let isArtworkGeometrySource: Bool
     @Binding var showsSleepTimer: Bool
     let onToggleInterface: (() -> Void)?
     let onShowDetails: (() -> Void)?
@@ -31,7 +30,6 @@ struct NowPlayingLyricsPage: View {
         isInterfaceHidden: Bool = false,
         bottomOverlayHeight: CGFloat? = nil,
         artworkNamespace: Namespace.ID,
-        isArtworkGeometrySource: Bool = true,
         showsSleepTimer: Binding<Bool>,
         onToggleInterface: (() -> Void)? = nil,
         onShowDetails: (() -> Void)? = nil
@@ -45,7 +43,6 @@ struct NowPlayingLyricsPage: View {
         self.isInterfaceHidden = isInterfaceHidden
         self.bottomOverlayHeight = bottomOverlayHeight
         self.artworkNamespace = artworkNamespace
-        self.isArtworkGeometrySource = isArtworkGeometrySource
         _showsSleepTimer = showsSleepTimer
         self.onToggleInterface = onToggleInterface
         self.onShowDetails = onShowDetails
@@ -89,12 +86,6 @@ struct NowPlayingLyricsPage: View {
     private var songHeader: some View {
         HStack(spacing: 12) {
             ArtworkImage(data: song.artworkData, cornerRadius: 10)
-                .matchedGeometryEffect(
-                    id: song.id,
-                    in: artworkNamespace,
-                    properties: .frame,
-                    isSource: isArtworkGeometrySource
-                )
                 .frame(width: 68, height: 68)
 
             VStack(alignment: .leading, spacing: 2) {

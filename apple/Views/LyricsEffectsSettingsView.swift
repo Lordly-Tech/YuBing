@@ -30,6 +30,20 @@ struct LyricsEffectsSettingsView: View {
 
             Section {
                 LyricsValueSlider(
+                    title: "歌词同步偏移",
+                    value: $settings.lyricsAdvanceTime,
+                    range: AppSettings.lyricsAdvanceTimeRange,
+                    step: 0.05,
+                    valueText: signedSecondText(settings.lyricsAdvanceTime)
+                )
+            } header: {
+                Text("同步")
+            } footer: {
+                Text("歌词慢了就调大，歌词快了就调小。")
+            }
+
+            Section {
+                LyricsValueSlider(
                     title: "每行错峰延迟",
                     value: $settings.lyricsFocusCascadeDelay,
                     range: AppSettings.lyricsFocusCascadeDelayRange,
@@ -128,6 +142,11 @@ struct LyricsEffectsSettingsView: View {
 
     private func millisecondText(_ value: Double) -> String {
         "\(Int((value * 1_000).rounded())) \(AppLocalization.string("毫秒"))"
+    }
+
+    private func signedSecondText(_ value: Double) -> String {
+        let sign = value > 0 ? "+" : ""
+        return "\(sign)\(String(format: "%.2f", value)) \(AppLocalization.string("秒"))"
     }
 }
 

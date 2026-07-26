@@ -7,10 +7,6 @@ struct NowPlayingArtworkPage: View {
     let song: NowPlayingSong
     @Binding var showsSleepTimer: Bool
     let artworkNamespace: Namespace.ID
-    /// Only the page currently selected owns the shared artwork geometry.
-    /// Both pages exist during the crossfade, and two sources for one ID is
-    /// what made the artwork jump between positions.
-    var isArtworkGeometrySource = true
     let onShowDetails: () -> Void
 
     var body: some View {
@@ -24,12 +20,6 @@ struct NowPlayingArtworkPage: View {
                 Spacer(minLength: 8)
 
                 ArtworkImage(data: song.artworkData, cornerRadius: 10)
-                    .matchedGeometryEffect(
-                        id: song.id,
-                        in: artworkNamespace,
-                        properties: .frame,
-                        isSource: isArtworkGeometrySource
-                    )
                     .frame(width: artworkSize, height: artworkSize)
                     .scaleEffect(player.isPlaying || !settings.shrinksPausedArtwork ? 1 : 0.9)
                     .shadow(color: .black.opacity(0.24), radius: 22, y: 12)

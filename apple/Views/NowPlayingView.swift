@@ -30,13 +30,8 @@ struct NowPlayingView: View {
     @State private var showsLyricsControls = true
     @State private var showsSleepTimer = false
     @State private var highlightedLyricID: LyricLine.ID?
-    @State private var controlsHeight = Self.estimatedControlsHeight
+    @State private var controlsHeight: CGFloat = 226
     @Namespace private var pageArtworkNamespace
-
-    /// Used until the controls report their real height, so the first layout
-    /// pass does not jump.
-    private static let estimatedControlsHeight: CGFloat = 226
-    private static let pageTransition = Animation.smooth(duration: 0.3)
 
     private var localTracks: [LibraryItem] {
         (queueItems ?? store.items(of: .music).sorted(by: .name))
@@ -198,7 +193,6 @@ struct NowPlayingView: View {
                 song: song,
                 showsSleepTimer: $showsSleepTimer,
                 artworkNamespace: pageArtworkNamespace,
-                isArtworkGeometrySource: page == .artwork,
                 onShowDetails: showDetails
             )
             .transition(.opacity)
@@ -208,7 +202,6 @@ struct NowPlayingView: View {
                 showsSleepTimer: $showsSleepTimer,
                 showsArtworkToggle: true,
                 artworkNamespace: pageArtworkNamespace,
-                isArtworkGeometrySource: page == .details,
                 onShowArtwork: showArtwork
             )
             .transition(.opacity)
@@ -222,7 +215,6 @@ struct NowPlayingView: View {
                 isInterfaceHidden: hidesLyricsControls,
                 bottomOverlayHeight: page == .lyrics ? controlsHeight : 0,
                 artworkNamespace: pageArtworkNamespace,
-                isArtworkGeometrySource: page == .lyrics,
                 showsSleepTimer: $showsSleepTimer,
                 onToggleInterface: toggleLyricsControls,
                 onShowDetails: showDetails
@@ -302,13 +294,13 @@ struct NowPlayingView: View {
     }
 
     private func showDetails() {
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(NowPlayingPage.changeAnimation) {
             page = .details
         }
     }
 
     private func showArtwork() {
-        withAnimation(.smooth(duration: 0.3)) {
+        withAnimation(NowPlayingPage.changeAnimation) {
             page = .artwork
         }
     }

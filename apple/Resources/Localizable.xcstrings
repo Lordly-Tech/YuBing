@@ -1,6 +1,108 @@
 ﻿{
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "歌词同步偏移": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyrics Sync Offset"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌詞同期オフセット"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "가사 동기화 오프셋"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌词同步偏移"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌詞同步偏移"
+          }
+        }
+      }
+    },
+    "同步": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sync"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同期"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "동기화"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步"
+          }
+        }
+      }
+    },
+    "歌词慢了就调大，歌词快了就调小。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Increase this if lyrics are late; decrease it if lyrics are early."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌詞が遅い場合は大きく、早い場合は小さくしてください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "가사가 늦으면 값을 올리고, 빠르면 값을 낮추세요."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌词慢了就调大，歌词快了就调小。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌詞慢了就調大，歌詞快了就調小。"
+          }
+        }
+      }
+    },
     "从音乐库导入": {
       "localizations": {
         "en": {
@@ -473,40 +575,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "、"
-          }
-        }
-      }
-    },
-    "支持 MP3、FLAC、WAV、AAC、AIFF、M4A、DSD、DSF、APE、OGG、Opus 与 WMA。": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supports MP3, FLAC, WAV, AAC, AIFF, M4A, DSD, DSF, APE, OGG, Opus and WMA."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3、FLAC、WAV、AAC、AIFF、M4A、DSD、DSF、APE、OGG、Opus、WMA に対応しています。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3, FLAC, WAV, AAC, AIFF, M4A, DSD, DSF, APE, OGG, Opus, WMA를 지원합니다."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "支持 MP3、FLAC、WAV、AAC、AIFF、M4A、DSD、DSF、APE、OGG、Opus 与 WMA。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "支援 MP3、FLAC、WAV、AAC、AIFF、M4A、DSD、DSF、APE、OGG、Opus 與 WMA。"
           }
         }
       }

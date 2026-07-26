@@ -56,7 +56,7 @@ extension View {
 }
 
 private struct ResolvedLyricsRefreshRateModifier: ViewModifier {
-    @State private var displayRefreshRate = LyricsRefreshRateProbe.displayRefreshRate()
+    @State private var displayRefreshRate = LyricsRefreshRate.defaultValue.rawValue
     @State private var isLowPowerModeEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled
 
     private var resolvedRate: LyricsRefreshRate {

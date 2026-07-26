@@ -232,7 +232,7 @@ struct NowPlayingPageSelector: View {
         let isSelected = page == destination
 
         return Button {
-            withAnimation(.smooth(duration: 0.4)) {
+            withAnimation(NowPlayingPage.changeAnimation) {
                 page = isSelected ? .artwork : destination
             }
         } label: {

@@ -138,6 +138,7 @@ final class AppSettings {
     static let lyricsCurrentLineScaleRange: ClosedRange<Double> = 1.0...2.0
     static let lyricsFocusColorLeadTimeRange: ClosedRange<Double> = 0...1
     static let lyricsFocusCascadeDelayRange: ClosedRange<Double> = 0...0.05
+    static let lyricsAdvanceTimeRange: ClosedRange<Double> = -3...3
     static let lyricsFontSizeRange: ClosedRange<Double> = 20...36
     static let lyricsLineSpacingRange: ClosedRange<Double> = 12...40
 
@@ -173,7 +174,13 @@ final class AppSettings {
             true
         )
         lyricsFocusColorLeadTime = Self.double(defaults, Key.lyricsFocusColorLeadTime, 0.06)
-        lyricsAdvanceTime = max(Self.double(defaults, Key.lyricsAdvanceTime, 0.55), 0.55)
+        lyricsAdvanceTime = min(
+            max(
+                Self.double(defaults, Key.lyricsAdvanceTime, 0.55),
+                Self.lyricsAdvanceTimeRange.lowerBound
+            ),
+            Self.lyricsAdvanceTimeRange.upperBound
+        )
     }
 
     func resetLyricsEffects() {
@@ -184,6 +191,7 @@ final class AppSettings {
         lyricsCurrentLineScale = 1.2
         lyricsFocusCascadeDelay = 0.025
         lyricsFocusCascadeBounceEnabled = true
+        lyricsAdvanceTime = 0.55
         lyricsTranslationEnabled = true
         lyricsTapToSeek = true
     }
