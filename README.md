@@ -91,6 +91,14 @@ apple/
 
 ## 致谢
 
+音乐体验参考自 [MeloX](https://github.com/youshen2/MeloX)，包括专辑详情结构、底部播放条、竖屏与横屏播放页、播放队列、歌词时间线、错峰焦点以及逐字辉光和抬升渲染。
+
+MeloX 上游还致谢了以下项目：
+
+- [jayfunc/BetterLyrics](https://github.com/jayfunc/BetterLyrics)：逐字歌词渲染、辉光与动画参考。
+- [WXRIW/Lyricify-Lyrics-Helper](https://github.com/WXRIW/Lyricify-Lyrics-Helper)：网易云 YRC 逐字歌词解析参考。
+- [qier222/YesPlayMusic](https://github.com/qier222/YesPlayMusic)：网易云接口与播放器实现参考。
+
 完整第三方说明见 [`apple/Resources/ThirdPartyNotices.md`](apple/Resources/ThirdPartyNotices.md)。各上游项目的代码与资源仍分别受其原始许可证约束。
 
 ## 许可证
