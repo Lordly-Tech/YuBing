@@ -193,7 +193,7 @@ private struct SplitRootView: View {
                             }
                             .pickerStyle(.segmented)
                             .labelsHidden()
-                            .controlSize(.large)
+                            .scaleEffect(1.12)
                         }
                     }
             }
