@@ -68,31 +68,49 @@ struct NowPlayingSongDetailsPage: View {
 
     private var detailsCard: some View {
         VStack(spacing: 0) {
-            valueRow(title: "歌手", value: song.artistText)
-            Divider().overlay(.white.opacity(0.12))
-            valueRow(title: "专辑", value: song.albumText)
-
-            if let year = song.metadata.year {
-                Divider().overlay(.white.opacity(0.12))
-                valueRow(title: "发行年份", value: year)
-            }
-
-            if let genre = song.metadata.genre {
-                Divider().overlay(.white.opacity(0.12))
-                valueRow(title: "流派", value: genre)
-            }
-
-            if !song.metadata.qualityDescription.isEmpty {
-                Divider().overlay(.white.opacity(0.12))
-                valueRow(title: "音频", value: song.metadata.qualityDescription)
+            ForEach(Array(detailRows.enumerated()), id: \.element.id) { index, row in
+                if index > 0 {
+                    Divider().overlay(.white.opacity(0.12))
+                }
+                valueRow(title: row.title, value: row.value)
             }
         }
         .padding(.horizontal, 16)
         .background(.white.opacity(0.08), in: .rect(cornerRadius: 16))
     }
 
+    private var detailRows: [SongDetailRow] {
+        let metadata = song.metadata
+        let candidates: [(String, String?)] = [
+            ("标题", song.name),
+            ("歌手", song.artistText),
+            ("作曲", metadata.composer),
+            ("唱片集", song.albumText),
+            ("发行年份", metadata.year),
+            ("流派", metadata.genre),
+            ("格式", song.item.fileExtension.uppercased()),
+            ("音频", metadata.qualityDescription),
+            ("比特率", metadata.bitRateDescription),
+            ("声道", metadata.channelDescription),
+            ("采样率", metadata.sampleRateDescription)
+        ]
+
+        return candidates.compactMap { title, value in
+            guard let value else { return nil }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            return SongDetailRow(title: title, value: trimmed)
+        }
+    }
+
     private func valueRow(title: String, value: String) -> some View {
-        LabeledContent(title, value: value)
+        LabeledContent(AppLocalization.string(title), value: value)
             .frame(minHeight: 46)
     }
+}
+
+private struct SongDetailRow: Identifiable {
+    let id = UUID()
+    let title: String
+    let value: String
 }

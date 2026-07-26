@@ -75,8 +75,10 @@ void yubing_free_audio_metadata(YuBingAudioMetadata *metadata) {
     av_freep(&metadata->date);
     av_freep(&metadata->track_number);
     av_freep(&metadata->disc_number);
+    av_freep(&metadata->composer);
     av_freep(&metadata->lyrics);
     av_freep(&metadata->codec);
+    av_freep(&metadata->channel_layout);
     av_freep(&metadata->artwork_data);
     memset(metadata, 0, sizeof(*metadata));
 }
@@ -124,6 +126,7 @@ int32_t yubing_read_audio_metadata(
     const char *date_keys[] = {"date", "year", "originaldate", "WM/Year"};
     const char *track_keys[] = {"track", "tracknumber", "WM/TrackNumber"};
     const char *disc_keys[] = {"disc", "discnumber", "disk"};
+    const char *composer_keys[] = {"composer", "TCOM", "WM/Composer", "writer"};
     const char *lyrics_keys[] = {
         "lyrics", "lyrics-*", "syncedlyrics", "unsyncedlyrics", "unsynchronizedlyrics", "WM/Lyrics"
     };
@@ -153,6 +156,9 @@ int32_t yubing_read_audio_metadata(
     metadata->disc_number = yubing_copy_metadata_value(
         container_metadata, stream_metadata, disc_keys, YUBING_KEY_COUNT(disc_keys)
     );
+    metadata->composer = yubing_copy_metadata_value(
+        container_metadata, stream_metadata, composer_keys, YUBING_KEY_COUNT(composer_keys)
+    );
     metadata->lyrics = yubing_copy_metadata_value(
         container_metadata, stream_metadata, lyrics_keys, YUBING_KEY_COUNT(lyrics_keys)
     );
@@ -166,6 +172,24 @@ int32_t yubing_read_audio_metadata(
         : codec->bits_per_coded_sample;
     if (metadata->bit_depth <= 0) {
         metadata->bit_depth = av_get_bits_per_sample(codec->codec_id);
+    }
+    metadata->channel_count = codec->ch_layout.nb_channels;
+    if (metadata->channel_count > 0) {
+        char layout[128] = {0};
+        if (av_channel_layout_describe(&codec->ch_layout, layout, sizeof(layout)) > 0 &&
+            layout[0] != '\0') {
+            metadata->channel_layout = av_strdup(layout);
+        }
+    }
+    metadata->bit_rate = codec->bit_rate > 0 ? codec->bit_rate : 0;
+    if (metadata->bit_rate <= 0 && input->bit_rate > 0) {
+        metadata->bit_rate = input->bit_rate;
+    }
+    if (metadata->bit_rate <= 0 && input->duration > 0) {
+        const int64_t byte_size = avio_size(input->pb);
+        if (byte_size > 0) {
+            metadata->bit_rate = (int64_t)((double)byte_size * 8.0 * AV_TIME_BASE / (double)input->duration);
+        }
     }
     const AVCodecDescriptor *descriptor = avcodec_descriptor_get(codec->codec_id);
     metadata->is_lossless = descriptor != NULL &&

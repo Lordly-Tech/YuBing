@@ -301,58 +301,43 @@ struct NovelReaderView: View {
 
     @ToolbarContentBuilder
     private var readerToolbar: some ToolbarContent {
-            ToolbarItemGroup {
-            #if os(iOS)
-            Button {
-                readingStore.updateProgress(for: item, chapterIndex: chapterIndex, progress: chapterProgress)
-                watchTransfer.send([item])
-            } label: {
-                Label("传输到 Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
-            }
-            #endif
-
+        ToolbarItem {
             Menu {
-                Button { isChapterListPresented = true } label: {
-                    Label("章节", systemImage: "list.number")
-                }
-                Toggle(isOn: $autoTurnEnabled) {
-                    Label("自动翻页", systemImage: "timer")
-                }
-                Toggle(isOn: $keepAwake) {
-                    Label("常驻亮屏", systemImage: "sun.max")
-                }
-
-                Divider()
-                Button { addBookmark() } label: {
-                    Label("在当前位置添加书签", systemImage: "bookmark.badge.plus")
-                }
-                Button { isBookmarkManagerPresented = true } label: {
-                    Label("书签管理", systemImage: "bookmark.square")
+                Section {
+                    Button { isChapterListPresented = true } label: {
+                        Label("章节", systemImage: "list.number")
+                    }
+                    Button { isBookmarkManagerPresented = true } label: {
+                        Label("书签管理", systemImage: "bookmark.square")
+                    }
+                    Button { presentSettings() } label: {
+                        Label("阅读与显示设置", systemImage: "textformat.size")
+                    }
                 }
 
-                Divider()
-                Button { presentSettings() } label: {
-                    Label("阅读与显示设置", systemImage: "textformat.size")
+                Section {
+                    Toggle(isOn: $autoTurnEnabled) {
+                        Label("自动翻页", systemImage: "timer")
+                    }
+                    Toggle(isOn: $keepAwake) {
+                        Label("常驻亮屏", systemImage: "sun.max")
+                    }
                 }
-
-                Divider()
-                Button {} label: {
-                    Label(
-                        "已阅读 \(readingStore.record(for: item).totalReadingTime.formattedReadingDuration)",
-                        systemImage: "clock"
-                    )
-                }
-                .disabled(true)
 
                 #if os(iOS)
-                Divider()
-                Button {
-                    readingStore.updateProgress(for: item, chapterIndex: chapterIndex, progress: chapterProgress)
-                    watchTransfer.send([item])
-                } label: {
-                    Label("同步到 Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
+                Section {
+                    Button {
+                        readingStore.updateProgress(for: item, chapterIndex: chapterIndex, progress: chapterProgress)
+                        watchTransfer.send([item])
+                    } label: {
+                        Label("同步到 Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
+                    }
                 }
                 #endif
+
+                Section {
+                    Text("已阅读 \(readingStore.record(for: item).totalReadingTime.formattedReadingDuration)")
+                }
             } label: {
                 Label("阅读菜单", systemImage: "ellipsis.circle")
             }
@@ -362,54 +347,111 @@ struct NovelReaderView: View {
     @ViewBuilder
     private var readerControlOverlay: some View {
         if let chapter = currentChapter, let book {
-            VStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    Button {
-                        isChapterListPresented = true
-                    } label: {
-                        Label("目录 · \(Int(chapterProgress * 100))%", systemImage: "list.bullet")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
+            VStack(spacing: 14) {
+                chapterNavigationRow(chapter: chapter)
 
-                    Button { addBookmark() } label: {
-                        Image(systemName: "bookmark")
-                            .frame(width: 36, height: 36)
-                    }
-                    .adaptiveGlassButton()
+                VStack(spacing: 6) {
+                    ProgressView(value: chapterProgress)
+                        .progressViewStyle(.linear)
 
-                    Button { presentSettings() } label: {
-                        Image(systemName: "textformat.size")
-                            .frame(width: 36, height: 36)
+                    HStack(spacing: 8) {
+                        Text("\(Int(chapterProgress * 100))%")
+                            .monospacedDigit()
+                        Spacer(minLength: 8)
+                        Text("\(currentFileOffset.formatted()) / \(book.totalLength.formatted())")
+                            .monospacedDigit()
                     }
-                    .adaptiveGlassButton()
-
-                    ShareLink(item: item.url) {
-                        Image(systemName: "square.and.arrow.up")
-                            .frame(width: 36, height: 36)
-                    }
-                    .adaptiveGlassButton()
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 }
 
-                ProgressView(value: chapterProgress)
-                    .progressViewStyle(.linear)
-                HStack(spacing: 8) {
-                    Text(chapter.title)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
-                    Text("\(Int(chapterProgress * 100))% · \(currentFileOffset.formatted()) / \(book.totalLength.formatted())")
-                        .monospacedDigit()
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                readerActionRow
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .adaptiveGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: 560)
+            .adaptiveGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .padding(.horizontal, 14)
             .padding(.bottom, 10)
+            .frame(maxWidth: .infinity)
         }
+    }
+
+    private func chapterNavigationRow(chapter: BookChapter) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                switchChapter(to: chapterIndex - 1, progress: 0)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .frame(width: 32, height: 32)
+            }
+            .adaptiveGlassButton()
+            .disabled(chapterIndex <= 0)
+            .accessibilityLabel("上一章")
+
+            VStack(spacing: 2) {
+                Text(chapter.title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text("第 \(chapterIndex + 1) 章 / 共 \(book?.chapters.count ?? 0) 章")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            .frame(maxWidth: .infinity)
+
+            Button {
+                switchChapter(to: chapterIndex + 1, progress: 0)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .frame(width: 32, height: 32)
+            }
+            .adaptiveGlassButton()
+            .disabled(chapterIndex + 1 >= (book?.chapters.count ?? 0))
+            .accessibilityLabel("下一章")
+        }
+    }
+
+    private var readerActionRow: some View {
+        AdaptiveGlassGroup {
+            HStack(spacing: 10) {
+                overlayActionButton(symbol: "list.bullet", label: "目录") {
+                    isChapterListPresented = true
+                }
+
+                overlayActionButton(symbol: "bookmark.badge.plus", label: "添加书签") {
+                    addBookmark()
+                }
+
+                overlayActionButton(symbol: "bookmark.square", label: "书签管理") {
+                    isBookmarkManagerPresented = true
+                }
+
+                overlayActionButton(symbol: "textformat.size", label: "阅读与显示设置") {
+                    presentSettings()
+                }
+
+                ShareLink(item: item.url) {
+                    Image(systemName: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                }
+                .adaptiveGlassButton()
+                .accessibilityLabel("分享")
+            }
+        }
+    }
+
+    private func overlayActionButton(
+        symbol: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .frame(maxWidth: .infinity, minHeight: 34)
+        }
+        .adaptiveGlassButton()
+        .accessibilityLabel(AppLocalization.string(label))
     }
 
     private var settingsSheet: some View {
@@ -585,6 +627,15 @@ private struct ReaderChapterContent: View {
 
     @State private var contentHeight = 1.0
 
+    private var bodyFont: Font {
+        let base = Font.system(size: fontSize, design: .serif)
+        return lineSpacing < 0 ? base.leading(.tight) : base
+    }
+
+    private var paragraphSpacing: CGFloat {
+        CGFloat(max(2, lineSpacing * 0.65))
+    }
+
     private var paragraphs: [String] {
         let body = readerBodyText(for: chapter)
         let values = body
@@ -599,7 +650,7 @@ private struct ReaderChapterContent: View {
         GeometryReader { viewport in
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: CGFloat(max(0, lineSpacing * 0.65))) {
+                    VStack(alignment: .leading, spacing: paragraphSpacing) {
                         GeometryReader { geometry in
                             Color.clear.preference(
                                 key: ReaderTopOffsetKey.self,
@@ -621,7 +672,7 @@ private struct ReaderChapterContent: View {
 
                         ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
                             Text(paragraph)
-                                .font(.system(size: fontSize, design: .serif))
+                                .font(bodyFont)
                                 .foregroundStyle(foreground)
                                 .lineSpacing(max(0, lineSpacing))
                                 .textSelection(.enabled)
@@ -965,8 +1016,12 @@ private final class ReaderPagesViewController: UIViewController,
     ) -> [NSAttributedString] {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineSpacing = CGFloat(max(0, configuration.lineSpacing))
-        paragraphStyle.paragraphSpacing = CGFloat(max(0, configuration.lineSpacing * 0.65))
+        paragraphStyle.paragraphSpacing = CGFloat(max(2, configuration.lineSpacing * 0.65))
         paragraphStyle.lineBreakMode = .byWordWrapping
+        if configuration.lineSpacing < 0 {
+            let compression = 1 + configuration.lineSpacing / max(configuration.fontSize, 1)
+            paragraphStyle.lineHeightMultiple = CGFloat(min(max(compression, 0.62), 1))
+        }
 
         let bodyFont = UIFont(name: "NewYork-Regular", size: CGFloat(configuration.fontSize))
             ?? UIFont.systemFont(ofSize: CGFloat(configuration.fontSize))
@@ -1512,7 +1567,7 @@ private struct ReaderSettingsSheet: View {
                     }
                     .pickerStyle(.segmented)
                     ReaderValueSlider(title: "字号", value: $values.fontSize, range: 14...32, step: 1, suffix: "")
-                    ReaderValueSlider(title: "行距", value: $values.lineSpacing, range: 0...14, step: 1, suffix: "")
+                    ReaderValueSlider(title: "行距", value: $values.lineSpacing, range: -8...14, step: 1, suffix: "")
                     ReaderValueSlider(title: "上下边距", value: $values.verticalMargin, range: 12...100, step: 2, suffix: " pt")
                 }
 

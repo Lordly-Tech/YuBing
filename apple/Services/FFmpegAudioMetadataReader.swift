@@ -9,10 +9,14 @@ struct FFmpegAudioMetadataSnapshot: Sendable {
     var date: String?
     var trackNumber: String?
     var discNumber: String?
+    var composer: String?
     var lyrics: String?
     var codec: String?
+    var channelLayout: String?
     var sampleRate: Int?
     var bitDepth: Int?
+    var channelCount: Int?
+    var bitRate: Int?
     var isLossless: Bool
     var artworkData: Data?
 }
@@ -58,10 +62,14 @@ enum FFmpegAudioMetadataReader {
             date: string(from: rawMetadata.date),
             trackNumber: string(from: rawMetadata.track_number),
             discNumber: string(from: rawMetadata.disc_number),
+            composer: string(from: rawMetadata.composer),
             lyrics: string(from: rawMetadata.lyrics),
             codec: string(from: rawMetadata.codec),
+            channelLayout: string(from: rawMetadata.channel_layout),
             sampleRate: rawMetadata.sample_rate > 0 ? Int(rawMetadata.sample_rate) : nil,
             bitDepth: rawMetadata.bit_depth > 0 ? Int(rawMetadata.bit_depth) : nil,
+            channelCount: rawMetadata.channel_count > 0 ? Int(rawMetadata.channel_count) : nil,
+            bitRate: rawMetadata.bit_rate > 0 ? Int(rawMetadata.bit_rate) : nil,
             isLossless: rawMetadata.is_lossless != 0,
             artworkData: artworkData
         )

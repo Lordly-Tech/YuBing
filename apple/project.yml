@@ -1,6 +1,9 @@
 name: YuBing
 options:
   bundleIdPrefix: top.lordly
+  # 与 Resources/Localizable.xcstrings 的 sourceLanguage 对齐，
+  # 否则 zh-Hans 不会产出 Localizable.strings，简体会回退到 zh-Hant。
+  developmentLanguage: zh-Hans
   deploymentTarget:
     iOS: "18.0"
     macOS: "15.0"

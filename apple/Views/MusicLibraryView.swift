@@ -161,27 +161,19 @@ struct MusicLibraryView: View {
                 .accessibilityLabel("新建歌单")
             }
 
-            if store.musicPlaylists.isEmpty {
-                Button { showsCreatePlaylist = true } label: {
-                    Label("新建歌单", systemImage: "music.note.list")
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.bordered)
-            } else {
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 14) {
-                        ForEach(store.musicPlaylists) { playlist in
-                            NavigationLink {
-                                LocalPlaylistDetailView(playlist: playlist)
-                            } label: {
-                                LocalPlaylistCard(playlist: playlist)
-                            }
-                            .buttonStyle(.plain)
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 14) {
+                    ForEach(store.orderedMusicPlaylists) { playlist in
+                        NavigationLink {
+                            LocalPlaylistDetailView(playlist: playlist)
+                        } label: {
+                            LocalPlaylistCard(playlist: playlist)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
-                .scrollIndicators(.hidden)
             }
+            .scrollIndicators(.hidden)
         }
     }
 
@@ -324,7 +316,7 @@ private struct LocalPlaylistCard: View {
         VStack(alignment: .leading, spacing: 7) {
             AudioArtwork(
                 data: tracks.compactMap { player.metadataByPath[$0.relativePath]?.artworkData }.first,
-                fallbackSymbol: "music.note.list"
+                fallbackSymbol: store.isLikedPlaylist(playlist) ? "heart.fill" : "music.note.list"
             )
             .frame(width: 156, height: 156)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -339,7 +331,10 @@ private struct LocalPlaylistCard: View {
                 }
             }
 
-            Text(playlist.name).font(.headline).foregroundStyle(.primary).lineLimit(1)
+            Text(store.displayName(for: playlist))
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
             Text("\(tracks.count) 首歌曲").font(.caption).foregroundStyle(.secondary)
         }
         .frame(width: 156, alignment: .leading)
@@ -374,7 +369,7 @@ private struct LocalPlaylistDetailView: View {
             Section {
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(currentPlaylist.name).font(.title2.bold())
+                        Text(store.displayName(for: currentPlaylist)).font(.title2.bold())
                         Text("\(tracks.count) 首歌曲").foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -405,21 +400,26 @@ private struct LocalPlaylistDetailView: View {
                 }
             }
         }
-        .navigationTitle(currentPlaylist.name)
+        .navigationTitle(store.displayName(for: currentPlaylist))
         .toolbar {
             ToolbarItem {
                 Menu {
-                    Button {
-                        renameText = currentPlaylist.name
-                        showsRename = true
-                    } label: {
-                        Label("重命名", systemImage: "pencil")
-                    }
                     Button { store.toggleFavorite(currentPlaylist) } label: {
-                        Label("收藏", systemImage: "star")
+                        Label(
+                            store.isFavorite(currentPlaylist) ? "取消收藏歌单" : "收藏歌单",
+                            systemImage: store.isFavorite(currentPlaylist) ? "star.slash" : "star"
+                        )
                     }
-                    Button(role: .destructive) { store.delete(currentPlaylist) } label: {
-                        Label("删除歌单", systemImage: "trash")
+                    if !store.isLikedPlaylist(currentPlaylist) {
+                        Button {
+                            renameText = currentPlaylist.name
+                            showsRename = true
+                        } label: {
+                            Label("重命名", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) { store.delete(currentPlaylist) } label: {
+                            Label("删除歌单", systemImage: "trash")
+                        }
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -465,13 +465,16 @@ struct AddToLocalPlaylistSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(store.musicPlaylists) { playlist in
+                ForEach(store.orderedMusicPlaylists) { playlist in
                     Button {
                         store.add(item, to: playlist)
                         dismiss()
                     } label: {
                         HStack {
-                            Label(playlist.name, systemImage: "music.note.list")
+                            Label(
+                                store.displayName(for: playlist),
+                                systemImage: store.isLikedPlaylist(playlist) ? "heart.fill" : "music.note.list"
+                            )
                             Spacer()
                             if store.contains(item, in: playlist) {
                                 Image(systemName: "checkmark").foregroundStyle(.pink)

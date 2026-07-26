@@ -36,7 +36,10 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var recentPaths: [String]
     @Published private(set) var musicPlaylists: [MusicPlaylist]
     @Published private(set) var favoriteMusicPlaylistIDs: Set<UUID>
+    @Published private(set) var likedPlaylistID: UUID
     @Published var alert: LibraryAlert?
+
+    static let likedPlaylistName = "我喜欢"
 
     let libraryURL: URL
 
@@ -45,6 +48,7 @@ final class LibraryStore: ObservableObject {
     private let recentsKey = "folio.recentPaths"
     private let musicPlaylistsKey = "yubing.musicPlaylists"
     private let favoriteMusicPlaylistsKey = "yubing.favoriteMusicPlaylistIDs"
+    private let likedPlaylistIDKey = "yubing.likedMusicPlaylistID"
 
     init() {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
@@ -52,17 +56,32 @@ final class LibraryStore: ObservableObject {
         libraryURL = documents.appendingPathComponent("YuBing Library", isDirectory: true)
         favoritePaths = Set(UserDefaults.standard.stringArray(forKey: favoritesKey) ?? [])
         recentPaths = UserDefaults.standard.stringArray(forKey: recentsKey) ?? []
-        musicPlaylists = Self.loadMusicPlaylists(key: musicPlaylistsKey)
+        var playlists = Self.loadMusicPlaylists(key: musicPlaylistsKey)
+        let storedLikedID = UserDefaults.standard.string(forKey: likedPlaylistIDKey)
+            .flatMap { UUID(uuidString: $0) }
+        if let storedLikedID, playlists.contains(where: { $0.id == storedLikedID }) {
+            likedPlaylistID = storedLikedID
+        } else if let existing = playlists.first(where: { $0.name == Self.likedPlaylistName }) {
+            likedPlaylistID = existing.id
+        } else {
+            let liked = MusicPlaylist(name: Self.likedPlaylistName)
+            playlists.insert(liked, at: 0)
+            likedPlaylistID = liked.id
+        }
+        musicPlaylists = playlists
         favoriteMusicPlaylistIDs = Set(
             (UserDefaults.standard.stringArray(forKey: favoriteMusicPlaylistsKey) ?? [])
                 .compactMap { UUID(uuidString: $0) }
         )
+        UserDefaults.standard.set(likedPlaylistID.uuidString, forKey: likedPlaylistIDKey)
+        persistMusicPlaylists()
 
         do {
             try fileManager.createDirectory(at: libraryURL, withIntermediateDirectories: true)
             try seedWelcomeFileIfNeeded()
             items = Self.scanLibrary(at: libraryURL)
             pruneMissingPlaylistTracks()
+            adoptFavoritedTracksIntoLikedPlaylist()
         } catch {
             alert = LibraryAlert(title: "无法打开资料库", message: error.localizedDescription)
         }
@@ -98,6 +117,30 @@ final class LibraryStore: ObservableObject {
         favoriteMusicPlaylistIDs.contains(playlist.id)
     }
 
+    var likedPlaylist: MusicPlaylist? {
+        musicPlaylists.first { $0.id == likedPlaylistID }
+    }
+
+    var orderedMusicPlaylists: [MusicPlaylist] {
+        guard let likedIndex = musicPlaylists.firstIndex(where: { $0.id == likedPlaylistID }) else {
+            return musicPlaylists
+        }
+        var ordered = musicPlaylists
+        let liked = ordered.remove(at: likedIndex)
+        ordered.insert(liked, at: 0)
+        return ordered
+    }
+
+    func isLikedPlaylist(_ playlist: MusicPlaylist) -> Bool {
+        playlist.id == likedPlaylistID
+    }
+
+    func displayName(for playlist: MusicPlaylist) -> String {
+        isLikedPlaylist(playlist)
+            ? AppLocalization.string(Self.likedPlaylistName)
+            : playlist.name
+    }
+
     func createMusicPlaylist(named name: String, initialTrack: LibraryItem? = nil) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -110,6 +153,7 @@ final class LibraryStore: ObservableObject {
     }
 
     func rename(_ playlist: MusicPlaylist, to newName: String) {
+        guard !isLikedPlaylist(playlist) else { return }
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             alert = LibraryAlert(title: "名称不可用", message: "歌单名称不能为空。")
@@ -122,6 +166,7 @@ final class LibraryStore: ObservableObject {
     }
 
     func delete(_ playlist: MusicPlaylist) {
+        guard !isLikedPlaylist(playlist) else { return }
         musicPlaylists.removeAll { $0.id == playlist.id }
         favoriteMusicPlaylistIDs.remove(playlist.id)
         persistMusicPlaylists()
@@ -144,6 +189,11 @@ final class LibraryStore: ObservableObject {
         musicPlaylists[index].trackPaths.append(item.relativePath)
         musicPlaylists[index].updatedAt = Date()
         persistMusicPlaylists()
+        if playlist.id == likedPlaylistID, !favoritePaths.contains(item.relativePath) {
+            favoritePaths.insert(item.relativePath)
+            persistState()
+            objectWillChange.send()
+        }
     }
 
     func remove(_ item: LibraryItem, from playlist: MusicPlaylist) {
@@ -151,6 +201,11 @@ final class LibraryStore: ObservableObject {
         musicPlaylists[index].trackPaths.removeAll { $0 == item.relativePath }
         musicPlaylists[index].updatedAt = Date()
         persistMusicPlaylists()
+        if playlist.id == likedPlaylistID, favoritePaths.contains(item.relativePath) {
+            favoritePaths.remove(item.relativePath)
+            persistState()
+            objectWillChange.send()
+        }
     }
 
     func children(of folder: URL) -> [LibraryItem] {
@@ -169,6 +224,7 @@ final class LibraryStore: ObservableObject {
         favoritePaths = favoritePaths.filter { path in items.contains(where: { $0.relativePath == path }) }
         recentPaths = recentPaths.filter { path in items.contains(where: { $0.relativePath == path }) }
         pruneMissingPlaylistTracks()
+        adoptFavoritedTracksIntoLikedPlaylist()
         persistState()
     }
 
@@ -295,11 +351,42 @@ final class LibraryStore: ObservableObject {
     func toggleFavorite(_ item: LibraryItem) {
         if favoritePaths.contains(item.relativePath) {
             favoritePaths.remove(item.relativePath)
+            removeFromLikedPlaylist(item)
         } else {
             favoritePaths.insert(item.relativePath)
+            addToLikedPlaylist(item)
         }
         persistState()
         objectWillChange.send()
+    }
+
+    private func addToLikedPlaylist(_ item: LibraryItem) {
+        guard item.kind == .music,
+              let index = musicPlaylists.firstIndex(where: { $0.id == likedPlaylistID }),
+              !musicPlaylists[index].trackPaths.contains(item.relativePath) else { return }
+        musicPlaylists[index].trackPaths.append(item.relativePath)
+        musicPlaylists[index].updatedAt = Date()
+        persistMusicPlaylists()
+    }
+
+    private func removeFromLikedPlaylist(_ item: LibraryItem) {
+        guard let index = musicPlaylists.firstIndex(where: { $0.id == likedPlaylistID }),
+              musicPlaylists[index].trackPaths.contains(item.relativePath) else { return }
+        musicPlaylists[index].trackPaths.removeAll { $0 == item.relativePath }
+        musicPlaylists[index].updatedAt = Date()
+        persistMusicPlaylists()
+    }
+
+    private func adoptFavoritedTracksIntoLikedPlaylist() {
+        guard let index = musicPlaylists.firstIndex(where: { $0.id == likedPlaylistID }) else { return }
+        let favoritedMusicPaths = items
+            .filter { $0.kind == .music && favoritePaths.contains($0.relativePath) }
+            .map(\.relativePath)
+        let missing = favoritedMusicPaths.filter { !musicPlaylists[index].trackPaths.contains($0) }
+        guard !missing.isEmpty else { return }
+        musicPlaylists[index].trackPaths.append(contentsOf: missing)
+        musicPlaylists[index].updatedAt = Date()
+        persistMusicPlaylists()
     }
 
     func markOpened(_ item: LibraryItem) {
@@ -339,6 +426,18 @@ final class LibraryStore: ObservableObject {
         recentPaths = recentPaths.map { path in
             path.hasPrefix(oldPrefix) ? newPrefix + path.dropFirst(oldPrefix.count) : path
         }
+        musicPlaylists = musicPlaylists.map { playlist in
+            var playlist = playlist
+            let paths = playlist.trackPaths.map { path in
+                path.hasPrefix(oldPrefix) ? newPrefix + path.dropFirst(oldPrefix.count) : path
+            }
+            if paths != playlist.trackPaths {
+                playlist.trackPaths = paths
+                playlist.updatedAt = Date()
+            }
+            return playlist
+        }
+        persistMusicPlaylists()
         persistState()
     }
 
@@ -375,6 +474,10 @@ final class LibraryStore: ObservableObject {
         }
         favoriteMusicPlaylistIDs = favoriteMusicPlaylistIDs.filter { id in
             musicPlaylists.contains { $0.id == id }
+        }
+        if !musicPlaylists.contains(where: { $0.id == likedPlaylistID }) {
+            musicPlaylists.insert(MusicPlaylist(id: likedPlaylistID, name: Self.likedPlaylistName), at: 0)
+            changed = true
         }
         if changed { persistMusicPlaylists() }
         persistFavoriteMusicPlaylists()

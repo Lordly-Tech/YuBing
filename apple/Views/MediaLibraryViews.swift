@@ -296,21 +296,6 @@ struct GalleryView: View {
     }
 }
 
-struct FavoriteLibraryView: View {
-    @EnvironmentObject private var store: LibraryStore
-
-    var body: some View {
-        LibraryGridContent(
-            items: store.favorites.sorted(by: .date),
-            emptyTitle: "还没有收藏",
-            emptyMessage: "长按或右键点按项目即可加入收藏。",
-            emptySymbol: "star",
-            importAction: nil
-        )
-        .navigationTitle("收藏")
-    }
-}
-
 struct LibraryGridContent: View {
     let items: [LibraryItem]
     let emptyTitle: String

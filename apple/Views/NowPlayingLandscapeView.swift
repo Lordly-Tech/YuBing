@@ -15,14 +15,16 @@ struct NowPlayingLandscapeView: View {
     var body: some View {
         GeometryReader { proxy in
             let spacing = min(max(proxy.size.width * 0.035, 24), 44)
+            let isCompactHeight = proxy.size.height < 480
+            let reservedControlHeight: CGFloat = isCompactHeight ? 194 : 220
             let artworkSide = min(
-                proxy.size.height * 0.68,
+                max(proxy.size.height - reservedControlHeight, 132),
                 proxy.size.width * 0.34,
                 430
             )
 
             HStack(spacing: spacing) {
-                albumPage(side: artworkSide)
+                albumPage(side: artworkSide, isCompactHeight: isCompactHeight)
                     .frame(width: min(proxy.size.width * 0.4, 470))
 
                 lyricsPage
@@ -40,8 +42,8 @@ struct NowPlayingLandscapeView: View {
         }
     }
 
-    private func albumPage(side: CGFloat) -> some View {
-        VStack(spacing: 16) {
+    private func albumPage(side: CGFloat, isCompactHeight: Bool) -> some View {
+        VStack(spacing: isCompactHeight ? 10 : 16) {
             Spacer(minLength: 0)
 
             ArtworkImage(data: song.artworkData, cornerRadius: 12)
@@ -60,9 +62,21 @@ struct NowPlayingLandscapeView: View {
             }
             .frame(maxWidth: side)
 
+            playbackControls(width: side, isCompactHeight: isCompactHeight)
+
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func playbackControls(width: CGFloat, isCompactHeight: Bool) -> some View {
+        VStack(spacing: isCompactHeight ? 0 : 6) {
+            NowPlayingProgressControl(song: song)
+
+            NowPlayingTransportControls(isCompact: isCompactHeight)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: max(width, 240))
     }
 
     private var lyricsPage: some View {

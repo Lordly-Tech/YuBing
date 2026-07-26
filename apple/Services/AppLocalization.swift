@@ -34,6 +34,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 enum AppLocalization {
     static let preferenceKey = "app.language"
     static let supportedIdentifiers = ["zh-Hans", "zh-Hant", "ja", "ko", "en"]
+    /// 与 Localizable.xcstrings 的 sourceLanguage 保持一致。
+    static let sourceIdentifier = "zh-Hans"
 
     static var selectedLanguage: AppLanguage {
         let rawValue = UserDefaults.standard.string(forKey: preferenceKey) ?? AppLanguage.system.rawValue
@@ -41,26 +43,43 @@ enum AppLocalization {
     }
 
     static func preferredLanguageIdentifier() -> String {
-        preferredLanguageIdentifier(from: Locale.preferredLanguages)
+        // Locale.preferredLanguages 是「系统偏好 ∩ App 本地化」后的结果，
+        // 一旦 bundle 里缺某个本地化，它就会被替换成同语族的其他变体
+        // （简体中文被换成 zh-Hant 就是这么来的）。
+        // 因此优先读取未经过滤的原始系统列表。
+        let rawList = UserDefaults.standard.stringArray(forKey: "AppleLanguages") ?? []
+        return preferredLanguageIdentifier(from: rawList + Locale.preferredLanguages)
     }
 
     static func preferredLanguageIdentifier(from preferredLanguages: [String]) -> String {
         for preferred in preferredLanguages {
-            let identifier = preferred.lowercased()
-            if identifier.hasPrefix("zh") {
-                if identifier.contains("hant") ||
-                    identifier.contains("-tw") || identifier.contains("_tw") ||
-                    identifier.contains("-hk") || identifier.contains("_hk") ||
-                    identifier.contains("-mo") || identifier.contains("_mo") {
-                    return "zh-Hant"
-                }
-                return "zh-Hans"
+            let subtags = preferred
+                .replacingOccurrences(of: "_", with: "-")
+                .lowercased()
+                .split(separator: "-")
+                .map(String.init)
+            guard let language = subtags.first else { continue }
+            switch language {
+            case "zh": return chineseIdentifier(subtags: subtags)
+            case "ja": return "ja"
+            case "ko": return "ko"
+            case "en": return "en"
+            default: continue
             }
-            if identifier.hasPrefix("ja") { return "ja" }
-            if identifier.hasPrefix("ko") { return "ko" }
-            if identifier.hasPrefix("en") { return "en" }
         }
         return "en"
+    }
+
+    private static func chineseIdentifier(subtags: [String]) -> String {
+        let scriptSubtags: Set<String> = ["hans", "hant"]
+        if let script = subtags.first(where: { scriptSubtags.contains($0) }) {
+            return script == "hant" ? "zh-Hant" : "zh-Hans"
+        }
+        let traditionalRegions: Set<String> = ["tw", "hk", "mo"]
+        if subtags.dropFirst().contains(where: { traditionalRegions.contains($0) }) {
+            return "zh-Hant"
+        }
+        return "zh-Hans"
     }
 
     static func languageName(for identifier: String) -> String {
@@ -73,15 +92,17 @@ enum AppLocalization {
         }
     }
 
+    /// 源语言即简体中文，所以回退链是「选定语言 → 简体中文源串 → key 本身」。
+    /// 不再回退到英文，避免中文界面出现中英混排。
     static func string(_ key: String) -> String {
         let identifier = selectedLanguage.localeIdentifier
-        if identifier == "zh-Hans" {
-            return localizedString(key, language: identifier) ?? key
+        if identifier == sourceIdentifier {
+            return localizedString(key, language: sourceIdentifier) ?? key
         }
-        if let value = localizedString(key, language: identifier), value != key || identifier == "zh-Hans" {
+        if let value = localizedString(key, language: identifier), value != key {
             return value
         }
-        return localizedString(key, language: "en") ?? key
+        return localizedString(key, language: sourceIdentifier) ?? key
     }
 
     private static func localizedString(_ key: String, language: String) -> String? {

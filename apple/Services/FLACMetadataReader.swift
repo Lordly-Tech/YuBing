@@ -9,8 +9,11 @@ struct FLACMetadataSnapshot: Sendable {
     var date: String?
     var trackNumber: String?
     var discNumber: String?
+    var composer: String?
     var sampleRate: Int?
     var bitDepth: Int?
+    var channelCount: Int?
+    var bitRate: Int?
     var artworkData: Data?
     var lyrics: String?
 }
@@ -31,6 +34,8 @@ enum FLACMetadataReader {
         var comments: [String: [String]] = [:]
         var sampleRate: Int?
         var bitDepth: Int?
+        var channelCount: Int?
+        var totalSamples: Int?
         var artworkData: Data?
         var didReachLastBlock = false
 
@@ -58,6 +63,8 @@ enum FLACMetadataReader {
                 let properties = streamProperties(from: block)
                 sampleRate = properties.sampleRate
                 bitDepth = properties.bitDepth
+                channelCount = properties.channelCount
+                totalSamples = properties.totalSamples
             case 4:
                 comments = vorbisComments(from: block)
             case 6:
@@ -78,8 +85,15 @@ enum FLACMetadataReader {
             date: firstValue(in: comments, keys: ["DATE", "YEAR", "ORIGINALDATE"]),
             trackNumber: firstValue(in: comments, keys: ["TRACKNUMBER", "TRACK"]),
             discNumber: firstValue(in: comments, keys: ["DISCNUMBER", "DISC"]),
+            composer: firstValue(in: comments, keys: ["COMPOSER", "WRITER"]),
             sampleRate: sampleRate,
             bitDepth: bitDepth,
+            channelCount: channelCount,
+            bitRate: bitRate(
+                for: url,
+                sampleRate: sampleRate,
+                totalSamples: totalSamples
+            ),
             artworkData: artworkData,
             lyrics: firstValue(
                 in: comments,
@@ -109,14 +123,42 @@ enum FLACMetadataReader {
         return data
     }
 
-    private static func streamProperties(from data: Data) -> (sampleRate: Int?, bitDepth: Int?) {
-        guard data.count >= 14 else { return (nil, nil) }
+    private static func streamProperties(
+        from data: Data
+    ) -> (sampleRate: Int?, bitDepth: Int?, channelCount: Int?, totalSamples: Int?) {
+        guard data.count >= 14 else { return (nil, nil, nil, nil) }
         let sampleRate = Int(data.byte(at: 10)) << 12 |
             Int(data.byte(at: 11)) << 4 |
             Int(data.byte(at: 12) >> 4)
+        let channelCount = Int((data.byte(at: 12) >> 1) & 0x07) + 1
         let bitDepth = (Int(data.byte(at: 12) & 0x01) << 4 |
             Int(data.byte(at: 13) >> 4)) + 1
-        return (sampleRate > 0 ? sampleRate : nil, bitDepth > 0 ? bitDepth : nil)
+
+        var totalSamples: Int?
+        if data.count >= 18 {
+            let value = Int(data.byte(at: 13) & 0x0f) << 32 |
+                Int(data.byte(at: 14)) << 24 |
+                Int(data.byte(at: 15)) << 16 |
+                Int(data.byte(at: 16)) << 8 |
+                Int(data.byte(at: 17))
+            totalSamples = value > 0 ? value : nil
+        }
+
+        return (
+            sampleRate > 0 ? sampleRate : nil,
+            bitDepth > 0 ? bitDepth : nil,
+            channelCount > 0 ? channelCount : nil,
+            totalSamples
+        )
+    }
+
+    private static func bitRate(for url: URL, sampleRate: Int?, totalSamples: Int?) -> Int? {
+        guard let sampleRate, sampleRate > 0, let totalSamples, totalSamples > 0,
+              let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              size > 0 else { return nil }
+        let duration = Double(totalSamples) / Double(sampleRate)
+        guard duration > 0 else { return nil }
+        return Int((Double(size) * 8 / duration).rounded())
     }
 
     private static func vorbisComments(from data: Data) -> [String: [String]] {

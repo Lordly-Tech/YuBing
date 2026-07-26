@@ -8,6 +8,7 @@ import UIKit
 struct MoreView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var wifiTransfer: WiFiTransferService
+    @Environment(AppSettings.self) private var settings
     @State private var showsWiFiTransfer = false
     @AppStorage(AppLocalization.preferenceKey) private var appLanguageRaw = AppLanguage.system.rawValue
 
@@ -46,12 +47,6 @@ struct MoreView: View {
 
     private var featuresSection: some View {
         Section("功能") {
-            NavigationLink {
-                FavoriteLibraryView()
-            } label: {
-                MoreRowLabel(title: "收藏", systemImage: "star", tint: .yellow)
-            }
-
             Button {
                 showsWiFiTransfer = true
             } label: {
@@ -63,6 +58,17 @@ struct MoreView: View {
                 )
             }
             .buttonStyle(.plain)
+
+            NavigationLink {
+                LyricsEffectsSettingsView()
+            } label: {
+                MoreRowLabel(
+                    title: "歌词动效",
+                    subtitle: lyricsEffectsSummary,
+                    systemImage: "textformat.abc.dottedunderline",
+                    tint: .pink
+                )
+            }
 
             #if os(iOS)
             NavigationLink {
@@ -105,19 +111,9 @@ struct MoreView: View {
             } label: {
                 MoreRowLabel(
                     title: "开源与许可证",
-                    subtitle: "GPL-3.0 与 MeloX 致谢",
-                    systemImage: "scroll",
-                    tint: .teal
-                )
-            }
-
-            Link(destination: URL(string: "https://github.com/Lordly-Tech/YuBing")!) {
-                MoreButtonRow(
-                    title: "GitHub 开源仓库",
-                    subtitle: "Lordly-Tech/YuBing",
+                    subtitle: "Lordly-Tech/YuBing · GPL-3.0",
                     systemImage: "chevron.left.forwardslash.chevron.right",
-                    tint: .indigo,
-                    showsChevron: false
+                    tint: .indigo
                 )
             }
         }
@@ -225,6 +221,12 @@ struct MoreView: View {
         UIApplication.shared.open(url)
     }
     #endif
+
+    private var lyricsEffectsSummary: String {
+        settings.lyricsWordByWord
+            ? AppLocalization.string("已开启")
+            : AppLocalization.string("已关闭")
+    }
 
     private var versionString: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"

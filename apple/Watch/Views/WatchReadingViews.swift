@@ -732,15 +732,18 @@ struct WatchImageReaderView: View {
     @EnvironmentObject private var store: WatchLibraryStore
     let item: WatchLibraryItem
     @State private var image: CGImage?
+    @State private var zoom = WatchImageReaderView.minimumZoom
+    @State private var panOffset = CGSize.zero
+    @State private var activePanOffset = CGSize.zero
+
+    private static let minimumZoom: CGFloat = 1
+    private static let maximumZoom: CGFloat = 6
+    private static let maximumDecodedPixelSize = 1_600
 
     var body: some View {
         Group {
             if let image {
-                ScrollView([.horizontal, .vertical]) {
-                    Image(decorative: image, scale: 1)
-                        .resizable()
-                        .scaledToFit()
-                }
+                imageCanvas(image)
             } else {
                 ProgressView()
             }
@@ -752,9 +755,120 @@ struct WatchImageReaderView: View {
             }
         }
         .task {
-            guard let source = CGImageSourceCreateWithURL(item.url as CFURL, nil) else { return }
-            image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+            image = Self.decodeImage(at: item.url)
         }
+    }
+
+    private func imageCanvas(_ image: CGImage) -> some View {
+        GeometryReader { proxy in
+            let container = proxy.size
+            let fitted = Self.fittedSize(for: image, in: container)
+            let limit = Self.panLimit(fitted: fitted, container: container, zoom: zoom)
+            let offset = Self.clamped(
+                CGSize(
+                    width: panOffset.width + activePanOffset.width,
+                    height: panOffset.height + activePanOffset.height
+                ),
+                limit: limit
+            )
+
+            Image(decorative: image, scale: 1)
+                .resizable()
+                .interpolation(.medium)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: container.width, height: container.height)
+                .scaleEffect(zoom)
+                .offset(x: offset.width, y: offset.height)
+                .frame(width: container.width, height: container.height)
+                .clipped()
+                .contentShape(.rect)
+                .gesture(panGesture(limit: limit))
+                .onTapGesture(count: 2) { resetZoom() }
+                .animation(.interactiveSpring(duration: 0.2), value: zoom)
+        }
+        .focusable()
+        .digitalCrownRotation(
+            $zoom,
+            from: Self.minimumZoom,
+            through: Self.maximumZoom,
+            by: 0.05,
+            sensitivity: .medium,
+            isContinuous: false,
+            isHapticFeedbackEnabled: true
+        )
+        .accessibilityLabel("图片")
+        .accessibilityHint("旋转数码表冠放大，双击还原")
+    }
+
+    private func panGesture(limit: CGSize) -> some Gesture {
+        DragGesture()
+            .onChanged { value in
+                guard limit.width > 0 || limit.height > 0 else { return }
+                activePanOffset = value.translation
+            }
+            .onEnded { value in
+                guard limit.width > 0 || limit.height > 0 else {
+                    activePanOffset = .zero
+                    return
+                }
+                panOffset = Self.clamped(
+                    CGSize(
+                        width: panOffset.width + value.translation.width,
+                        height: panOffset.height + value.translation.height
+                    ),
+                    limit: limit
+                )
+                activePanOffset = .zero
+            }
+    }
+
+    private func resetZoom() {
+        withAnimation(.smooth(duration: 0.24)) {
+            zoom = Self.minimumZoom
+            panOffset = .zero
+            activePanOffset = .zero
+        }
+    }
+
+    private static func fittedSize(for image: CGImage, in container: CGSize) -> CGSize {
+        let width = CGFloat(image.width)
+        let height = CGFloat(image.height)
+        guard width > 0, height > 0, container.width > 0, container.height > 0 else {
+            return container
+        }
+        let scale = min(container.width / width, container.height / height)
+        return CGSize(width: width * scale, height: height * scale)
+    }
+
+    private static func panLimit(fitted: CGSize, container: CGSize, zoom: CGFloat) -> CGSize {
+        CGSize(
+            width: max((fitted.width * zoom - container.width) / 2, 0),
+            height: max((fitted.height * zoom - container.height) / 2, 0)
+        )
+    }
+
+    private static func clamped(_ offset: CGSize, limit: CGSize) -> CGSize {
+        CGSize(
+            width: min(max(offset.width, -limit.width), limit.width),
+            height: min(max(offset.height, -limit.height), limit.height)
+        )
+    }
+
+    private static func decodeImage(at url: URL) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maximumDecodedPixelSize
+        ]
+        if let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+            source,
+            0,
+            options as CFDictionary
+        ) {
+            return thumbnail
+        }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 }
 

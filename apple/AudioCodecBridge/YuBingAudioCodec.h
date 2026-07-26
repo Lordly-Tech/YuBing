@@ -16,10 +16,14 @@ typedef struct {
     char *date;
     char *track_number;
     char *disc_number;
+    char *composer;
     char *lyrics;
     char *codec;
+    char *channel_layout;
     int32_t sample_rate;
     int32_t bit_depth;
+    int32_t channel_count;
+    int64_t bit_rate;
     int32_t is_lossless;
     uint8_t *artwork_data;
     int64_t artwork_size;

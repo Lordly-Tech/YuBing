@@ -11,9 +11,13 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
     var year: String?
     var trackNumber: String?
     var discNumber: String?
+    var composer: String?
     var codec: String?
+    var channelLayout: String?
     var sampleRate: Int?
     var bitDepth: Int?
+    var channelCount: Int?
+    var bitRate: Int?
     var isLossless: Bool
     var artworkData: Data?
     var lyrics: TimedLyrics?
@@ -27,16 +31,20 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
         year: nil,
         trackNumber: nil,
         discNumber: nil,
+        composer: nil,
         codec: nil,
+        channelLayout: nil,
         sampleRate: nil,
         bitDepth: nil,
+        channelCount: nil,
+        bitRate: nil,
         isLossless: false,
         artworkData: nil,
         lyrics: nil
     )
 
     var hasDetails: Bool {
-        [title, artist, album, albumArtist, genre, year].contains { value in
+        [title, artist, album, albumArtist, genre, year, composer].contains { value in
             guard let value else { return false }
             return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         } || artworkData != nil
@@ -50,13 +58,48 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
     var qualityDescription: String {
         var details: [String] = []
         if isLossless { details.append("Lossless") }
-        if let sampleRate {
-            let value = Double(sampleRate) / 1000
+        if let sampleRate, sampleRate > 0 {
+            let value = Double(sampleRate) / 1_000
             details.append(value.rounded() == value ? "\(Int(value)) kHz" : String(format: "%.1f kHz", value))
         }
         if let bitDepth, bitDepth > 0 { details.append("\(bitDepth)-bit") }
         if let codec, !codec.isEmpty { details.append(codec.uppercased()) }
         return details.joined(separator: " · ")
+    }
+
+    var sampleRateDescription: String? {
+        guard let sampleRate, sampleRate > 0 else { return nil }
+        let value = Double(sampleRate) / 1_000
+        let formatted = value.rounded() == value
+            ? "\(Int(value)) kHz"
+            : String(format: "%.1f kHz", value)
+        return "\(sampleRate.formatted()) Hz (\(formatted))"
+    }
+
+    var bitRateDescription: String? {
+        guard let bitRate, bitRate > 0 else { return nil }
+        let kilobits = Int((Double(bitRate) / 1_000).rounded())
+        guard kilobits > 0 else { return nil }
+        return "\(kilobits) kbps"
+    }
+
+    var channelDescription: String? {
+        guard let channelCount, channelCount > 0 else { return nil }
+        guard let name = Self.channelLayoutName(count: channelCount, layout: channelLayout) else {
+            return "\(channelCount)"
+        }
+        return "\(channelCount) (\(name))"
+    }
+
+    private static func channelLayoutName(count: Int, layout: String?) -> String? {
+        switch count {
+        case 1: return AppLocalization.string("单声道")
+        case 2: return AppLocalization.string("立体声")
+        default: break
+        }
+        guard let layout else { return nil }
+        let trimmed = layout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     static func load(from url: URL) async -> EmbeddedAudioMetadata {
@@ -99,6 +142,11 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
             let digits = value.filter(\.isNumber)
             return digits.count >= 4 ? String(digits.prefix(4)) : value
         }
+        let avComposer = await stringValue(
+            in: allItems,
+            identifiers: [],
+            hints: ["composer", "tcom", "\u{00A9}wrt", "wrt"]
+        )
         let avTrackNumber = await stringValue(in: allItems, identifiers: [], hints: ["tracknumber", "track_number"])
         let avDiscNumber = await stringValue(in: allItems, identifiers: [], hints: ["discnumber", "disc_number"])
         let avLyrics = await stringValue(in: allItems, identifiers: [], hints: ["lyric", "unsynchronizedlyric"])
@@ -106,6 +154,7 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
         let id3Lyrics = ID3EmbeddedLyricsReader.read(from: url)
         let trackNumber = containerMetadata?.trackNumber ?? flacMetadata?.trackNumber ?? avTrackNumber
         let discNumber = containerMetadata?.discNumber ?? flacMetadata?.discNumber ?? avDiscNumber
+        let composer = containerMetadata?.composer ?? flacMetadata?.composer ?? avComposer
         let embeddedLyrics = containerMetadata?.lyrics ?? flacMetadata?.lyrics ?? avLyrics ?? id3Lyrics
         let artworkData = containerMetadata?.artworkData ?? flacMetadata?.artworkData ?? avArtworkData
         let properties = await audioProperties(from: asset)
@@ -126,9 +175,18 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
             year: year,
             trackNumber: trackNumber,
             discNumber: discNumber,
+            composer: composer,
             codec: containerMetadata?.codec ?? properties.codec ?? ext,
+            channelLayout: containerMetadata?.channelLayout,
             sampleRate: containerMetadata?.sampleRate ?? flacMetadata?.sampleRate ?? properties.sampleRate,
             bitDepth: containerMetadata?.bitDepth ?? flacMetadata?.bitDepth ?? properties.bitDepth,
+            channelCount: containerMetadata?.channelCount
+                ?? flacMetadata?.channelCount
+                ?? properties.channelCount,
+            bitRate: containerMetadata?.bitRate
+                ?? flacMetadata?.bitRate
+                ?? properties.bitRate
+                ?? estimatedBitRate(for: url, duration: properties.duration),
             isLossless: isLossless,
             artworkData: artworkData,
             lyrics: AudioLyricsLoader.load(sidecarFor: url, embeddedText: embeddedLyrics)
@@ -165,11 +223,26 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
         return nil
     }
 
-    private static func audioProperties(from asset: AVURLAsset) async -> (codec: String?, sampleRate: Int?, bitDepth: Int?) {
+    private static func audioProperties(
+        from asset: AVURLAsset
+    ) async -> (
+        codec: String?,
+        sampleRate: Int?,
+        bitDepth: Int?,
+        channelCount: Int?,
+        bitRate: Int?,
+        duration: TimeInterval?
+    ) {
+        let assetDuration = (try? await asset.load(.duration)).map(CMTimeGetSeconds)
+        let duration = (assetDuration?.isFinite == true && (assetDuration ?? 0) > 0) ? assetDuration : nil
         guard let track = try? await asset.loadTracks(withMediaType: .audio).first,
               let descriptions = try? await track.load(.formatDescriptions),
               let description = descriptions.first else {
-            return (nil, nil, nil)
+            return (nil, nil, nil, nil, nil, duration)
+        }
+        let estimatedRate = (try? await track.load(.estimatedDataRate)).flatMap { rate -> Int? in
+            guard rate.isFinite, rate > 0 else { return nil }
+            return Int(rate.rounded())
         }
         let subtype = CMFormatDescriptionGetMediaSubType(description)
         let rawBytes: [UInt8] = [
@@ -181,11 +254,21 @@ struct EmbeddedAudioMetadata: Equatable, Sendable {
         let printableBytes = rawBytes.filter { byte in byte >= 32 && byte < 127 }
         let codec = String(bytes: printableBytes, encoding: .ascii)
         guard let basic = CMAudioFormatDescriptionGetStreamBasicDescription(description) else {
-            return (codec, nil, nil)
+            return (codec, nil, nil, nil, estimatedRate, duration)
         }
         let sampleRate = basic.pointee.mSampleRate > 0 ? Int(basic.pointee.mSampleRate.rounded()) : nil
         let bitDepth = basic.pointee.mBitsPerChannel > 0 ? Int(basic.pointee.mBitsPerChannel) : nil
-        return (codec, sampleRate, bitDepth)
+        let channelCount = basic.pointee.mChannelsPerFrame > 0
+            ? Int(basic.pointee.mChannelsPerFrame)
+            : nil
+        return (codec, sampleRate, bitDepth, channelCount, estimatedRate, duration)
+    }
+
+    private static func estimatedBitRate(for url: URL, duration: TimeInterval?) -> Int? {
+        guard let duration, duration > 0,
+              let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              size > 0 else { return nil }
+        return Int((Double(size) * 8 / duration).rounded())
     }
 }
 

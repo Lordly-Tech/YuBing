@@ -74,6 +74,13 @@ struct NowPlayingTransportControls: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @EnvironmentObject private var player: AudioPlayerController
 
+    var isCompact = false
+
+    private var skipSymbolSize: CGFloat { isCompact ? 26 : 34 }
+    private var playSymbolSize: CGFloat { isCompact ? 38 : 48 }
+    private var buttonSide: CGFloat { isCompact ? 52 : 64 }
+    private var rowHeight: CGFloat { isCompact ? 62 : 82 }
+
     var body: some View {
         HStack {
             Spacer()
@@ -82,8 +89,8 @@ struct NowPlayingTransportControls: View {
                 player.playPrevious()
             } label: {
                 Image(systemName: "backward.fill")
-                    .font(.system(size: 34, weight: .medium))
-                    .frame(width: 64, height: 64)
+                    .font(.system(size: skipSymbolSize, weight: .medium))
+                    .frame(width: buttonSide, height: buttonSide)
                     .contentShape(.circle)
             }
             .buttonStyle(.plain)
@@ -97,11 +104,11 @@ struct NowPlayingTransportControls: View {
                 Group {
                     if player.isPreparing {
                         ProgressView()
-                            .controlSize(.large)
+                            .controlSize(isCompact ? .regular : .large)
                             .tint(.white)
                     } else {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 48, weight: .medium))
+                            .font(.system(size: playSymbolSize, weight: .medium))
                             .contentTransition(
                                 accessibilityReduceMotion
                                     ? .identity
@@ -118,7 +125,7 @@ struct NowPlayingTransportControls: View {
                             )
                     }
                 }
-                .frame(width: 64, height: 64)
+                .frame(width: buttonSide, height: buttonSide)
                 .contentShape(.circle)
             }
             .buttonStyle(.plain)
@@ -130,8 +137,8 @@ struct NowPlayingTransportControls: View {
                 player.playNext()
             } label: {
                 Image(systemName: "forward.fill")
-                    .font(.system(size: 34, weight: .medium))
-                    .frame(width: 64, height: 64)
+                    .font(.system(size: skipSymbolSize, weight: .medium))
+                    .frame(width: buttonSide, height: buttonSide)
                     .contentShape(.circle)
             }
             .buttonStyle(.plain)
@@ -139,7 +146,7 @@ struct NowPlayingTransportControls: View {
 
             Spacer()
         }
-        .frame(height: 82)
+        .frame(height: rowHeight)
     }
 }
 
