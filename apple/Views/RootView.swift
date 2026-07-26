@@ -143,17 +143,26 @@ private struct CompactRootView: View {
     #endif
 
     private var fallbackTabs: some View {
-        tabs.safeAreaInset(edge: .bottom, spacing: 0) {
-            if player.currentItem != nil {
-                MiniPlayerView {
-                    if let item = player.currentItem { openPlayer(item) }
-                }
-                .matchedTransitionSource(
-                    id: playerTransitionID,
-                    in: playerTransitionNamespace
-                )
-                .background(.bar)
+        tabs.overlay(alignment: .bottom) {
+            floatingMiniPlayer(maxWidth: 620)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
+        }
+    }
+
+    @ViewBuilder
+    private func floatingMiniPlayer(maxWidth: CGFloat) -> some View {
+        if player.currentItem != nil {
+            MiniPlayerView {
+                if let item = player.currentItem { openPlayer(item) }
             }
+            .matchedTransitionSource(
+                id: playerTransitionID,
+                in: playerTransitionNamespace
+            )
+            .frame(maxWidth: maxWidth)
+            .adaptiveGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
         }
     }
 
@@ -192,22 +201,10 @@ private struct SplitRootView: View {
                     .libraryDestinations()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if player.currentItem != nil {
-                    HStack {
-                        Spacer(minLength: 0)
-                        MiniPlayerView {
-                            if let item = player.currentItem { openPlayer(item) }
-                        }
-                        .matchedTransitionSource(
-                            id: playerTransitionID,
-                            in: playerTransitionNamespace
-                        )
-                        .frame(maxWidth: 660)
-                        Spacer(minLength: 0)
-                    }
-                    .background(.bar)
-                }
+            .overlay(alignment: .bottom) {
+                floatingMiniPlayer(maxWidth: 720)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 18)
             }
         }
         #if os(iOS)
@@ -223,17 +220,33 @@ private struct SplitRootView: View {
             if let section = notification.object as? AppSection { selection = section }
         }
     }
+
+    @ViewBuilder
+    private func floatingMiniPlayer(maxWidth: CGFloat) -> some View {
+        if player.currentItem != nil {
+            MiniPlayerView {
+                if let item = player.currentItem { openPlayer(item) }
+            }
+            .matchedTransitionSource(
+                id: playerTransitionID,
+                in: playerTransitionNamespace
+            )
+            .frame(maxWidth: maxWidth)
+            .adaptiveGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: .black.opacity(0.2), radius: 22, y: 10)
+        }
+    }
 }
 
 private struct SectionNavigationBar: View {
     @Binding var selection: AppSection
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 14) {
             Image("AppIconDisplay")
                 .resizable()
-                .frame(width: 34, height: 34)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(width: 42, height: 42)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             ForEach(AppSection.allCases) { section in
                 Button {
@@ -241,11 +254,11 @@ private struct SectionNavigationBar: View {
                 } label: {
                     Label(section.title, systemImage: section.symbol)
                         .font(.subheadline.weight(selection == section ? .semibold : .regular))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
                         .background {
                             if selection == section {
-                                Capsule(style: .continuous)
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
                                     .fill(.primary.opacity(0.1))
                             }
                         }
@@ -255,8 +268,11 @@ private struct SectionNavigationBar: View {
 
             Spacer(minLength: 0)
         }
-        .padding(8)
-        .adaptiveGlass(in: Capsule(style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 960)
+        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .frame(maxWidth: .infinity)
     }
 }
 

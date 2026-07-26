@@ -53,8 +53,7 @@ struct MoreView: View {
                 MoreButtonRow(
                     title: "Wi-Fi 传输",
                     systemImage: "wifi",
-                    tint: .blue,
-                    showsChevron: false
+                    tint: .blue
                 )
             }
             .buttonStyle(.plain)

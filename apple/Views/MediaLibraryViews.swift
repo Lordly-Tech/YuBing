@@ -106,7 +106,6 @@ struct ReadingLibraryView: View {
         .sheet(item: $editingBook) { item in
             BookMetadataEditor(item: item)
         }
-        .immersiveSplitDetail()
     }
 
     private var readingControls: some View {
