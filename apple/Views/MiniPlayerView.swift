@@ -120,7 +120,7 @@ struct MeloXMiniPlayerAccessory: View {
     let onExpand: () -> Void
 
     var body: some View {
-        MiniPlayerView(onExpand: onExpand, isInline: placement == .inline)
+        MiniPlayerView(isInline: placement == .inline, onExpand: onExpand)
     }
 }
 #endif
