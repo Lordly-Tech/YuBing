@@ -193,9 +193,9 @@ private struct SplitRootView: View {
                             }
                             .pickerStyle(.segmented)
                             .labelsHidden()
+                            .controlSize(.large)
                         }
                     }
-                    .toolbar(immersiveDetailDepth == 0 ? .visible : .hidden, for: .navigationBar)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaInset(edge: .bottom, spacing: 0) {
