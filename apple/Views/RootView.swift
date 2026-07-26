@@ -185,20 +185,23 @@ private struct SplitRootView: View {
     let playerTransitionID: String
     let playerTransitionNamespace: Namespace.ID
     @State private var selection: AppSection = .home
-    @State private var immersiveDetailDepth = 0
-
     var body: some View {
         VStack(spacing: 0) {
-            if immersiveDetailDepth == 0 {
-                SectionNavigationBar(selection: $selection)
-                    .padding(.horizontal, 18)
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
-            }
-
             NavigationStack {
                 SectionDestinationView(section: selection)
                     .libraryDestinations()
+                    .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            Picker("板块", selection: $selection) {
+                                ForEach(AppSection.allCases) { section in
+                                    Label(section.title, systemImage: section.symbol)
+                                        .tag(section)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                        }
+                    }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .bottom) {
@@ -210,10 +213,6 @@ private struct SplitRootView: View {
         #if os(iOS)
         .onReceive(NotificationCenter.default.publisher(for: .yuBingWatchTransferDidStart)) { _ in
             selection = .home
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .yuBingImmersiveDetailMode)) { notification in
-            guard let delta = notification.object as? Int else { return }
-            immersiveDetailDepth = max(0, immersiveDetailDepth + delta)
         }
         #endif
         .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
@@ -235,44 +234,6 @@ private struct SplitRootView: View {
             .adaptiveGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: .black.opacity(0.2), radius: 22, y: 10)
         }
-    }
-}
-
-private struct SectionNavigationBar: View {
-    @Binding var selection: AppSection
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Image("AppIconDisplay")
-                .resizable()
-                .frame(width: 42, height: 42)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            ForEach(AppSection.allCases) { section in
-                Button {
-                    selection = section
-                } label: {
-                    Label(section.title, systemImage: section.symbol)
-                        .font(.subheadline.weight(selection == section ? .semibold : .regular))
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 12)
-                        .background {
-                            if selection == section {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(.primary.opacity(0.1))
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: 960)
-        .adaptiveGlass(in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .frame(maxWidth: .infinity)
     }
 }
 
