@@ -84,6 +84,7 @@ struct LibraryImportMenu: View {
     @EnvironmentObject private var wifiTransfer: WiFiTransferService
     @State private var isFileImporterPresented = false
     @State private var photoSelection: [PhotosPickerItem] = []
+    @State private var showsPhotoPicker = false
     @State private var showsWiFiTransfer = false
 
     var destination: URL?
@@ -99,11 +100,9 @@ struct LibraryImportMenu: View {
                 Label("从文件选择", systemImage: "folder")
             }
 
-            PhotosPicker(
-                selection: $photoSelection,
-                maxSelectionCount: 0,
-                matching: photoScope.filter
-            ) {
+            Button {
+                showsPhotoPicker = true
+            } label: {
                 Label(photoScope.title, systemImage: "photo.on.rectangle.angled")
             }
 
@@ -128,6 +127,7 @@ struct LibraryImportMenu: View {
                 store.alert = LibraryAlert(title: "无法导入", message: error.localizedDescription)
             }
         }
+        .photosPicker(isPresented: $showsPhotoPicker, selection: $photoSelection, maxSelectionCount: 0, matching: photoScope.filter)
         .onChange(of: photoSelection) { _, newItems in
             Task { @MainActor in
                 await importPickerItems(newItems, into: destination, store: store)
