@@ -22,7 +22,12 @@ struct AppleMusicLyricsView: View {
     @State private var isPreparingInitialFocus = true
     @State private var visualHighlightedLyricID: LyricLine.ID?
     @State private var visualCascadeFocusLyricID: LyricLine.ID?
-    @State private var lyricFrameByID: [LyricLine.ID: CGRect] = [:]
+    /// Line frames are written from `.onGeometryChange` for every visible line,
+    /// which happens on each scroll frame. They are only read from the cascade
+    /// helpers, never from `body`, so they live in a plain reference box: as
+    /// `@State` they invalidated the whole view roughly ten times per frame
+    /// while the focus moved.
+    @State private var lyricFrames = LyricFrameStore()
     @State private var lyricMovementOffsetByID: [LyricLine.ID: CGFloat] = [:]
     @State private var retainedTopCascadeLyrics: [RetainedCascadeLyric] = []
 
@@ -103,15 +108,6 @@ struct AppleMusicLyricsView: View {
             )
             let dimAmount = settings.lyricsDimAmount
             let currentLineScale = lyricsCurrentLineScale
-            let glowOverflow = Self.lyricGlowOverflow(
-                isEnabled: settings.lyricsGlowEnabled
-                    && (
-                        (settings.lyricsWordByWord && hasSyllableSyncedLyrics)
-                            || usesPseudoTiming
-                    ),
-                fontSize: settings.lyricsFontSize,
-                intensity: settings.lyricsGlowIntensity
-            )
 
             GeometryReader { proxy in
                 let focusPosition = lyricsFocusPosition(
@@ -206,12 +202,12 @@ struct AppleMusicLyricsView: View {
                                 .onGeometryChange(for: CGRect.self) { geometry in
                                     geometry.frame(in: .scrollView(axis: .vertical))
                                 } action: { frame in
-                                    lyricFrameByID[line.id] = frame
+                                    lyricFrames.frames[line.id] = frame
                                 }
                                 .gesture(lyricTapGesture(for: line))
                                 .id(line.id)
                                 .onDisappear {
-                                    lyricFrameByID.removeValue(forKey: line.id)
+                                    lyricFrames.frames.removeValue(forKey: line.id)
                                 }
                                 .accessibilityLabel(
                                     line.accessibilityText(
@@ -272,7 +268,7 @@ struct AppleMusicLyricsView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(width: proxy.size.width + glowOverflow * 2)
+                    .frame(width: proxy.size.width)
                 }
                 .onScrollPhaseChange { _, newPhase in
                     switch newPhase {
@@ -314,7 +310,7 @@ struct AppleMusicLyricsView: View {
                 }
                 .onDisappear {
                     browsingGeneration += 1
-                    lyricFrameByID.removeAll()
+                    lyricFrames.frames.removeAll()
                     lyricMovementOffsetByID.removeAll()
                     retainedTopCascadeLyrics.removeAll()
                 }
@@ -525,7 +521,7 @@ struct AppleMusicLyricsView: View {
         for id: LyricLine.ID
     ) async -> CGRect? {
         for attempt in 0..<30 {
-            if let frame = lyricFrameByID[id] {
+            if let frame = lyricFrames.frames[id] {
                 return frame
             }
             guard !Task.isCancelled, attempt < 29 else { return nil }
@@ -544,7 +540,7 @@ struct AppleMusicLyricsView: View {
         focusPosition: CGFloat
     ) async -> Bool {
         for attempt in 0..<30 {
-            if let frame = lyricFrameByID[id] {
+            if let frame = lyricFrames.frames[id] {
                 let preparedAnchorY = frame.minY
                     + frame.height * focusPosition
                 if abs(preparedAnchorY - viewportAnchorY) <= 2 {
@@ -633,7 +629,7 @@ struct AppleMusicLyricsView: View {
             return
         }
 
-        let initialVisibleIDs = lyricFrameByID
+        let initialVisibleIDs = lyricFrames.frames
             .filter { entry in
                 let frame = entry.value
                 return frame.maxY >= 0 && frame.minY <= visibleViewportHeight
@@ -654,7 +650,7 @@ struct AppleMusicLyricsView: View {
         let focusColorLeadTime = lyricsFocusColorLeadTime
         let retainedTopLyrics: [RetainedCascadeLyric] = initialVisibleIDs.compactMap { id in
             guard movementDistance > 0,
-                  let frame = lyricFrameByID[id],
+                  let frame = lyricFrames.frames[id],
                   frame.minY < movementDistance else {
                 return nil
             }
@@ -696,7 +692,7 @@ struct AppleMusicLyricsView: View {
             return
         }
 
-        let destinationVisibleIDs = lyricFrameByID
+        let destinationVisibleIDs = lyricFrames.frames
             .filter { entry in
                 let frame = entry.value
                 return frame.maxY >= 0 && frame.minY <= visibleViewportHeight
@@ -1002,15 +998,6 @@ struct AppleMusicLyricsView: View {
         return 1 - (1 - baseOpacity) * dimAmount
     }
 
-    nonisolated private static func lyricGlowOverflow(
-        isEnabled: Bool,
-        fontSize: Double,
-        intensity: Double
-    ) -> CGFloat {
-        guard isEnabled else { return 0 }
-        return CGFloat(min(max(fontSize * intensity * 0.75, 16), 32))
-    }
-
     private func schedulePlaybackFollowing() {
         guard isBrowsingLyrics, settings.lyricsAutoFollow else { return }
         let generation = browsingGeneration
@@ -1128,4 +1115,16 @@ private struct RetainedCascadeLyric: Identifiable, Equatable {
     let id: LyricLine.ID
     let frame: CGRect
     let movementDistance: CGFloat
+}
+
+/// Line frames collected from `onGeometryChange`.
+///
+/// Deliberately a plain reference type rather than `@State` storage: the frames
+/// are only read from the cascade helpers, never from `body`. Keeping them out
+/// of the view graph avoids invalidating the whole lyrics view once per visible
+/// line per scroll frame, which is what made the sweep look choppy while the
+/// focus was moving.
+@MainActor
+private final class LyricFrameStore {
+    var frames: [LyricLine.ID: CGRect] = [:]
 }

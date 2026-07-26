@@ -10,23 +10,16 @@ struct LyricTimingTextAttribute: TextAttribute, Hashable, Sendable {
 }
 
 /// Renders timed lyric runs in the coordinates supplied by SwiftUI.
-/// Each glyph fades uniformly from its unplayed style to white, avoiding a
-/// sweeping highlight that competes with the lyric glow. The played glyph and
-/// its original glow are composited once before lift and long-syllable scale
-/// transforms are applied, keeping their relative brightness stable.
-struct LyricGlowTextRenderer: TextRenderer {
+/// Each glyph fades uniformly from its unplayed style to white, lifts slightly
+/// as it is sung, and long syllables get a short expansion envelope. All of it
+/// is derived analytically from `playbackTime`, so the sweep stays continuous
+/// between frames instead of restarting an animation per tick.
+struct LyricTimedTextRenderer: TextRenderer {
     struct Style: Equatable, Sendable {
-        let glowRadius: CGFloat
-        let glowOpacity: Double
         let unplayedOpacity: Double
         let maximumUnplayedBlurRadius: CGFloat
         let playedRise: CGFloat
         let maximumLongSyllableScale: CGFloat
-        let longSyllableExpansionPadding: CGFloat
-
-        fileprivate var drawsGlow: Bool {
-            glowRadius > 0 && glowOpacity > 0
-        }
     }
 
     struct LayoutConfiguration: Equatable, Sendable {
@@ -39,8 +32,6 @@ struct LyricGlowTextRenderer: TextRenderer {
         }
     }
 
-    static let glowTailDuration: TimeInterval = 0.55
-
     var playbackTime: TimeInterval
     let style: Style
     let layoutConfiguration: LayoutConfiguration
@@ -48,17 +39,6 @@ struct LyricGlowTextRenderer: TextRenderer {
     var animatableData: Double {
         get { playbackTime }
         set { playbackTime = newValue }
-    }
-
-    var displayPadding: EdgeInsets {
-        let padding = style.glowRadius * Metrics.displayPaddingMultiplier
-        let expansionPadding = max(style.longSyllableExpansionPadding, 0)
-        return EdgeInsets(
-            top: padding + max(style.playedRise, 0) + expansionPadding,
-            leading: padding + expansionPadding,
-            bottom: padding + expansionPadding,
-            trailing: padding + expansionPadding
-        )
     }
 
     func sizeThatFits(
@@ -78,7 +58,10 @@ struct LyricGlowTextRenderer: TextRenderer {
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
         for line in layout {
             var lineContext = context
-            lineContext.translateBy(x: horizontalOffset(for: line), y: 0)
+            let offset = horizontalOffset(for: line)
+            if offset != 0 {
+                lineContext.translateBy(x: offset, y: 0)
+            }
 
             for run in line {
                 draw(run, in: &lineContext)
@@ -110,12 +93,14 @@ struct LyricGlowTextRenderer: TextRenderer {
         }
 
         let state = visualState(for: timing)
-        drawUnplayed(
-            run,
-            revealProgress: state.revealProgress,
-            blurRadius: state.unplayedBlurRadius,
-            in: &context
-        )
+        if state.revealProgress < 1 {
+            drawUnplayed(
+                run,
+                revealProgress: state.revealProgress,
+                blurRadius: state.unplayedBlurRadius,
+                in: &context
+            )
+        }
         guard state.revealProgress > 0 else { return }
 
         drawPlayed(
@@ -123,8 +108,6 @@ struct LyricGlowTextRenderer: TextRenderer {
             revealProgress: state.revealProgress,
             liftProgress: state.liftProgress,
             expansionScale: state.expansionScale,
-            rawProgress: state.rawProgress,
-            glowStrength: state.glowStrength,
             in: &context
         )
     }
@@ -133,17 +116,11 @@ struct LyricGlowTextRenderer: TextRenderer {
         for timing: LyricTimingTextAttribute
     ) -> RunVisualState {
         let rawProgress = playedProgress(for: timing)
-        let glowStrength = style.drawsGlow && rawProgress > 0
-            ? glowStrength(for: timing, rawProgress: rawProgress)
-            : 0
-
         return RunVisualState(
-            rawProgress: rawProgress,
             revealProgress: smootherStep(rawProgress),
             liftProgress: liftProgress(for: timing),
             expansionScale: expansionScale(for: timing),
-            unplayedBlurRadius: unplayedBlurRadius(for: timing),
-            glowStrength: glowStrength
+            unplayedBlurRadius: unplayedBlurRadius(for: timing)
         )
     }
 
@@ -219,20 +196,16 @@ struct LyricGlowTextRenderer: TextRenderer {
         revealProgress: Double,
         liftProgress: Double,
         expansionScale: CGFloat,
-        rawProgress: Double,
-        glowStrength: Double,
         in context: inout GraphicsContext
     ) {
-        let revealedBounds = revealedBounds(
-            of: run,
-            progress: revealProgress
-        )
         let verticalOffset = -max(style.playedRise, 0)
             * CGFloat(unitProgress(liftProgress))
         let scale = max(expansionScale, 1)
-        let bounds = run.typographicBounds.rect
         var playedContext = context
+        playedContext.opacity = unitProgress(revealProgress)
+
         if verticalOffset != 0 || scale != 1 {
+            let bounds = run.typographicBounds.rect
             let transform = CGAffineTransform(
                 a: scale,
                 b: 0,
@@ -245,89 +218,7 @@ struct LyricGlowTextRenderer: TextRenderer {
                 .projectionTransform(ProjectionTransform(transform))
             )
         }
-
-        playedContext.drawLayer { layer in
-            if glowStrength > 0 {
-                drawGlow(
-                    for: run,
-                    revealedBounds: revealedBounds,
-                    rawProgress: rawProgress,
-                    strength: glowStrength,
-                    in: &layer
-                )
-            }
-
-            var textContext = layer
-            textContext.opacity = unitProgress(revealProgress)
-            textContext.draw(run)
-        }
-    }
-
-    private func drawGlow(
-        for run: Text.Layout.Run,
-        revealedBounds: CGRect,
-        rawProgress: Double,
-        strength: Double,
-        in context: inout GraphicsContext
-    ) {
-        let pulse = 1 + Metrics.glowPulseAmount * sin(.pi * rawProgress)
-        let baseOpacity = style.glowOpacity * strength
-
-        drawGlowLayer(
-            for: run,
-            revealedBounds: revealedBounds,
-            radius: style.glowRadius
-                * Metrics.outerGlowRadiusMultiplier
-                * CGFloat(pulse),
-            opacity: min(baseOpacity * Metrics.outerGlowOpacityMultiplier, 1),
-            in: &context
-        )
-        drawGlowLayer(
-            for: run,
-            revealedBounds: revealedBounds,
-            radius: style.glowRadius
-                * Metrics.innerGlowRadiusMultiplier
-                * CGFloat(pulse),
-            opacity: min(baseOpacity, 1),
-            in: &context
-        )
-    }
-
-    private func drawGlowLayer(
-        for run: Text.Layout.Run,
-        revealedBounds: CGRect,
-        radius: CGFloat,
-        opacity: Double,
-        in context: inout GraphicsContext
-    ) {
-        guard radius > 0, opacity > 0 else { return }
-
-        var glowContext = context
-        glowContext.opacity = opacity
-        glowContext.blendMode = .plusLighter
-        glowContext.addFilter(.blur(radius: radius))
-        glowContext.drawLayer { layer in
-            layer.clip(to: Path(revealedBounds))
-            layer.draw(run)
-        }
-    }
-
-    private func revealedBounds(
-        of run: Text.Layout.Run,
-        progress: Double
-    ) -> CGRect {
-        let bounds = run.typographicBounds.rect
-        let revealedWidth = bounds.width * CGFloat(unitProgress(progress))
-        let originX = run.layoutDirection == .rightToLeft
-            ? bounds.maxX - revealedWidth
-            : bounds.minX
-
-        return CGRect(
-            x: originX,
-            y: bounds.minY,
-            width: revealedWidth,
-            height: bounds.height
-        )
+        playedContext.draw(run)
     }
 
     private func unplayedBlurRadius(
@@ -344,7 +235,12 @@ struct LyricGlowTextRenderer: TextRenderer {
         )
         let blurFraction = Metrics.minimumUnplayedBlurFraction
             + (1 - Metrics.minimumUnplayedBlurFraction) * distance
-        return style.maximumUnplayedBlurRadius * CGFloat(blurFraction)
+        let radius = style.maximumUnplayedBlurRadius * CGFloat(blurFraction)
+        // Quantize so a barely changing radius does not invalidate the blur
+        // every single frame, and drop sub-pixel blurs entirely.
+        let quantized = (radius / Metrics.blurQuantum).rounded()
+            * Metrics.blurQuantum
+        return quantized < Metrics.minimumEffectiveBlurRadius ? 0 : quantized
     }
 
     private func playedProgress(
@@ -358,26 +254,6 @@ struct LyricGlowTextRenderer: TextRenderer {
         return unitProgress((playbackTime - timing.startTime) / duration)
     }
 
-    private func glowStrength(
-        for timing: LyricTimingTextAttribute,
-        rawProgress: Double
-    ) -> Double {
-        if playbackTime <= timing.endTime {
-            let attack = smootherStep(
-                rawProgress / Metrics.glowAttackProgress
-            )
-            let breath = Metrics.minimumGlowStrength
-                + (1 - Metrics.minimumGlowStrength)
-                    * sin(.pi * rawProgress)
-            return attack * breath
-        }
-
-        let tailProgress = (playbackTime - timing.endTime)
-            / Self.glowTailDuration
-        guard tailProgress < 1 else { return 0 }
-        return (1 - smootherStep(tailProgress)) * Metrics.minimumGlowStrength
-    }
-
     private func smootherStep(_ value: Double) -> Double {
         let progress = unitProgress(value)
         return progress * progress * progress
@@ -389,29 +265,22 @@ struct LyricGlowTextRenderer: TextRenderer {
     }
 }
 
-private extension LyricGlowTextRenderer {
+private extension LyricTimedTextRenderer {
     struct RunVisualState {
-        let rawProgress: Double
         let revealProgress: Double
         let liftProgress: Double
         let expansionScale: CGFloat
         let unplayedBlurRadius: CGFloat
-        let glowStrength: Double
     }
 
     enum Metrics {
-        static let displayPaddingMultiplier: CGFloat = 6
         static let unplayedBlurLeadDuration: TimeInterval = 2.4
         static let minimumUnplayedBlurFraction = 0.12
-        static let glowAttackProgress = 0.24
-        static let minimumGlowStrength = 0.82
-        static let glowPulseAmount = 0.2
         static let liftContinuationDuration: TimeInterval = 0.32
         static let longSyllableDurationThreshold: TimeInterval = 0.7
         static let expansionOverlapFraction = 0.32
         static let maximumExpansionOverlapDuration: TimeInterval = 0.14
-        static let outerGlowRadiusMultiplier: CGFloat = 1.75
-        static let outerGlowOpacityMultiplier = 0.72
-        static let innerGlowRadiusMultiplier: CGFloat = 0.62
+        static let blurQuantum: CGFloat = 0.25
+        static let minimumEffectiveBlurRadius: CGFloat = 0.3
     }
 }

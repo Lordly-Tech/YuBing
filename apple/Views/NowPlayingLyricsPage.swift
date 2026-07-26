@@ -77,6 +77,7 @@ struct NowPlayingLyricsPage: View {
             }
         }
         .padding(.bottom, presentation == .portrait ? 12 : 0)
+        .trackingLyricsRefreshRate()
     }
 
     private var songHeader: some View {

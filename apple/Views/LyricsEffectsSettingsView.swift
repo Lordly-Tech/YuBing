@@ -29,27 +29,6 @@ struct LyricsEffectsSettingsView: View {
             }
 
             Section {
-                Toggle(isOn: $settings.lyricsGlowEnabled) {
-                    LyricsSettingRowLabel(
-                        title: "逐字辉光",
-                        detail: "正在唱到的字带柔光。"
-                    )
-                }
-
-                if settings.lyricsGlowEnabled {
-                    LyricsValueSlider(
-                        title: "辉光强度",
-                        value: $settings.lyricsGlowIntensity,
-                        range: AppSettings.lyricsGlowIntensityRange,
-                        step: 0.05,
-                        valueText: percentText(settings.lyricsGlowIntensity)
-                    )
-                }
-            } header: {
-                Text("辉光")
-            }
-
-            Section {
                 LyricsValueSlider(
                     title: "每行错峰延迟",
                     value: $settings.lyricsFocusCascadeDelay,
@@ -139,7 +118,7 @@ struct LyricsEffectsSettingsView: View {
                 settings.resetLyricsEffects()
             }
         } message: {
-            Text("逐字、辉光、错峰与排版都会回到初始值。")
+            Text("逐字、错峰与排版都会回到初始值。")
         }
     }
 

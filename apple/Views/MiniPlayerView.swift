@@ -115,7 +115,7 @@ struct MiniPlayerView: View {
 
 #if os(iOS)
 @available(iOS 26.0, *)
-struct MeloXMiniPlayerAccessory: View {
+struct SystemMiniPlayerAccessory: View {
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
     let onExpand: () -> Void
 

@@ -126,7 +126,7 @@ enum LegalDocument: String, Identifiable {
                 LegalDocumentSection(
                     title: "知识产权",
                     paragraphs: [
-                        "鱼饼源代码依照 GNU General Public License version 3 发布，你可以在该许可证范围内使用、研究、修改和分发。MeloX 及其他第三方代码、资源和品牌仍受各自许可证与权利声明约束。你保留自己导入内容的权利。"
+                        "鱼饼源代码依照 GNU General Public License version 3 发布，你可以在该许可证范围内使用、研究、修改和分发。第三方代码、资源和品牌仍受各自许可证与权利声明约束。你保留自己导入内容的权利。"
                     ]
                 ),
                 LegalDocumentSection(

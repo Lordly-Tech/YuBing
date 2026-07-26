@@ -2,8 +2,6 @@ import ImageIO
 import SwiftUI
 import WatchKit
 
-// Watch player and lyric motion adapt MeloX's GPL-3.0 playback experience for watchOS.
-
 struct WatchMusicLibraryView: View {
     @EnvironmentObject private var store: WatchLibraryStore
     @EnvironmentObject private var player: WatchAudioPlayer
@@ -318,10 +316,6 @@ private struct WatchAnimatedLyricLine: View {
                                 .foregroundStyle(.white.opacity(0.28 + progress * 0.72))
                                 .offset(y: CGFloat(-2.5 * progress))
                                 .scaleEffect(CGFloat(1 + 0.05 * sin(.pi * progress)))
-                                .shadow(
-                                    color: .pink.opacity(0.72 * character.glow(at: player.playbackPosition())),
-                                    radius: 5
-                                )
                         }
                     }
                 }
@@ -385,12 +379,6 @@ private struct WatchLyricCharacter: Identifiable {
 
     func progress(at time: TimeInterval) -> Double {
         min(max((time - start) / max(end - start, 0.01), 0), 1)
-    }
-
-    func glow(at time: TimeInterval) -> Double {
-        let progress = progress(at: time)
-        if time <= end { return sin(.pi * progress) * 0.35 + 0.65 * progress }
-        return max(0, 1 - (time - end) / 0.55) * 0.65
     }
 }
 

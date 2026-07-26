@@ -27,13 +27,13 @@
 
 - LRC、YRC、逐字歌词、翻译歌词和无逐字时间时的模拟进度。
 - Apple Music 风格的焦点滚动、距离模糊和点击跳转。
-- 错峰歌词移动、逐字辉光、逐字抬升与长音节轻微放大。
+- 错峰歌词移动、逐字抬升与长音节轻微放大。
 
 ### Apple Watch
 
 - 从 iPhone 接收并离线管理音乐、图片、视频、PDF 和鱼饼书籍包。
 - 独立播放本地音乐，支持封面、歌词、队列、进度、倍速、随机与循环。
-- 小屏专用的逐字符换行、逐字辉光、逐字抬升和错峰歌词焦点。
+- 小屏专用的逐字符换行、逐字抬升和错峰歌词焦点。
 - 离线章节阅读、书签、自动翻页和阅读时长记录。
 
 ## 运行环境
@@ -90,17 +90,6 @@ apple/
 ├── Config/                  # 权限、签名配置与本地签名材料
 └── project.yml              # XcodeGen 工程定义
 ```
-
-## 致谢
-
-音乐体验参考自 [MeloX](https://github.com/youshen2/MeloX)，包括错峰焦点以及逐字辉光和抬升渲染。
-
-MeloX 上游还致谢了以下项目：
-
-- [jayfunc/BetterLyrics](https://github.com/jayfunc/BetterLyrics)：逐字歌词渲染、辉光与动画参考。
-- [WXRIW/Lyricify-Lyrics-Helper](https://github.com/WXRIW/Lyricify-Lyrics-Helper)：网易云 YRC 逐字歌词解析参考。
-- [qier222/YesPlayMusic](https://github.com/qier222/YesPlayMusic)：网易云接口与播放器实现参考。
-
 
 ## 许可证
 

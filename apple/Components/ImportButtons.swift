@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreTransferable
 import PhotosUI
 import SwiftUI
@@ -5,6 +6,7 @@ import UniformTypeIdentifiers
 
 #if os(iOS)
 import MediaPlayer
+import UIKit
 #endif
 
 enum PhotoImportScope {
@@ -239,7 +241,111 @@ private func importPickerItems(
     }
 }
 
+/// Import entry point for the music page: file picker, system music library
+/// scan and Wi-Fi transfer in one menu.
+struct MusicImportMenu: View {
+    @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var wifiTransfer: WiFiTransferService
+    @State private var isFileImporterPresented = false
+    @State private var showsWiFiTransfer = false
+    #if os(iOS)
+    @State private var systemImportProgress: SystemMusicImportProgress?
+    #endif
+
+    var title = "添加"
+    var prominent = false
+
+    var body: some View {
+        Menu {
+            Button {
+                isFileImporterPresented = true
+            } label: {
+                Label("从文件选择", systemImage: "folder")
+            }
+
+            #if os(iOS)
+            Button {
+                Task { await importSystemMusic() }
+            } label: {
+                Label("从音乐库导入", systemImage: "music.note.house")
+            }
+            #endif
+
+            Button {
+                showsWiFiTransfer = true
+            } label: {
+                Label("同一 Wi-Fi 传输", systemImage: "wifi")
+            }
+        } label: {
+            menuLabel
+        }
+        .adaptiveGlassButton(prominent: prominent)
+        .disabled(isSystemImportRunning)
+        .fileImporter(
+            isPresented: $isFileImporterPresented,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                store.importFiles(urls)
+            case .failure(let error):
+                store.alert = LibraryAlert(title: "无法导入", message: error.localizedDescription)
+            }
+        }
+        .sheet(isPresented: $showsWiFiTransfer) {
+            WiFiTransferPanel()
+                .environmentObject(wifiTransfer)
+        }
+    }
+
+    private var isSystemImportRunning: Bool {
+        #if os(iOS)
+        systemImportProgress != nil
+        #else
+        false
+        #endif
+    }
+
+    @ViewBuilder
+    private var menuLabel: some View {
+        #if os(iOS)
+        if let systemImportProgress {
+            Label {
+                Text(verbatim: "\(systemImportProgress.completed)/\(systemImportProgress.total)")
+                    .monospacedDigit()
+            } icon: {
+                ProgressView()
+            }
+        } else {
+            Label(AppLocalization.string(title), systemImage: "plus")
+        }
+        #else
+        Label(AppLocalization.string(title), systemImage: "plus")
+        #endif
+    }
+
+    #if os(iOS)
+    @MainActor
+    private func importSystemMusic() async {
+        guard systemImportProgress == nil else { return }
+        systemImportProgress = SystemMusicImportProgress(completed: 0, total: 0)
+        defer { systemImportProgress = nil }
+
+        let summary = await SystemMusicLibraryImporter.importAllSongs(into: store) { progress in
+            systemImportProgress = progress
+        }
+        store.alert = summary.alert
+    }
+    #endif
+}
+
 #if os(iOS)
+struct SystemMusicImportProgress: Equatable {
+    var completed: Int
+    var total: Int
+}
+
 enum SystemMusicLibraryAccess {
     @MainActor
     static func requestAuthorizationIfNeeded() async -> MPMediaLibraryAuthorizationStatus {
@@ -253,57 +359,164 @@ enum SystemMusicLibraryAccess {
     }
 }
 
-struct SystemMusicImportButton: View {
-    @EnvironmentObject private var store: LibraryStore
-    @State private var isImporting = false
+/// Copies songs out of the system music library.
+///
+/// `MPMediaItem.assetURL` is an `ipod-library://` URL, so it cannot be copied
+/// with `FileManager`. Every track is re-exported to an `.m4a` file inside the
+/// app library instead, which is also what keeps the imported file inside
+/// `LibraryItem.musicExtensions` so it shows up on the music page.
+enum SystemMusicLibraryImporter {
+    struct Summary {
+        var imported = 0
+        var duplicates = 0
+        var protectedItems = 0
+        var failed = 0
 
-    var body: some View {
-        Button {
-            Task { await importSystemMusic() }
-        } label: {
-            if isImporting {
-                ProgressView()
-            } else {
-                Label("扫描系统音乐库", systemImage: "music.note.house")
+        var alert: LibraryAlert? {
+            guard imported > 0 else {
+                if protectedItems > 0 || failed > 0 {
+                    return LibraryAlert(
+                        title: "没有可导入的歌曲",
+                        message: "云端或受 DRM 保护的歌曲无法导出，请先在系统音乐 App 中下载无保护文件。"
+                    )
+                }
+                if duplicates > 0 {
+                    return LibraryAlert(title: "音乐库已是最新", message: "系统音乐库中的歌曲都已导入。")
+                }
+                return LibraryAlert(title: "没有可导入的歌曲", message: "系统音乐库中没有歌曲。")
             }
+
+            var details = [count("已导入 %lld 首", imported)]
+            if duplicates > 0 { details.append(count("跳过 %lld 首重复", duplicates)) }
+            if protectedItems > 0 { details.append(count("跳过 %lld 首受保护", protectedItems)) }
+            if failed > 0 { details.append(count("%lld 首导出失败", failed)) }
+            return LibraryAlert(
+                title: "导入完成",
+                message: details.joined(separator: "、") + "。"
+            )
         }
-        .disabled(isImporting)
-        .help("扫描本机 iTunes / iPod 音乐库")
+
+        private func count(_ key: String, _ value: Int) -> String {
+            String(format: AppLocalization.string(key), value)
+        }
     }
 
     @MainActor
-    private func importSystemMusic() async {
-        isImporting = true
-        defer { isImporting = false }
+    static func importAllSongs(
+        into store: LibraryStore,
+        progress: (SystemMusicImportProgress) -> Void
+    ) async -> Summary {
+        var summary = Summary()
+
         let status = await SystemMusicLibraryAccess.requestAuthorizationIfNeeded()
         guard status == .authorized else {
-            store.alert = LibraryAlert(title: "无法访问音乐库", message: "请在系统设置中允许鱼饼访问媒体与 Apple Music。")
-            return
+            store.alert = LibraryAlert(
+                title: "无法访问音乐库",
+                message: "请在系统设置中允许鱼饼访问媒体与 Apple Music。"
+            )
+            return summary
         }
 
-        let items = MPMediaQuery.songs().items ?? []
-        var imported = 0
-        var skipped = 0
-        for mediaItem in items {
-            guard !mediaItem.hasProtectedAsset, let url = mediaItem.assetURL else {
-                skipped += 1
+        let mediaItems = MPMediaQuery.songs().items ?? []
+        var existingNames = Set(
+            store.items(of: .music).map { $0.name.lowercased() }
+        )
+        progress(SystemMusicImportProgress(completed: 0, total: mediaItems.count))
+
+        for (index, mediaItem) in mediaItems.enumerated() {
+            defer {
+                progress(
+                    SystemMusicImportProgress(
+                        completed: index + 1,
+                        total: mediaItems.count
+                    )
+                )
+            }
+
+            guard !mediaItem.hasProtectedAsset, let assetURL = mediaItem.assetURL else {
+                summary.protectedItems += 1
                 continue
             }
-            let ext = url.pathExtension.isEmpty ? "m4a" : url.pathExtension
-            let rawName = mediaItem.title?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let title = (rawName?.isEmpty == false ? rawName : nil) ?? url.deletingPathExtension().lastPathComponent
-            let safeTitle = title.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
-            store.importFile(url, suggestedName: "\(safeTitle).\(ext)")
-            imported += 1
+
+            let fileName = "\(displayName(for: mediaItem, fallback: assetURL)).m4a"
+            guard !existingNames.contains(fileName.lowercased()) else {
+                summary.duplicates += 1
+                continue
+            }
+
+            let destination = store.reserveImportDestination(named: fileName)
+            do {
+                try await export(mediaItem, from: assetURL, to: destination)
+                existingNames.insert(destination.lastPathComponent.lowercased())
+                summary.imported += 1
+            } catch {
+                try? FileManager.default.removeItem(at: destination)
+                summary.failed += 1
+            }
         }
-        if imported == 0 {
-            store.alert = LibraryAlert(
-                title: "没有可导入的本地歌曲",
-                message: skipped > 0 ? "云端或受 DRM 保护的歌曲不能复制，请先在系统音乐 App 中下载无保护文件。" : "系统音乐库中没有歌曲。"
-            )
-        } else if skipped > 0 {
-            store.alert = LibraryAlert(title: "导入完成", message: "已导入 \(imported) 首，跳过 \(skipped) 首云端或受保护歌曲。")
+
+        store.refresh()
+        return summary
+    }
+
+    private static func displayName(for mediaItem: MPMediaItem, fallback: URL) -> String {
+        let title = mediaItem.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let artist = mediaItem.artist?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base: String
+        if let title, !title.isEmpty {
+            base = (artist?.isEmpty == false) ? "\(artist!) - \(title)" : title
+        } else {
+            base = fallback.deletingPathExtension().lastPathComponent
+        }
+        return sanitized(base)
+    }
+
+    private static func sanitized(_ name: String) -> String {
+        let invalid = CharacterSet(charactersIn: "/\\:*?\"<>|")
+        let cleaned = name
+            .components(separatedBy: invalid)
+            .joined(separator: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? UUID().uuidString : String(cleaned.prefix(120))
+    }
+
+    private static func export(
+        _ mediaItem: MPMediaItem,
+        from assetURL: URL,
+        to destination: URL
+    ) async throws {
+        let asset = AVURLAsset(url: assetURL)
+        guard let session = AVAssetExportSession(
+            asset: asset,
+            presetName: AVAssetExportPresetAppleM4A
+        ) else {
+            throw SystemMusicImportError.unsupportedAsset
+        }
+        session.metadata = metadata(for: mediaItem)
+        try await session.export(to: destination, as: .m4a)
+    }
+
+    private static func metadata(for mediaItem: MPMediaItem) -> [AVMetadataItem] {
+        var values: [(AVMetadataIdentifier, Any)] = []
+        if let title = mediaItem.title { values.append((.commonIdentifierTitle, title)) }
+        if let artist = mediaItem.artist { values.append((.commonIdentifierArtist, artist)) }
+        if let album = mediaItem.albumTitle { values.append((.commonIdentifierAlbumName, album)) }
+        if let artwork = mediaItem.artwork?
+            .image(at: CGSize(width: 600, height: 600))?
+            .pngData() {
+            values.append((.commonIdentifierArtwork, artwork))
+        }
+
+        return values.map { identifier, value in
+            let item = AVMutableMetadataItem()
+            item.identifier = identifier
+            item.value = value as? NSCopying & NSObjectProtocol
+            return item
         }
     }
+}
+
+private enum SystemMusicImportError: Error {
+    case unsupportedAsset
 }
 #endif

@@ -133,7 +133,7 @@ private struct CompactRootView: View {
         tabs
             .tabViewBottomAccessory {
                 if player.currentItem != nil, selection != .reading, !isMiniPlayerHiddenByGesture {
-                    MeloXMiniPlayerAccessory {
+                    SystemMiniPlayerAccessory {
                         if let item = player.currentItem { openPlayer(item) }
                     }
                     .gesture(hideMiniPlayerGesture)
@@ -157,7 +157,7 @@ private struct CompactRootView: View {
 
     @ViewBuilder
     private func floatingMiniPlayer(maxWidth: CGFloat) -> some View {
-        if player.currentItem != nil, selection != .reading, !isMiniPlayerHiddenByGesture {
+        if player.currentItem != nil, selection != .reading {
             MiniPlayerView(isInline: false, alwaysShowsSubtitle: true) {
                 if let item = player.currentItem { openPlayer(item) }
             }
@@ -168,8 +168,12 @@ private struct CompactRootView: View {
             .frame(maxWidth: maxWidth)
             .adaptiveGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-            .gesture(hideMiniPlayerGesture)
+            .offset(y: isMiniPlayerHiddenByGesture ? 140 : 0)
+            .opacity(isMiniPlayerHiddenByGesture ? 0 : 1)
+            .allowsHitTesting(!isMiniPlayerHiddenByGesture)
+            .animation(.smooth(duration: 0.28), value: isMiniPlayerHiddenByGesture)
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .highPriorityGesture(hideMiniPlayerGesture)
         }
     }
 
@@ -294,7 +298,7 @@ private struct SplitRootView: View {
 
     @ViewBuilder
     private func floatingMiniPlayer(maxWidth: CGFloat) -> some View {
-        if player.currentItem != nil, selection != .reading, !isMiniPlayerHiddenByGesture {
+        if player.currentItem != nil, selection != .reading {
             MiniPlayerView(isInline: false, alwaysShowsSubtitle: true) {
                 if let item = player.currentItem { openPlayer(item) }
             }
@@ -305,20 +309,22 @@ private struct SplitRootView: View {
             .frame(maxWidth: maxWidth)
             .adaptiveGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: .black.opacity(0.2), radius: 22, y: 10)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-            .gesture(hideMiniPlayerGesture)
+            .offset(y: isMiniPlayerHiddenByGesture ? 160 : 0)
+            .opacity(isMiniPlayerHiddenByGesture ? 0 : 1)
+            .allowsHitTesting(!isMiniPlayerHiddenByGesture)
+            .animation(.smooth(duration: 0.28), value: isMiniPlayerHiddenByGesture)
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .highPriorityGesture(hideMiniPlayerGesture)
         }
     }
 
     private var hideMiniPlayerGesture: some Gesture {
-        DragGesture(minimumDistance: 12)
+        DragGesture(minimumDistance: 8)
             .onEnded { value in
-                guard value.translation.height > 34,
-                      value.predictedEndTranslation.height > 54,
+                guard value.translation.height > 22,
+                      value.predictedEndTranslation.height > 36,
                       abs(value.translation.height) > abs(value.translation.width) else { return }
-                withAnimation(.smooth(duration: 0.28)) {
-                    isMiniPlayerHiddenByGesture = true
-                }
+                isMiniPlayerHiddenByGesture = true
             }
     }
 }

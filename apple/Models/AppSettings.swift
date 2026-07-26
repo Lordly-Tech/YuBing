@@ -18,8 +18,6 @@ final class AppSettings {
         static let lyricsTapToSeek = "yubing.lyricsTapToSeek"
         static let lyricsWordByWord = "yubing.lyricsWordByWord"
         static let lyricsPseudoWordByWord = "yubing.lyricsPseudoWordByWord"
-        static let lyricsGlowEnabled = "yubing.lyricsGlowEnabled"
-        static let lyricsGlowIntensity = "yubing.lyricsGlowIntensity"
         static let lyricsTranslationEnabled = "yubing.lyricsTranslationEnabled"
         static let lyricsTranslationFontScale = "yubing.lyricsTranslationFontScale"
         static let lyricsTranslationOpacity = "yubing.lyricsTranslationOpacity"
@@ -91,14 +89,6 @@ final class AppSettings {
         didSet { defaults.set(lyricsPseudoWordByWord, forKey: Key.lyricsPseudoWordByWord) }
     }
 
-    var lyricsGlowEnabled: Bool {
-        didSet { defaults.set(lyricsGlowEnabled, forKey: Key.lyricsGlowEnabled) }
-    }
-
-    var lyricsGlowIntensity: Double {
-        didSet { defaults.set(lyricsGlowIntensity, forKey: Key.lyricsGlowIntensity) }
-    }
-
     var lyricsTranslationEnabled: Bool {
         didSet { defaults.set(lyricsTranslationEnabled, forKey: Key.lyricsTranslationEnabled) }
     }
@@ -148,7 +138,6 @@ final class AppSettings {
     static let lyricsCurrentLineScaleRange: ClosedRange<Double> = 1.0...2.0
     static let lyricsFocusColorLeadTimeRange: ClosedRange<Double> = 0...1
     static let lyricsFocusCascadeDelayRange: ClosedRange<Double> = 0...0.05
-    static let lyricsGlowIntensityRange: ClosedRange<Double> = 0...2
     static let lyricsFontSizeRange: ClosedRange<Double> = 20...36
     static let lyricsLineSpacingRange: ClosedRange<Double> = 12...40
 
@@ -171,8 +160,6 @@ final class AppSettings {
         lyricsTapToSeek = Self.bool(defaults, Key.lyricsTapToSeek, true)
         lyricsWordByWord = Self.bool(defaults, Key.lyricsWordByWord, true)
         lyricsPseudoWordByWord = Self.bool(defaults, Key.lyricsPseudoWordByWord, true)
-        lyricsGlowEnabled = Self.bool(defaults, Key.lyricsGlowEnabled, true)
-        lyricsGlowIntensity = Self.double(defaults, Key.lyricsGlowIntensity, 1)
         lyricsTranslationEnabled = Self.bool(defaults, Key.lyricsTranslationEnabled, true)
         lyricsTranslationFontScale = Self.double(defaults, Key.lyricsTranslationFontScale, 0.62)
         lyricsTranslationOpacity = Self.double(defaults, Key.lyricsTranslationOpacity, 0.66)
@@ -192,8 +179,6 @@ final class AppSettings {
     func resetLyricsEffects() {
         lyricsWordByWord = true
         lyricsPseudoWordByWord = true
-        lyricsGlowEnabled = true
-        lyricsGlowIntensity = 1
         lyricsFontSize = 25
         lyricsLineSpacing = 27
         lyricsCurrentLineScale = 1.2

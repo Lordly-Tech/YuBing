@@ -18,21 +18,6 @@ struct OpenSourceLicensesView: View {
                 }
             }
 
-            Section("MeloX") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("播放器、横屏布局、歌词动效和专辑体验改编自 youshen2/MeloX。")
-                        .font(.subheadline)
-                    Text("MeloX 以 GPL-3.0 发布；鱼饼未包含其 EVA 歌词样式和全屏天际歌词。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 4)
-
-                Link(destination: URL(string: "https://github.com/youshen2/MeloX")!) {
-                    Label("打开 MeloX 项目", systemImage: "arrow.up.right.square")
-                }
-            }
-
             Section("上游致谢") {
                 OpenSourceLink(
                     title: "BetterLyrics",
@@ -49,13 +34,6 @@ struct OpenSourceLicensesView: View {
             }
 
             Section("许可证全文") {
-                NavigationLink("GNU GPL version 3") {
-                    BundledTextDocumentView(
-                        title: "GNU GPL version 3",
-                        resource: "MeloX-GPL-3.0",
-                        fileExtension: "txt"
-                    )
-                }
                 NavigationLink("第三方说明") {
                     BundledTextDocumentView(
                         title: "第三方说明",

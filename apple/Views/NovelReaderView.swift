@@ -243,7 +243,6 @@ struct NovelReaderView: View {
             readingStore.updateProgress(for: item, chapterIndex: chapterIndex, progress: chapterProgress)
             restoreDisplaySettings()
         }
-        .immersiveSplitDetail()
     }
 
     @ViewBuilder

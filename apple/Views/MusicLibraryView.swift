@@ -2,8 +2,6 @@ import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
-// Album and playlist presentation adapted from youshen2/MeloX (GPL-3.0).
-
 struct MusicAlbum: Identifiable {
     let id: String
     let title: String
@@ -76,9 +74,9 @@ struct MusicLibraryView: View {
             if audioTracks.isEmpty {
                 ContentUnavailablePanel(
                     title: "还没有音乐",
-                    message: "支持 MP3、FLAC、WAV、AAC、AIFF、M4A、DSD、DSF、APE、OGG、Opus 与 WMA。请从首页添加音乐。",
+                    message: "支持 MP3、FLAC、WAV、AAC、AIFF、M4A、DSD、DSF、APE、OGG、Opus 与 WMA。",
                     symbol: "music.note.list",
-                    action: nil
+                    action: AnyView(MusicImportMenu(title: "添加音乐", prominent: true))
                 )
             } else {
                 ScrollView {
@@ -97,6 +95,13 @@ struct MusicLibraryView: View {
             }
         }
         .navigationTitle("音乐")
+        .toolbar {
+            ToolbarItem {
+                MusicImportMenu()
+                    .labelStyle(.iconOnly)
+                    .help("添加音乐")
+            }
+        }
         .searchable(text: $query, prompt: "搜索歌曲、艺人或专辑")
         .task(id: audioTracks.map(\.relativePath).joined(separator: "|")) {
             for track in audioTracks where player.metadataByPath[track.relativePath] == nil {

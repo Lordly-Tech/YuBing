@@ -2,6 +2,80 @@ import AVFoundation
 import Combine
 import Foundation
 
+/// Continuous playback clock for per-frame consumers.
+///
+/// `AVPlayer` reports progress twice a second. Re-anchoring the interpolation on
+/// each of those samples produces a small position jump every 0.5 s, which reads
+/// as stutter in the word-by-word lyrics. This clock keeps its own anchor and
+/// absorbs the difference at a bounded rate, so the value it returns is
+/// monotonic and free of steps while still converging on the real position.
+struct SmoothedPlaybackClock {
+    /// Differences beyond this are treated as a seek and applied immediately.
+    private static let resetThreshold: TimeInterval = 0.35
+    /// Shortest window over which a drift is absorbed.
+    private static let minimumCorrectionDuration: TimeInterval = 0.5
+    /// Upper bound on the correction speed as a fraction of the playback rate.
+    /// Keeping it below 1 guarantees the clock never walks backwards.
+    private static let maximumCorrectionRateFraction = 0.5
+
+    private var anchorValue: TimeInterval = 0
+    private var anchorDate = Date()
+    private var correction: TimeInterval = 0
+    private var correctionDuration: TimeInterval = 0
+
+    mutating func reset(to value: TimeInterval, at date: Date = Date()) {
+        anchorValue = max(value, 0)
+        anchorDate = date
+        correction = 0
+        correctionDuration = 0
+    }
+
+    /// Folds a freshly observed position into the clock.
+    mutating func update(
+        to observedValue: TimeInterval,
+        rate: Double,
+        at date: Date = Date()
+    ) {
+        let observed = max(observedValue, 0)
+        let projected = value(at: date, rate: rate)
+        let difference = observed - projected
+
+        guard abs(difference) < Self.resetThreshold else {
+            reset(to: observed, at: date)
+            return
+        }
+
+        anchorValue = projected
+        anchorDate = date
+        correction = difference
+        correctionDuration = Self.correctionDuration(
+            for: difference,
+            rate: rate
+        )
+    }
+
+    /// Interpolated position, converging on the last observed sample.
+    func value(at date: Date, rate: Double) -> TimeInterval {
+        let elapsed = max(date.timeIntervalSince(anchorDate), 0)
+        let base = anchorValue + elapsed * max(rate, 0)
+        guard correctionDuration > 0 else { return base }
+
+        return base + correction * min(elapsed / correctionDuration, 1)
+    }
+
+    /// Stretches the window so the correction speed stays a fraction of the
+    /// playback rate, which keeps the result monotonic at any playback rate.
+    private static func correctionDuration(
+        for difference: TimeInterval,
+        rate: Double
+    ) -> TimeInterval {
+        let effectiveRate = max(rate, 0.1)
+        let rateLimited = abs(difference)
+            / (effectiveRate * maximumCorrectionRateFraction)
+        return max(rateLimited, minimumCorrectionDuration)
+    }
+}
+
 struct EmbeddedAudioMetadata: Equatable, Sendable {
     var title: String?
     var artist: String?
@@ -325,8 +399,8 @@ final class AudioPlayerController: ObservableObject {
     private var shouldResumeAfterInterruption = false
     private var isResolvingSource = false
     private var lastPersistedSecond = -1
-    private var lastProgressUpdateDate = Date()
     private var lastListeningTick = Date()
+    private var progressClock = SmoothedPlaybackClock()
     private static let totalListeningTimeKey = "yubing.totalListeningTime"
 
     init() {
@@ -372,7 +446,7 @@ final class AudioPlayerController: ObservableObject {
         isPreparing = true
         isResolvingSource = true
         playbackError = nil
-        lastProgressUpdateDate = Date()
+        progressClock.reset(to: currentTime)
         engine.unload()
         updateNowPlayingInfo()
         persistSnapshot()
@@ -463,7 +537,7 @@ final class AudioPlayerController: ObservableObject {
         engine.seek(to: clamped)
         currentTime = clamped
         seekRevision += 1
-        lastProgressUpdateDate = Date()
+        progressClock.reset(to: clamped)
         updateNowPlayingState()
         persistSnapshot()
     }
@@ -472,10 +546,15 @@ final class AudioPlayerController: ObservableObject {
         engine.hasCurrentItem ? engine.currentTime : currentTime
     }
 
+    /// Playback position interpolated for per-frame consumers such as the
+    /// word-by-word lyrics.
+    ///
+    /// `AVPlayer` only reports progress twice a second. Anchoring the
+    /// interpolation directly on those samples makes the lyric sweep jump every
+    /// time one lands, so drift is absorbed gradually instead.
     func estimatedProgress(at date: Date = Date()) -> TimeInterval {
         guard isPlaying else { return currentTime }
-        let elapsed = max(date.timeIntervalSince(lastProgressUpdateDate), 0)
-        let estimated = currentTime + elapsed * Double(playbackRate)
+        let estimated = progressClock.value(at: date, rate: Double(playbackRate))
         return duration > 0 ? min(estimated, duration) : estimated
     }
 
@@ -698,7 +777,7 @@ final class AudioPlayerController: ObservableObject {
                 self.isPreparing = false
                 self.playbackError = nil
             }
-            self.lastProgressUpdateDate = Date()
+            self.progressClock.reset(to: self.currentTime)
             self.lastListeningTick = Date()
             self.updateNowPlayingState()
         }
@@ -706,7 +785,7 @@ final class AudioPlayerController: ObservableObject {
             guard let self else { return }
             self.commitListeningTimeIfNeeded()
             self.currentTime = value
-            self.lastProgressUpdateDate = Date()
+            self.progressClock.update(to: value, rate: Double(self.playbackRate))
             self.persistProgressIfNeeded()
         }
         engine.onDurationChanged = { [weak self] value in

@@ -1,6 +1,5 @@
 import Foundation
 
-// Adapted from MeloX (GPL-3.0): queue ordering and playback snapshot persistence.
 struct AudioPlaybackSnapshot: Codable {
     let queue: [LibraryItem]
     let currentIndex: Int

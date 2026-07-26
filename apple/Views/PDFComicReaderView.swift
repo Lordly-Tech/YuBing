@@ -59,7 +59,6 @@ struct PDFComicReaderView: View {
                     #endif
                 }
             }
-            .immersiveSplitDetail()
     }
 }
 

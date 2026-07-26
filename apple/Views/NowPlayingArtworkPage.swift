@@ -68,7 +68,32 @@ struct NowPlayingArtworkPage: View {
     }
 }
 
+/// Favourite plus overflow menu shown next to the track title.
+///
+/// The now playing view recomputes `song` every time playback progress is
+/// republished (twice a second while a track plays). The action row only depends
+/// on the track identity, so the real content is wrapped in an equatable view:
+/// the closure stored in `onToggleDetails` can never compare equal, which would
+/// otherwise force SwiftUI to rebuild the menu label on every tick and make the
+/// icons flash.
 struct NowPlayingSongActions: View {
+    let song: NowPlayingSong
+    @Binding var showsSleepTimer: Bool
+    let isShowingDetails: Bool
+    let onToggleDetails: () -> Void
+
+    var body: some View {
+        NowPlayingSongActionsContent(
+            song: song,
+            showsSleepTimer: $showsSleepTimer,
+            isShowingDetails: isShowingDetails,
+            onToggleDetails: onToggleDetails
+        )
+        .equatable()
+    }
+}
+
+private struct NowPlayingSongActionsContent: View, Equatable {
     @EnvironmentObject private var store: LibraryStore
 
     let song: NowPlayingSong
@@ -78,7 +103,14 @@ struct NowPlayingSongActions: View {
 
     @State private var addToPlaylistItem: LibraryItem?
     @State private var showsLyricsEffects = false
-    @State private var showsMoreOptions = false
+
+    static func == (
+        lhs: NowPlayingSongActionsContent,
+        rhs: NowPlayingSongActionsContent
+    ) -> Bool {
+        lhs.song.item == rhs.song.item
+            && lhs.isShowingDetails == rhs.isShowingDetails
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -94,8 +126,37 @@ struct NowPlayingSongActions: View {
             .buttonStyle(.plain)
             .accessibilityLabel(store.isFavorite(song.item) ? "取消收藏" : "收藏")
 
-            Button {
-                showsMoreOptions = true
+            Menu {
+                Button {
+                    onToggleDetails()
+                } label: {
+                    Label(
+                        isShowingDetails ? "返回封面" : "歌曲资料",
+                        systemImage: isShowingDetails ? "music.note" : "info.circle"
+                    )
+                }
+
+                Button {
+                    addToPlaylistItem = song.item
+                } label: {
+                    Label("添加到歌单", systemImage: "text.badge.plus")
+                }
+
+                Button {
+                    showsSleepTimer = true
+                } label: {
+                    Label("定时关闭", systemImage: "timer")
+                }
+
+                Button {
+                    showsLyricsEffects = true
+                } label: {
+                    Label("歌词动效", systemImage: "wand.and.stars")
+                }
+
+                ShareLink(item: song.item.url) {
+                    Label("分享", systemImage: "square.and.arrow.up")
+                }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.title3.weight(.semibold))
@@ -104,17 +165,13 @@ struct NowPlayingSongActions: View {
                     .contentShape(.circle)
             }
             .buttonStyle(.plain)
+            .menuOrder(.fixed)
             .accessibilityLabel("更多")
         }
-        .confirmationDialog("更多", isPresented: $showsMoreOptions, titleVisibility: .hidden) {
-            Button(isShowingDetails ? "返回封面" : "歌曲资料") { onToggleDetails() }
-            Button("添加到歌单") { addToPlaylistItem = song.item }
-            Button("定时关闭") { showsSleepTimer = true }
-            Button("歌词动效") { showsLyricsEffects = true }
-            ShareLink(item: song.item.url) {
-                Label("分享", systemImage: "square.and.arrow.up")
-            }
-        }
+        // The enclosing page animates its own transitions; without this the
+        // inherited animation is re-applied to the button styles on every
+        // republish.
+        .animation(nil, value: song.item)
         .sheet(item: $addToPlaylistItem) { item in
             AddToLocalPlaylistSheet(item: item)
                 .presentationDetents([.medium, .large])

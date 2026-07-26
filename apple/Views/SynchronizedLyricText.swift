@@ -158,16 +158,13 @@ struct SynchronizedLyricText: View {
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                     .textRenderer(
-                        LyricGlowTextRenderer(
+                        LyricTimedTextRenderer(
                             playbackTime: playbackTime,
                             style: .init(
-                                glowRadius: glowRadius,
-                                glowOpacity: glowOpacity,
                                 unplayedOpacity: 0.3,
                                 maximumUnplayedBlurRadius: maximumUnplayedBlurRadius,
                                 playedRise: playedRise,
-                                maximumLongSyllableScale: maximumLongSyllableScale,
-                                longSyllableExpansionPadding: longSyllableExpansionPadding
+                                maximumLongSyllableScale: maximumLongSyllableScale
                             ),
                             layoutConfiguration: .init(
                                 width: timedLayoutWidth,
@@ -237,20 +234,6 @@ struct SynchronizedLyricText: View {
             : 0
     }
 
-    private var glowRadius: CGFloat {
-        guard settings.lyricsGlowEnabled else { return 0 }
-        return CGFloat(
-            Double(fontSize)
-                * 0.34
-                * settings.lyricsGlowIntensity
-        )
-    }
-
-    private var glowOpacity: Double {
-        guard settings.lyricsGlowEnabled else { return 0 }
-        return min(settings.lyricsGlowIntensity * 0.9, 1)
-    }
-
     private var maximumUnplayedBlurRadius: CGFloat {
         CGFloat(settings.lyricsBlurIntensity) * 0.55 * fontScale
     }
@@ -262,10 +245,6 @@ struct SynchronizedLyricText: View {
 
     private var maximumLongSyllableScale: CGFloat {
         accessibilityReduceMotion ? 1 : 1.08
-    }
-
-    private var longSyllableExpansionPadding: CGFloat {
-        fontSize * (maximumLongSyllableScale - 1)
     }
 
     private var timedLayoutWidth: CGFloat? {
@@ -283,11 +262,7 @@ struct SynchronizedLyricText: View {
             return 1
         }
 
-        let glowTailDuration = settings.lyricsGlowEnabled
-            ? LyricGlowTextRenderer.glowTailDuration
-            : 0
         let playbackScaleEndTime = timedPlaybackRange.upperBound
-            + glowTailDuration
         let fullDuration = playbackScaleEndTime
             - timedPlaybackRange.lowerBound
         guard fullDuration > 0 else { return playbackScaleRange.upperBound }

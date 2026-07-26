@@ -413,6 +413,12 @@ final class LibraryStore: ObservableObject {
         return String(itemPath.dropFirst(rootPath.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/\\"))
     }
 
+    /// Reserves a collision-free destination for callers that write the file
+    /// themselves (transcoding, exporting) and call `refresh()` once afterwards.
+    func reserveImportDestination(named suggestedName: String, in folder: URL? = nil) -> URL {
+        uniqueDestination(in: folder ?? libraryURL, named: suggestedName)
+    }
+
     private func uniqueDestination(in folder: URL, named originalName: String) -> URL {
         let proposed = folder.appendingPathComponent(originalName)
         guard fileManager.fileExists(atPath: proposed.path) else { return proposed }
