@@ -122,9 +122,9 @@ struct NowPlayingLyricsPage: View {
         if let bottomOverlayHeight { return max(bottomOverlayHeight, 0) }
         switch presentation {
         case .portrait:
-            226
+            return 226
         case .landscape:
-            0
+            return 0
         }
     }
 
