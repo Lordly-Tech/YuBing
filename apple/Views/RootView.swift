@@ -228,10 +228,25 @@ private struct SplitRootView: View {
     @ViewBuilder
     private var legacyNav: some View {
         NavigationSplitView {
-            List(selection: $selection) {
+            List {
                 ForEach(AppSection.allCases) { section in
-                    Label(section.title, systemImage: section.symbol)
-                        .tag(section)
+                    HStack {
+                        Label(section.title, systemImage: section.symbol)
+                            .foregroundStyle(selection == section ? .primary : .secondary)
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .background {
+                        if selection == section {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(.regularMaterial)
+                        }
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .onTapGesture {
+                        selection = section
+                    }
                 }
             }
             .navigationTitle("鱼饼")
