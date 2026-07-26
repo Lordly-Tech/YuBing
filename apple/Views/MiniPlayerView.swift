@@ -4,8 +4,9 @@ struct MiniPlayerView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @EnvironmentObject private var player: AudioPlayerController
 
-    let onExpand: () -> Void
     var isInline = false
+    var alwaysShowsSubtitle = false
+    let onExpand: () -> Void
 
     var body: some View {
         if let item = player.currentItem {
@@ -24,7 +25,7 @@ struct MiniPlayerView: View {
                                 .font(.subheadline.weight(.semibold))
                                 .lineLimit(1)
 
-                            if !isInline {
+                            if !isInline || alwaysShowsSubtitle {
                                 Text(player.currentMetadata.artist ?? "本地音乐")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)

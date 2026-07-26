@@ -186,7 +186,7 @@ final class AppSettings {
             true
         )
         lyricsFocusColorLeadTime = Self.double(defaults, Key.lyricsFocusColorLeadTime, 0.06)
-        lyricsAdvanceTime = Self.double(defaults, Key.lyricsAdvanceTime, 0.2)
+        lyricsAdvanceTime = max(Self.double(defaults, Key.lyricsAdvanceTime, 0.55), 0.55)
     }
 
     func resetLyricsEffects() {

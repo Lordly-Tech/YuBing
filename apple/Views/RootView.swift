@@ -91,6 +91,7 @@ private struct CompactRootView: View {
     let playerTransitionID: String
     let playerTransitionNamespace: Namespace.ID
     @State private var selection: AppSection = .home
+    @State private var isMiniPlayerHiddenByGesture = false
 
     @ViewBuilder
     var body: some View {
@@ -121,6 +122,9 @@ private struct CompactRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
             if let section = notification.object as? AppSection { selection = section }
         }
+        .onChange(of: selection) { _, _ in
+            isMiniPlayerHiddenByGesture = false
+        }
     }
 
     #if os(iOS)
@@ -128,10 +132,11 @@ private struct CompactRootView: View {
     private var modernTabs: some View {
         tabs
             .tabViewBottomAccessory {
-                if player.currentItem != nil {
+                if player.currentItem != nil, selection != .reading, !isMiniPlayerHiddenByGesture {
                     MeloXMiniPlayerAccessory {
                         if let item = player.currentItem { openPlayer(item) }
                     }
+                    .gesture(hideMiniPlayerGesture)
                     .matchedTransitionSource(
                         id: playerTransitionID,
                         in: playerTransitionNamespace
@@ -152,8 +157,8 @@ private struct CompactRootView: View {
 
     @ViewBuilder
     private func floatingMiniPlayer(maxWidth: CGFloat) -> some View {
-        if player.currentItem != nil {
-            MiniPlayerView {
+        if player.currentItem != nil, selection != .reading, !isMiniPlayerHiddenByGesture {
+            MiniPlayerView(isInline: false, alwaysShowsSubtitle: true) {
                 if let item = player.currentItem { openPlayer(item) }
             }
             .matchedTransitionSource(
@@ -163,7 +168,21 @@ private struct CompactRootView: View {
             .frame(maxWidth: maxWidth)
             .adaptiveGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .gesture(hideMiniPlayerGesture)
         }
+    }
+
+    private var hideMiniPlayerGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onEnded { value in
+                guard value.translation.height > 34,
+                      value.predictedEndTranslation.height > 54,
+                      abs(value.translation.height) > abs(value.translation.width) else { return }
+                withAnimation(.smooth(duration: 0.28)) {
+                    isMiniPlayerHiddenByGesture = true
+                }
+            }
     }
 
     private func compactTab<Content: View>(
@@ -185,6 +204,7 @@ private struct SplitRootView: View {
     let playerTransitionID: String
     let playerTransitionNamespace: Namespace.ID
     @State private var selection: AppSection = .home
+    @State private var isMiniPlayerHiddenByGesture = false
 
     var body: some View {
         if #available(iOS 26.0, macOS 26.0, watchOS 26.0, *) {
@@ -222,6 +242,9 @@ private struct SplitRootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
             if let section = notification.object as? AppSection { selection = section }
+        }
+        .onChange(of: selection) { _, _ in
+            isMiniPlayerHiddenByGesture = false
         }
     }
 
@@ -264,12 +287,15 @@ private struct SplitRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
             if let section = notification.object as? AppSection { selection = section }
         }
+        .onChange(of: selection) { _, _ in
+            isMiniPlayerHiddenByGesture = false
+        }
     }
 
     @ViewBuilder
     private func floatingMiniPlayer(maxWidth: CGFloat) -> some View {
-        if player.currentItem != nil {
-            MiniPlayerView {
+        if player.currentItem != nil, selection != .reading, !isMiniPlayerHiddenByGesture {
+            MiniPlayerView(isInline: false, alwaysShowsSubtitle: true) {
                 if let item = player.currentItem { openPlayer(item) }
             }
             .matchedTransitionSource(
@@ -279,7 +305,21 @@ private struct SplitRootView: View {
             .frame(maxWidth: maxWidth)
             .adaptiveGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: .black.opacity(0.2), radius: 22, y: 10)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .gesture(hideMiniPlayerGesture)
         }
+    }
+
+    private var hideMiniPlayerGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onEnded { value in
+                guard value.translation.height > 34,
+                      value.predictedEndTranslation.height > 54,
+                      abs(value.translation.height) > abs(value.translation.width) else { return }
+                withAnimation(.smooth(duration: 0.28)) {
+                    isMiniPlayerHiddenByGesture = true
+                }
+            }
     }
 }
 

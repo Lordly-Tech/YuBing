@@ -243,12 +243,45 @@ final class WiFiTransferService: ObservableObject {
     }
 
     private static let uploadPage = """
-    <!doctype html><html lang="zh-CN"><meta name="viewport" content="width=device-width,initial-scale=1"><title>鱼饼传输</title>
-    <style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:680px;margin:60px auto;padding:24px;color:#111}h1{font-size:34px}form{border:1px solid #ccc;padding:24px;border-radius:14px}input{width:100%;margin:18px 0}button{font-size:18px;padding:12px 22px;border-radius:999px;border:0;background:#ff2d55;color:white}.progress{display:none;margin-top:18px}.bar{height:12px;background:#eee;border-radius:999px;overflow:hidden}.fill{height:100%;width:0;background:#ff2d55;transition:width .15s ease}.label{margin-top:8px;color:#666;font-size:14px}</style>
-    <h1>🐟🍪！无线传输</h1><p>选择文件、照片、视频或音乐，上传后会自动加入鱼饼资料库。</p>
-    <form id="uploadForm"><input id="files" type="file" name="files" multiple><button id="submit" type="submit">上传</button><div class="progress" id="progress"><div class="bar"><div class="fill" id="fill"></div></div><div class="label" id="label">准备上传</div></div></form>
+    <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>鱼饼传输</title>
+    <style>
+    *{box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;min-height:100vh;padding:48px 20px;color:#6b3550;background:linear-gradient(160deg,#fff1f6 0%,#ffe4ef 45%,#ffeef8 100%);display:flex;align-items:center;justify-content:center}
+    .card{width:100%;max-width:520px;background:rgba(255,255,255,.78);border:1px solid #ffd3e4;border-radius:28px;padding:34px 30px;box-shadow:0 18px 44px rgba(255,138,180,.24);text-align:center}
+    .fish{font-size:46px;line-height:1}
+    h1{margin:14px 0 6px;font-size:27px;color:#e8578f;letter-spacing:.5px}
+    .sub{margin:0 0 24px;font-size:14px;line-height:1.7;color:#a8788d}
+    .drop{display:block;border:2px dashed #ffb4d0;border-radius:20px;padding:26px 18px;background:#fff8fb;cursor:pointer;transition:.2s}
+    .drop:hover{border-color:#ff8ab4;background:#fff2f7}
+    .drop .icon{font-size:30px}
+    .drop .hint{margin-top:8px;font-size:14px;color:#c07f9c}
+    #files{display:none}
+    .picked{margin-top:12px;font-size:13px;color:#e8578f;word-break:break-all;line-height:1.6}
+    button{margin-top:22px;width:100%;font-size:17px;font-weight:600;padding:14px 22px;border-radius:999px;border:0;color:#fff;background:linear-gradient(135deg,#ffa0c4,#ff5f9d);box-shadow:0 10px 22px rgba(255,95,157,.32);cursor:pointer;transition:.2s}
+    button:hover{filter:brightness(1.04)}
+    button:disabled{opacity:.62;cursor:default;box-shadow:none}
+    .progress{display:none;margin-top:20px}
+    .bar{height:14px;background:#ffe6f0;border-radius:999px;overflow:hidden}
+    .fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#ffc0d8,#ff5f9d);transition:width .15s ease}
+    .label{margin-top:9px;font-size:13px;color:#c07f9c}
+    .foot{margin-top:22px;font-size:12px;color:#d0a3b6}
+    </style>
+    <div class="card">
+    <div class="fish">🐟🍪</div>
+    <h1>鱼饼无线传输</h1>
+    <p class="sub">选择文件、照片、视频或音乐<br>上传后会自动加入鱼饼资料库</p>
+    <form id="uploadForm">
+    <label class="drop" for="files"><div class="icon">🌸</div><div class="hint">点这里挑选文件，可以多选哦</div></label>
+    <input id="files" type="file" name="files" multiple>
+    <div class="picked" id="picked"></div>
+    <button id="submit" type="submit">开始上传</button>
+    <div class="progress" id="progress"><div class="bar"><div class="fill" id="fill"></div></div><div class="label" id="label">准备上传</div></div>
+    </form>
+    <div class="foot">保持手机和电脑在同一个 Wi-Fi 下～</div>
+    </div>
     <script>
-    const form=document.getElementById('uploadForm'),files=document.getElementById('files'),submit=document.getElementById('submit'),progress=document.getElementById('progress'),fill=document.getElementById('fill'),label=document.getElementById('label');
+    const form=document.getElementById('uploadForm'),files=document.getElementById('files'),submit=document.getElementById('submit'),progress=document.getElementById('progress'),fill=document.getElementById('fill'),label=document.getElementById('label'),picked=document.getElementById('picked');
+    files.addEventListener('change',()=>{const list=Array.from(files.files).map(f=>f.name);picked.textContent=list.length?'已选择 '+list.length+' 个：'+list.join('、'):''});
     form.addEventListener('submit',e=>{e.preventDefault();if(!files.files.length){label.textContent='请先选择文件';progress.style.display='block';return}const data=new FormData();for(const file of files.files){data.append('files',file,file.name)}const xhr=new XMLHttpRequest();xhr.open('POST','/');progress.style.display='block';submit.disabled=true;submit.textContent='上传中';xhr.upload.onprogress=event=>{if(!event.lengthComputable)return;const pct=Math.round(event.loaded/event.total*100);fill.style.width=pct+'%';label.textContent='正在上传 '+pct+'%'};xhr.onload=()=>{document.open();document.write(xhr.responseText);document.close()};xhr.onerror=()=>{submit.disabled=false;submit.textContent='重新上传';label.textContent='上传失败，请重试'};xhr.send(data)});
     </script></html>
     """
