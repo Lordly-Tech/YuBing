@@ -5,6 +5,7 @@ struct NowPlayingSongDetailsPage: View {
     @Binding var showsSleepTimer: Bool
     let showsArtworkToggle: Bool
     let artworkNamespace: Namespace.ID
+    var isArtworkGeometrySource = true
     let onShowArtwork: () -> Void
 
     var body: some View {
@@ -43,7 +44,8 @@ struct NowPlayingSongDetailsPage: View {
                     .matchedGeometryEffect(
                         id: song.id,
                         in: artworkNamespace,
-                        properties: .frame
+                        properties: .frame,
+                        isSource: isArtworkGeometrySource
                     )
                     .frame(width: 82, height: 82)
                     .contentShape(.rect)

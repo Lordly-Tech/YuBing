@@ -14,7 +14,9 @@ struct NowPlayingLyricsPage: View {
     let highlightedLyricID: LyricLine.ID?
     let presentation: NowPlayingLyricsPresentation
     let isInterfaceHidden: Bool
+    let bottomOverlayHeight: CGFloat?
     let artworkNamespace: Namespace.ID
+    let isArtworkGeometrySource: Bool
     @Binding var showsSleepTimer: Bool
     let onToggleInterface: (() -> Void)?
     let onShowDetails: (() -> Void)?
@@ -27,7 +29,9 @@ struct NowPlayingLyricsPage: View {
         highlightedLyricID: LyricLine.ID?,
         presentation: NowPlayingLyricsPresentation = .portrait,
         isInterfaceHidden: Bool = false,
+        bottomOverlayHeight: CGFloat? = nil,
         artworkNamespace: Namespace.ID,
+        isArtworkGeometrySource: Bool = true,
         showsSleepTimer: Binding<Bool>,
         onToggleInterface: (() -> Void)? = nil,
         onShowDetails: (() -> Void)? = nil
@@ -39,7 +43,9 @@ struct NowPlayingLyricsPage: View {
         self.highlightedLyricID = highlightedLyricID
         self.presentation = presentation
         self.isInterfaceHidden = isInterfaceHidden
+        self.bottomOverlayHeight = bottomOverlayHeight
         self.artworkNamespace = artworkNamespace
+        self.isArtworkGeometrySource = isArtworkGeometrySource
         _showsSleepTimer = showsSleepTimer
         self.onToggleInterface = onToggleInterface
         self.onShowDetails = onShowDetails
@@ -86,7 +92,8 @@ struct NowPlayingLyricsPage: View {
                 .matchedGeometryEffect(
                     id: song.id,
                     in: artworkNamespace,
-                    properties: .frame
+                    properties: .frame,
+                    isSource: isArtworkGeometrySource
                 )
                 .frame(width: 68, height: 68)
 
@@ -112,6 +119,7 @@ struct NowPlayingLyricsPage: View {
     }
 
     private var appleMusicBottomOverlayHeight: CGFloat {
+        if let bottomOverlayHeight { return max(bottomOverlayHeight, 0) }
         switch presentation {
         case .portrait:
             226

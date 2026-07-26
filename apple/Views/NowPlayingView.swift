@@ -5,6 +5,14 @@ enum NowPlayingPage: String, Hashable {
     case details
     case lyrics
     case queue
+
+    /// Every page change goes through this one animation.
+    ///
+    /// The page used to be animated three different ways at once (an implicit
+    /// `.animation(value: page)` on the whole player, a `withAnimation` in the
+    /// page selector and another one in the artwork/details toggles). Three
+    /// overlapping curves on the same transition is what made the switch flash.
+    static let changeAnimation = Animation.smooth(duration: 0.32)
 }
 
 struct NowPlayingView: View {
@@ -22,7 +30,13 @@ struct NowPlayingView: View {
     @State private var showsLyricsControls = true
     @State private var showsSleepTimer = false
     @State private var highlightedLyricID: LyricLine.ID?
+    @State private var controlsHeight = Self.estimatedControlsHeight
     @Namespace private var pageArtworkNamespace
+
+    /// Used until the controls report their real height, so the first layout
+    /// pass does not jump.
+    private static let estimatedControlsHeight: CGFloat = 226
+    private static let pageTransition = Animation.smooth(duration: 0.3)
 
     private var localTracks: [LibraryItem] {
         (queueItems ?? store.items(of: .music).sorted(by: .name))
@@ -112,28 +126,32 @@ struct NowPlayingView: View {
         .toolbar(.hidden, for: .tabBar)
         #endif
         .immersiveSplitDetail()
-        .animation(.smooth(duration: 0.4), value: page)
     }
 
+    /// The controls stay in one place in the view tree for every page.
+    ///
+    /// Branching the layout on `page` used to tear down and rebuild the progress
+    /// slider, transport row and volume slider whenever the lyrics page was
+    /// entered or left, which is what made the switch flash.
     private var portraitContent: some View {
         VStack(spacing: 0) {
             dismissalHandle
 
-            if page == .lyrics {
-                pageContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .overlay(alignment: .bottom) {
-                        portraitPlayerControls
-                            .opacity(hidesLyricsControls ? 0 : 1)
-                            .allowsHitTesting(!hidesLyricsControls)
-                            .accessibilityHidden(hidesLyricsControls)
-                    }
-            } else {
-                pageContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                portraitPlayerControls
-            }
+            pageContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.bottom, page == .lyrics ? 0 : controlsHeight)
+                .overlay(alignment: .bottom) {
+                    portraitPlayerControls
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            proxy.size.height
+                        } action: { height in
+                            guard height > 0 else { return }
+                            controlsHeight = height
+                        }
+                        .opacity(hidesLyricsControls ? 0 : 1)
+                        .allowsHitTesting(!hidesLyricsControls)
+                        .accessibilityHidden(hidesLyricsControls)
+                }
         }
         .padding(.horizontal, 28)
         .safeAreaPadding(.top, 4)
@@ -180,6 +198,7 @@ struct NowPlayingView: View {
                 song: song,
                 showsSleepTimer: $showsSleepTimer,
                 artworkNamespace: pageArtworkNamespace,
+                isArtworkGeometrySource: page == .artwork,
                 onShowDetails: showDetails
             )
             .transition(.opacity)
@@ -189,6 +208,7 @@ struct NowPlayingView: View {
                 showsSleepTimer: $showsSleepTimer,
                 showsArtworkToggle: true,
                 artworkNamespace: pageArtworkNamespace,
+                isArtworkGeometrySource: page == .details,
                 onShowArtwork: showArtwork
             )
             .transition(.opacity)
@@ -200,7 +220,9 @@ struct NowPlayingView: View {
                 errorMessage: lyricError,
                 highlightedLyricID: highlightedLyricID,
                 isInterfaceHidden: hidesLyricsControls,
+                bottomOverlayHeight: page == .lyrics ? controlsHeight : 0,
                 artworkNamespace: pageArtworkNamespace,
+                isArtworkGeometrySource: page == .lyrics,
                 showsSleepTimer: $showsSleepTimer,
                 onToggleInterface: toggleLyricsControls,
                 onShowDetails: showDetails
