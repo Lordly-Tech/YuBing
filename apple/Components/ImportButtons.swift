@@ -84,7 +84,6 @@ struct LibraryImportMenu: View {
     @EnvironmentObject private var wifiTransfer: WiFiTransferService
     @State private var isFileImporterPresented = false
     @State private var photoSelection: [PhotosPickerItem] = []
-    @State private var showsImportOptions = false
     @State private var showsWiFiTransfer = false
 
     var destination: URL?
@@ -93,15 +92,30 @@ struct LibraryImportMenu: View {
     var prominent = false
 
     var body: some View {
-        Button {
-            showsImportOptions = true
+        Menu {
+            Button {
+                isFileImporterPresented = true
+            } label: {
+                Label("从文件选择", systemImage: "folder")
+            }
+
+            PhotosPicker(
+                selection: $photoSelection,
+                maxSelectionCount: 0,
+                matching: photoScope.filter
+            ) {
+                Label(photoScope.title, systemImage: "photo.on.rectangle.angled")
+            }
+
+            Button {
+                showsWiFiTransfer = true
+            } label: {
+                Label("同一 Wi-Fi 传输", systemImage: "wifi")
+            }
         } label: {
             Label(AppLocalization.string(title), systemImage: "plus")
         }
         .adaptiveGlassButton(prominent: prominent)
-        .sheet(isPresented: $showsImportOptions) {
-            importOptionsSheet
-        }
         .fileImporter(
             isPresented: $isFileImporterPresented,
             allowedContentTypes: [.item],
@@ -118,50 +132,12 @@ struct LibraryImportMenu: View {
             Task { @MainActor in
                 await importPickerItems(newItems, into: destination, store: store)
                 photoSelection.removeAll()
-                showsImportOptions = false
             }
         }
         .sheet(isPresented: $showsWiFiTransfer) {
             WiFiTransferPanel()
                 .environmentObject(wifiTransfer)
         }
-    }
-
-    private var importOptionsSheet: some View {
-        NavigationStack {
-            List {
-                Button {
-                    showsImportOptions = false
-                    DispatchQueue.main.async {
-                        isFileImporterPresented = true
-                    }
-                } label: {
-                    Label("从文件选择", systemImage: "folder")
-                }
-
-                PhotosPicker(
-                    selection: $photoSelection,
-                    maxSelectionCount: 0,
-                    matching: photoScope.filter
-                ) {
-                    Label(photoScope.title, systemImage: "photo.on.rectangle.angled")
-                }
-
-                Button {
-                    showsWiFiTransfer = true
-                    showsImportOptions = false
-                } label: {
-                    Label("同一 Wi-Fi 传输", systemImage: "wifi")
-                }
-            }
-            .navigationTitle(AppLocalization.string(title))
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { showsImportOptions = false }
-                }
-            }
-        }
-        .presentationDetents([.medium])
     }
 }
 

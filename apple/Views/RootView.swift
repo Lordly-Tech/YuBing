@@ -180,16 +180,22 @@ private struct SplitRootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if immersiveDetailDepth == 0 {
-                SectionNavigationBar(selection: $selection)
-                    .padding(.horizontal, 18)
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
-            }
-
             NavigationStack {
                 SectionDestinationView(section: selection)
                     .libraryDestinations()
+                    .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            Picker("板块", selection: $selection) {
+                                ForEach(AppSection.allCases) { section in
+                                    Label(section.title, systemImage: section.symbol)
+                                        .tag(section)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                        }
+                    }
+                    .toolbar(immersiveDetailDepth == 0 ? .visible : .hidden, for: .navigationBar)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -222,41 +228,6 @@ private struct SplitRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
             if let section = notification.object as? AppSection { selection = section }
         }
-    }
-}
-
-private struct SectionNavigationBar: View {
-    @Binding var selection: AppSection
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image("AppIcon")
-                .resizable()
-                .frame(width: 34, height: 34)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            ForEach(AppSection.allCases) { section in
-                Button {
-                    selection = section
-                } label: {
-                    Label(section.title, systemImage: section.symbol)
-                        .font(.subheadline.weight(selection == section ? .semibold : .regular))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background {
-                            if selection == section {
-                                Capsule(style: .continuous)
-                                    .fill(.primary.opacity(0.1))
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(8)
-        .adaptiveGlass(in: Capsule(style: .continuous))
     }
 }
 

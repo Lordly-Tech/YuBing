@@ -27,8 +27,6 @@ struct LocalAlbumDetailView: View {
             prompt: Text("在专辑中搜索")
         )
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbarColorScheme(resolvedPalette.colorScheme, for: .navigationBar, .tabBar)
         #else
         .searchable(
             text: $searchQuery,

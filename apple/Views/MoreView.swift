@@ -72,7 +72,7 @@ struct MoreView: View {
     private var identitySection: some View {
         Section {
             HStack(spacing: 16) {
-                Image("AppIcon")
+                Image("AppIconDisplay")
                     .resizable()
                     .frame(width: 64, height: 64)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
