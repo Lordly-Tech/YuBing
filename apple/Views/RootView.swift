@@ -224,20 +224,14 @@ private struct SplitRootView: View {
             NavigationStack {
                 SectionDestinationView(section: selection)
                     .libraryDestinations()
-                    .toolbar {
-                        ToolbarItem(placement: .principal) {
-                            Picker("板块", selection: $selection) {
-                                ForEach(AppSection.allCases) { section in
-                                    Label(section.title, systemImage: section.symbol)
-                                        .tag(section)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
-                        }
-                    }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .top) {
+                centeredSectionPicker
+                    .padding(.top, 8)
+                    .padding(.horizontal, 96)
+                    .allowsHitTesting(true)
+            }
             .overlay(alignment: .bottom) {
                 floatingMiniPlayer(maxWidth: 720)
                     .padding(.horizontal, 24)
@@ -250,6 +244,19 @@ private struct SplitRootView: View {
         .onChange(of: selection) { _, _ in
             isMiniPlayerHiddenByGesture = false
         }
+    }
+
+    private var centeredSectionPicker: some View {
+        Picker("板块", selection: $selection) {
+            ForEach(AppSection.allCases) { section in
+                Label(section.title, systemImage: section.symbol)
+                    .tag(section)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(maxWidth: 430)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     @ViewBuilder
