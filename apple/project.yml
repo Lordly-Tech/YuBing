@@ -56,9 +56,12 @@ targets:
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         GENERATE_INFOPLIST_FILE: false
         INFOPLIST_FILE: Config/YuBing-Info.plist
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: false
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        OTHER_LDFLAGS: "$(inherited) -Wl,-rpath,@loader_path/Frameworks"
         SWIFT_OBJC_BRIDGING_HEADER: AudioCodecBridge/YuBingAudioCodec.h
         PROVISIONING_PROFILE_SPECIFIER: $(IOS_PROFILE_NAME)
   YuBingMac:
@@ -103,6 +106,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: top.lordly.yubing.watchkitapp
         PRODUCT_NAME: YuBing Watch
+        SKIP_INSTALL: true
         SDKROOT: watchos
         SUPPORTED_PLATFORMS: "watchos watchsimulator"
         GENERATE_INFOPLIST_FILE: true

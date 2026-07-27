@@ -16,13 +16,15 @@ struct NowPlayingView: View {
 
     let startingItem: LibraryItem
     var queueItems: [LibraryItem]? = nil
+    var topSafeAreaInset: CGFloat? = nil
+    var bottomSafeAreaInset: CGFloat? = nil
+    var onDismiss: (() -> Void)? = nil
 
     @AppStorage("yubing.player.rememberedPage") private var rememberedPage = NowPlayingPage.artwork.rawValue
     @State private var page = NowPlayingPage.artwork
     @State private var showsLyricsControls = true
     @State private var showsSleepTimer = false
     @State private var highlightedLyricID: LyricLine.ID?
-    @State private var showsTextPVLandscapeSuggestion = false
     @Namespace private var pageArtworkNamespace
 
     private var localTracks: [LibraryItem] {
@@ -49,26 +51,9 @@ struct NowPlayingView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                if usesMonochromeLyricsBackground {
-                    Color.black
-                        .ignoresSafeArea()
-                } else {
-                    NowPlayingBackground(artworkData: song.artworkData)
-                }
+                NowPlayingBackground(artworkData: song.artworkData)
 
-                if usesFullScreenTextPV {
-                    TextPVFullScreenPlayerView(
-                        page: $page,
-                        showsControls: $showsLyricsControls,
-                        song: song,
-                        lyrics: lyrics,
-                        errorMessage: lyricError,
-                        highlightedLyricID: highlightedLyricID,
-                        onDismiss: { dismiss() },
-                        onToggleInterface: toggleLyricsControls
-                    )
-                    .transition(.opacity)
-                } else if proxy.size.width > proxy.size.height {
+                if proxy.size.width > proxy.size.height {
                     NowPlayingLandscapeView(
                         page: $page,
                         showsLyricsControls: $showsLyricsControls,
@@ -78,31 +63,24 @@ struct NowPlayingView: View {
                         lyricError: lyricError,
                         highlightedLyricID: highlightedLyricID,
                         artworkNamespace: pageArtworkNamespace,
-                        onDismiss: { dismiss() }
+                        onDismiss: dismissPlayer
                     )
                 } else {
-                    portraitContent
-                }
-
-                if usesFullScreenTextPV,
-                   showsTextPVLandscapeSuggestion,
-                   proxy.size.width <= proxy.size.height {
-                    Label("建议切换至横屏观看文字PV", systemImage: "rectangle.landscape.rotate")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 11)
-                        .background(.regularMaterial, in: .capsule)
-                        .shadow(color: .black.opacity(0.24), radius: 12, y: 5)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .safeAreaPadding(.top, 58)
-                        .accessibilityLabel("建议切换至横屏观看文字PV")
+                    portraitContent(
+                        topSafeInset: max(
+                            topSafeAreaInset ?? 0,
+                            proxy.safeAreaInsets.top
+                        ),
+                        bottomSafeInset: max(
+                            bottomSafeAreaInset ?? 0,
+                            proxy.safeAreaInsets.bottom
+                        )
+                    )
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.primary)
         }
-        .preferredColorScheme(.dark)
-        .ignoresSafeArea()
+        .ignoresSafeArea(.container, edges: .all)
         .onAppear {
             page = NowPlayingPage(rawValue: rememberedPage) ?? .artwork
             if let queueItems {
@@ -120,24 +98,6 @@ struct NowPlayingView: View {
         .task(id: lyricSynchronizationTrigger) {
             await synchronizeHighlightedLyric()
         }
-        .task(id: usesFullScreenTextPV) {
-            guard usesFullScreenTextPV else {
-                showsTextPVLandscapeSuggestion = false
-                return
-            }
-
-            withAnimation(accessibilityReduceMotion ? nil : .smooth(duration: 0.25)) {
-                showsTextPVLandscapeSuggestion = true
-            }
-            do {
-                try await Task.sleep(for: .seconds(3.2))
-            } catch {
-                return
-            }
-            withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.2)) {
-                showsTextPVLandscapeSuggestion = false
-            }
-        }
         .onChange(of: page) { _, newPage in
             if newPage != .lyrics {
                 showsLyricsControls = true
@@ -148,16 +108,24 @@ struct NowPlayingView: View {
         }
         .confirmationDialog("定时关闭", isPresented: $showsSleepTimer, titleVisibility: .visible) {
             ForEach([15, 30, 45, 60, 90], id: \.self) { minutes in
-                Button("\(minutes) 分钟") {
+                Button {
                     player.setSleepTimer(minutes: minutes)
+                } label: {
+                    Label("\(minutes) 分钟", systemImage: sleepTimerIcon(for: minutes))
                 }
             }
-            Button("本曲结束") {
+
+            Button {
                 player.sleepAfterCurrentTrack()
+            } label: {
+                Label("本曲结束", systemImage: "music.note")
             }
+
             if player.sleepTimerEnd != nil || player.stopAfterCurrentTrack {
-                Button("关闭定时", role: .destructive) {
+                Button(role: .destructive) {
                     player.cancelSleepTimer()
+                } label: {
+                    Label("关闭定时", systemImage: "timer.circle.fill")
                 }
             }
         }
@@ -169,9 +137,25 @@ struct NowPlayingView: View {
         .animation(.smooth(duration: 0.4), value: page)
     }
 
-    private var portraitContent: some View {
+
+    private func sleepTimerIcon(for minutes: Int) -> String {
+        switch minutes {
+        case 15: "timer"
+        case 30: "clock"
+        case 45: "clock.badge"
+        case 60: "clock.circle"
+        case 90: "moon.zzz"
+        default: "timer"
+        }
+    }
+
+    private func portraitContent(
+        topSafeInset: CGFloat,
+        bottomSafeInset: CGFloat
+    ) -> some View {
         VStack(spacing: 0) {
             dismissalHandle
+                .padding(.top, max(topSafeInset + 4, 18))
 
             if usesExpandedAppleMusicLyricsLayout {
                 pageContent
@@ -190,8 +174,7 @@ struct NowPlayingView: View {
             }
         }
         .padding(.horizontal, 28)
-        .safeAreaPadding(.top, 4)
-        .safeAreaPadding(.bottom, 8)
+        .padding(.bottom, max(bottomSafeInset + 4, 12))
     }
 
     private var portraitPlayerControls: some View {
@@ -208,33 +191,25 @@ struct NowPlayingView: View {
     }
 
     private var usesExpandedAppleMusicLyricsLayout: Bool {
-        page == .lyrics && settings.lyricsStyle == .appleMusic
-    }
-
-    private var usesFullScreenTextPV: Bool {
-        page == .lyrics && settings.lyricsStyle == .textPV
-    }
-
-    private var usesMonochromeLyricsBackground: Bool {
-        page == .lyrics && settings.lyricsStyle.usesMonochromePlayerBackground
+        page == .lyrics
     }
 
     private var dismissalHandle: some View {
         Capsule()
-            .fill(.white.opacity(0.52))
+            .fill(Color.primary.opacity(0.76))
             .frame(width: 38, height: 5)
+            .shadow(color: .black.opacity(0.22), radius: 4, y: 1)
             .frame(maxWidth: .infinity)
-            .frame(height: 52)
+            .frame(height: 28)
             .contentShape(.rect)
             .onTapGesture {
-                dismiss()
+                dismissPlayer()
             }
-            .gesture(dismissalDragGesture)
             .accessibilityElement()
             .accessibilityLabel("收起播放器")
             .accessibilityHint("轻点收起，或向下拖动播放器")
             .accessibilityAction {
-                dismiss()
+                dismissPlayer()
             }
     }
 
@@ -334,15 +309,12 @@ struct NowPlayingView: View {
         }
     }
 
-    private var dismissalDragGesture: some Gesture {
-        DragGesture(minimumDistance: 8)
-            .onEnded { value in
-                guard value.translation.height > 60,
-                      abs(value.translation.height) > abs(value.translation.width) else {
-                    return
-                }
-                dismiss()
-            }
+    private func dismissPlayer() {
+        if let onDismiss {
+            onDismiss()
+        } else {
+            dismiss()
+        }
     }
 
     private func showDetails() {

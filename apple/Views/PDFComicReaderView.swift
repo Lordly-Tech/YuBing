@@ -10,6 +10,7 @@ private enum ComicDisplayMode: String, CaseIterable, Identifiable {
 }
 
 struct PDFComicReaderView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: LibraryStore
     #if os(iOS)
     @EnvironmentObject private var watchTransfer: WatchTransferService
@@ -18,6 +19,7 @@ struct PDFComicReaderView: View {
 
     @State private var mode: ComicDisplayMode = .pages
     @State private var areControlsVisible = false
+    @State private var showsDeleteConfirmation = false
     private var pageCount: Int { PDFDocument(url: item.url)?.pageCount ?? 0 }
 
     var body: some View {
@@ -57,7 +59,26 @@ struct PDFComicReaderView: View {
                         Label("发送到 Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
                     }
                     #endif
+                    ShareLink(item: item.url)
+                    Button(role: .destructive) {
+                        showsDeleteConfirmation = true
+                    } label: {
+                        Label("删除", systemImage: "trash")
+                    }
                 }
+            }
+            .confirmationDialog(
+                "删除“\(item.displayName)”？",
+                isPresented: $showsDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("删除", role: .destructive) {
+                    store.delete(item)
+                    dismiss()
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("此操作会从本地资料库中删除文件。")
             }
             .immersiveSplitDetail()
     }

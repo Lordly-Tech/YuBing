@@ -1,14 +1,47 @@
 import Foundation
 import Observation
+import SwiftUI
+
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "跟随系统"
+        case .light: "浅色"
+        case .dark: "深色"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .system: "circle.lefthalf.filled"
+        case .light: "sun.max.fill"
+        case .dark: "moon.fill"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+}
 
 @MainActor
 @Observable
 final class AppSettings {
     private enum Key {
+        static let appearance = "yubing.appearance"
         static let playerBackgroundBlur = "yubing.playerBackgroundBlur"
         static let playerBackgroundSaturation = "yubing.playerBackgroundSaturation"
         static let shrinksPausedArtwork = "yubing.shrinksPausedArtwork"
-        static let lyricsStyle = "yubing.lyricsStyle"
         static let lyricsFontSize = "yubing.lyricsFontSize"
         static let lyricsCurrentLineScale = "yubing.lyricsCurrentLineScale"
         static let lyricsLineSpacing = "yubing.lyricsLineSpacing"
@@ -35,6 +68,10 @@ final class AppSettings {
 
     private let defaults: UserDefaults
 
+    var appearance: AppAppearance {
+        didSet { defaults.set(appearance.rawValue, forKey: Key.appearance) }
+    }
+
     var playerBackgroundBlur: Double {
         didSet { defaults.set(playerBackgroundBlur, forKey: Key.playerBackgroundBlur) }
     }
@@ -45,10 +82,6 @@ final class AppSettings {
 
     var shrinksPausedArtwork: Bool {
         didSet { defaults.set(shrinksPausedArtwork, forKey: Key.shrinksPausedArtwork) }
-    }
-
-    var lyricsStyle: LyricsStyle {
-        didSet { defaults.set(lyricsStyle.rawValue, forKey: Key.lyricsStyle) }
     }
 
     var lyricsFontSize: Double {
@@ -157,19 +190,14 @@ final class AppSettings {
     static let lyricsFontSizeRange: ClosedRange<Double> = 20...36
     static let lyricsLineSpacingRange: ClosedRange<Double> = 12...40
 
-    let skylineLyrics: SkylineLyricsPreferences
-    let textPV: TextPVPreferences
-
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        skylineLyrics = SkylineLyricsPreferences(defaults: defaults)
-        textPV = TextPVPreferences(defaults: defaults)
+        appearance = AppAppearance(
+            rawValue: defaults.string(forKey: Key.appearance) ?? ""
+        ) ?? .system
         playerBackgroundBlur = Self.double(defaults, Key.playerBackgroundBlur, 90)
         playerBackgroundSaturation = Self.double(defaults, Key.playerBackgroundSaturation, 0.82)
         shrinksPausedArtwork = Self.bool(defaults, Key.shrinksPausedArtwork, true)
-        lyricsStyle = LyricsStyle(
-            rawValue: defaults.string(forKey: Key.lyricsStyle) ?? ""
-        ) ?? .appleMusic
         lyricsFontSize = Self.double(defaults, Key.lyricsFontSize, 25)
         lyricsCurrentLineScale = Self.double(defaults, Key.lyricsCurrentLineScale, 1.2)
         lyricsLineSpacing = Self.double(defaults, Key.lyricsLineSpacing, 27)
@@ -203,7 +231,6 @@ final class AppSettings {
     }
 
     func resetLyricsEffects() {
-        lyricsStyle = .appleMusic
         lyricsWordByWord = true
         lyricsPseudoWordByWord = true
         lyricsGlowEnabled = true
@@ -215,8 +242,6 @@ final class AppSettings {
         lyricsFocusCascadeBounceEnabled = true
         lyricsTranslationEnabled = true
         lyricsTapToSeek = true
-        textPV.reset()
-        skylineLyrics.reset()
     }
 
     private static func double(

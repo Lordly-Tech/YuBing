@@ -1,6 +1,7 @@
 import CoreText
 import SwiftUI
 
+@available(iOS 18.0, macOS 15.0, *)
 enum TimedLyricTextBuilder {
     static func text(
         from syllables: [LyricSyllable],
@@ -172,6 +173,7 @@ enum TimedLyricTextBuilder {
     }
 }
 
+@available(iOS 18.0, macOS 15.0, *)
 private extension TimedLyricTextBuilder {
     struct TimedCharacter {
         let text: String

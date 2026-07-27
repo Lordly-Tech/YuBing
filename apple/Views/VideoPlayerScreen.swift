@@ -2,6 +2,7 @@ import AVKit
 import SwiftUI
 
 struct VideoPlayerScreen: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: LibraryStore
     #if os(iOS)
     @EnvironmentObject private var watchTransfer: WatchTransferService
@@ -10,6 +11,7 @@ struct VideoPlayerScreen: View {
     let item: LibraryItem
 
     @State private var player: AVPlayer?
+    @State private var showsDeleteConfirmation = false
 
     var body: some View {
         Group {
@@ -39,7 +41,26 @@ struct VideoPlayerScreen: View {
                 }
                 #endif
                 ShareLink(item: item.url)
+                Button(role: .destructive) {
+                    showsDeleteConfirmation = true
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
             }
+        }
+        .confirmationDialog(
+            "删除“\(item.displayName)”？",
+            isPresented: $showsDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                player?.pause()
+                store.delete(item)
+                dismiss()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作会从本地资料库中删除文件。")
         }
         .task(id: item.url) {
             player = AVPlayer(url: item.url)

@@ -26,6 +26,7 @@ struct MusicLibraryView: View {
     @State private var showsCreatePlaylist = false
     @State private var newPlaylistName = ""
     @State private var addToPlaylistItem: LibraryItem?
+    @State private var deletingTrack: LibraryItem?
 
     private var audioTracks: [LibraryItem] {
         store.items(of: .music).sorted(by: .name)
@@ -109,6 +110,19 @@ struct MusicLibraryView: View {
         .sheet(item: $addToPlaylistItem) { item in
             AddToLocalPlaylistSheet(item: item)
         }
+        .confirmationDialog(
+            deleteTrackDialogTitle,
+            isPresented: deleteTrackPresented,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let deletingTrack { store.delete(deletingTrack) }
+                deletingTrack = nil
+            }
+            Button("取消", role: .cancel) { deletingTrack = nil }
+        } message: {
+            Text("此操作会从本地资料库中删除歌曲文件，并自动从歌单中移除。")
+        }
         .alert("新建歌单", isPresented: $showsCreatePlaylist) {
             TextField("歌单名称", text: $newPlaylistName)
             Button("取消", role: .cancel) { newPlaylistName = "" }
@@ -119,6 +133,18 @@ struct MusicLibraryView: View {
         } message: {
             Text("创建一个本地音乐歌单。")
         }
+    }
+
+    private var deleteTrackPresented: Binding<Bool> {
+        Binding(
+            get: { deletingTrack != nil },
+            set: { if !$0 { deletingTrack = nil } }
+        )
+    }
+
+    private var deleteTrackDialogTitle: String {
+        guard let deletingTrack else { return "删除歌曲？" }
+        return "删除“\(deletingTrack.displayName)”？"
     }
 
     private var libraryHeader: some View {
@@ -215,7 +241,18 @@ struct MusicLibraryView: View {
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
-                    LocalTrackContextActions(item: item, addToPlaylistItem: $addToPlaylistItem)
+                    LocalTrackContextActions(
+                        item: item,
+                        addToPlaylistItem: $addToPlaylistItem,
+                        onDelete: { deletingTrack = item }
+                    )
+                }
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        deletingTrack = item
+                    } label: {
+                        Label("删除歌曲", systemImage: "trash")
+                    }
                 }
                 if index < filteredTracks.count - 1 {
                     Divider().padding(.leading, 62)
@@ -338,7 +375,6 @@ private struct LocalPlaylistCard: View {
             }
         }
     }
-
     @ViewBuilder
     private var playlistArtwork: some View {
         if store.isLikedPlaylist(playlist), playlist.artworkData == nil {
@@ -361,11 +397,14 @@ private struct LocalPlaylistCard: View {
 private struct LocalPlaylistDetailView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController
+    @Environment(\.dismiss) private var dismiss
     let playlist: MusicPlaylist
     @State private var addToPlaylistItem: LibraryItem?
     @State private var renameText = ""
     @State private var showsRename = false
     @State private var showsEditDetails = false
+    @State private var deletingTrack: LibraryItem?
+    @State private var showsDeletePlaylistConfirmation = false
 
     private var currentPlaylist: MusicPlaylist {
         store.musicPlaylists.first(where: { $0.id == playlist.id }) ?? playlist
@@ -402,10 +441,41 @@ private struct LocalPlaylistDetailView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        Button(role: .destructive) { store.remove(item, from: currentPlaylist) } label: {
+                        Button(role: .destructive) {
+                            store.remove(item, from: currentPlaylist)
+                        } label: {
                             Label("从歌单移除", systemImage: "minus.circle")
                         }
-                        LocalTrackContextActions(item: item, addToPlaylistItem: $addToPlaylistItem)
+                        Button { store.toggleFavorite(item) } label: {
+                            Label(
+                                store.isFavorite(item) ? "取消收藏" : "收藏",
+                                systemImage: store.isFavorite(item) ? "star.slash" : "star"
+                            )
+                        }
+                        Button { addToPlaylistItem = item } label: {
+                            Label("添加到歌单", systemImage: "text.badge.plus")
+                        }
+                        ShareLink(item: item.url) {
+                            Label("分享", systemImage: "square.and.arrow.up")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            deletingTrack = item
+                        } label: {
+                            Label("删除歌曲", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            deletingTrack = item
+                        } label: {
+                            Label("删除歌曲", systemImage: "trash")
+                        }
+                        Button(role: .destructive) {
+                            store.remove(item, from: currentPlaylist)
+                        } label: {
+                            Label("从歌单移除", systemImage: "minus.circle")
+                        }
                     }
                 }
             }
@@ -432,7 +502,9 @@ private struct LocalPlaylistDetailView: View {
                         } label: {
                             Label("重命名", systemImage: "pencil")
                         }
-                        Button(role: .destructive) { store.delete(currentPlaylist) } label: {
+                        Button(role: .destructive) {
+                            showsDeletePlaylistConfirmation = true
+                        } label: {
                             Label("删除歌单", systemImage: "trash")
                         }
                     }
@@ -445,11 +517,53 @@ private struct LocalPlaylistDetailView: View {
         .sheet(isPresented: $showsEditDetails) {
             PlaylistDetailsEditor(playlist: currentPlaylist)
         }
+        .confirmationDialog(
+            deleteTrackDialogTitle,
+            isPresented: deleteTrackPresented,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let deletingTrack { store.delete(deletingTrack) }
+                deletingTrack = nil
+            }
+            Button("取消", role: .cancel) { deletingTrack = nil }
+        } message: {
+            Text("此操作会从本地资料库中删除歌曲文件，并自动从歌单中移除。")
+        }
+        .confirmationDialog(
+            deletePlaylistDialogTitle,
+            isPresented: $showsDeletePlaylistConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("删除歌单", role: .destructive) {
+                store.delete(currentPlaylist)
+                dismiss()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("仅删除歌单列表，不会删除歌单内的歌曲文件。")
+        }
         .alert("重命名歌单", isPresented: $showsRename) {
             TextField("歌单名称", text: $renameText)
             Button("取消", role: .cancel) {}
             Button("保存") { store.rename(currentPlaylist, to: renameText) }
         }
+    }
+
+    private var deleteTrackPresented: Binding<Bool> {
+        Binding(
+            get: { deletingTrack != nil },
+            set: { if !$0 { deletingTrack = nil } }
+        )
+    }
+
+    private var deleteTrackDialogTitle: String {
+        guard let deletingTrack else { return "删除歌曲？" }
+        return "删除“\(deletingTrack.displayName)”？"
+    }
+
+    private var deletePlaylistDialogTitle: String {
+        "删除歌单“\(store.displayName(for: currentPlaylist))”？"
     }
 }
 
@@ -481,10 +595,10 @@ private struct LocalPlaylistArtworkView: View {
         .frame(width: side, height: side)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
+
 }
 
-private struct PlaylistDetailsEditor: View {
-    @EnvironmentObject private var store: LibraryStore
+private struct PlaylistDetailsEditor: View {    @EnvironmentObject private var store: LibraryStore
     @Environment(\.dismiss) private var dismiss
     let playlist: MusicPlaylist
     @State private var name: String
@@ -557,6 +671,7 @@ struct LocalTrackContextActions: View {
     @EnvironmentObject private var store: LibraryStore
     let item: LibraryItem
     @Binding var addToPlaylistItem: LibraryItem?
+    var onDelete: (() -> Void)? = nil
 
     var body: some View {
         Button { store.toggleFavorite(item) } label: {
@@ -570,6 +685,12 @@ struct LocalTrackContextActions: View {
         }
         ShareLink(item: item.url) {
             Label("分享", systemImage: "square.and.arrow.up")
+        }
+        if let onDelete {
+            Divider()
+            Button(role: .destructive, action: onDelete) {
+                Label("删除歌曲", systemImage: "trash")
+            }
         }
     }
 }

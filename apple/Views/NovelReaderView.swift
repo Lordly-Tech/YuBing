@@ -87,6 +87,7 @@ private struct ReaderSettingsValues {
 struct NovelReaderView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var readingStore: ReadingStore
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     #if os(iOS)
     @EnvironmentObject private var watchTransfer: WatchTransferService
@@ -109,6 +110,7 @@ struct NovelReaderView: View {
     @State private var areReaderControlsVisible = false
     @State private var bookmarkConfirmation: ReaderBookmark?
     @State private var readerLayoutRevision = UUID()
+    @State private var showsDeleteConfirmation = false
     #if os(iOS)
     @State private var originalBrightness: CGFloat?
     #endif
@@ -208,6 +210,21 @@ struct NovelReaderView: View {
                 message: Text(bookmark.name),
                 dismissButton: .default(Text("好"))
             )
+        }
+        .confirmationDialog(
+            "删除“\(item.displayName)”？",
+            isPresented: $showsDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                commitReadingTime()
+                readingStore.updateProgress(for: item, chapterIndex: chapterIndex, progress: chapterProgress)
+                store.delete(item)
+                dismiss()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作会从本地资料库中删除文件。")
         }
         .task(id: item.url) { await loadBook() }
         .onChange(of: chapterProgress) { _, value in persistProgressIfNeeded(value) }
@@ -337,6 +354,14 @@ struct NovelReaderView: View {
 
                 Section {
                     Text("已阅读 \(readingStore.record(for: item).totalReadingTime.formattedReadingDuration)")
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        showsDeleteConfirmation = true
+                    } label: {
+                        Label("删除本书", systemImage: "trash")
+                    }
                 }
             } label: {
                 Label("阅读菜单", systemImage: "ellipsis.circle")

@@ -80,7 +80,7 @@ struct DashboardView: View {
     private var recentList: some View {
         VStack(spacing: 0) {
             ForEach(Array(recentItems.prefix(6).enumerated()), id: \.element.id) { index, item in
-                NavigationLink(value: item) {
+                LibraryItemOpenControl(item: item) {
                     LibraryItemRow(item: item)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)

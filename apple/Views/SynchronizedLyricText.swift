@@ -51,8 +51,10 @@ struct SynchronizedLyricText: View {
     let layoutWidth: CGFloat?
     let playbackScaleRange: ClosedRange<CGFloat>?
     let playbackScaleStartDelay: TimeInterval
-    private let synchronizedText: Text
-    private let pseudoSynchronizedText: Text
+    private let synchronizedText: Text?
+    private let pseudoSynchronizedText: Text?
+    private let fallbackSynchronizedText: String
+    private let fallbackPseudoSynchronizedText: String
     private let hasPseudoSyllables: Bool
     private let timedPlaybackRange: ClosedRange<TimeInterval>?
 
@@ -63,7 +65,7 @@ struct SynchronizedLyricText: View {
         fontSize: CGFloat,
         alignment: SynchronizedLyricTextAlignment = .leading,
         fontScale: CGFloat = 1,
-        primaryColor: Color = .white,
+        primaryColor: Color = .primary,
         showsTranslation: Bool = true,
         visualScale: CGFloat = 1,
         layoutWidth: CGFloat? = nil,
@@ -92,16 +94,23 @@ struct SynchronizedLyricText: View {
         let timedLayoutWidth = layoutWidth.map {
             $0 / max(playbackScaleRange?.upperBound ?? 1, 1)
         }
-        synchronizedText = TimedLyricTextBuilder.text(
-            from: line.syllables,
-            constrainedWidth: timedLayoutWidth,
-            fontSize: fontSize
-        )
-        pseudoSynchronizedText = TimedLyricTextBuilder.text(
-            from: pseudoSyllables,
-            constrainedWidth: timedLayoutWidth,
-            fontSize: fontSize
-        )
+        if #available(iOS 18.0, macOS 15.0, *) {
+            synchronizedText = TimedLyricTextBuilder.text(
+                from: line.syllables,
+                constrainedWidth: timedLayoutWidth,
+                fontSize: fontSize
+            )
+            pseudoSynchronizedText = TimedLyricTextBuilder.text(
+                from: pseudoSyllables,
+                constrainedWidth: timedLayoutWidth,
+                fontSize: fontSize
+            )
+        } else {
+            synchronizedText = nil
+            pseudoSynchronizedText = nil
+        }
+        fallbackSynchronizedText = line.syllables.map(\.text).joined()
+        fallbackPseudoSynchronizedText = pseudoSyllables.map(\.text).joined()
         hasPseudoSyllables = !pseudoSyllables.isEmpty
         if let firstSyllable = activeSyllables.first,
            let lastSyllable = activeSyllables.last,
@@ -130,7 +139,7 @@ struct SynchronizedLyricText: View {
                             weight: .semibold
                         )
                     )
-                    .foregroundStyle(.white.opacity(settings.lyricsTranslationOpacity))
+                    .foregroundStyle(primaryColor.opacity(settings.lyricsTranslationOpacity))
             }
         }
         .multilineTextAlignment(alignment.textAlignment)
@@ -151,42 +160,7 @@ struct SynchronizedLyricText: View {
                 let playbackTime = player.estimatedProgress(at: context.date)
                     + settings.lyricsAdvanceTime
 
-                activeSynchronizedText
-                    .font(primaryFont)
-                    .foregroundStyle(primaryColor)
-                    .multilineTextAlignment(alignment.textAlignment)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textRenderer(
-                        LyricGlowTextRenderer(
-                            playbackTime: playbackTime,
-                            style: .init(
-                                glowRadius: glowRadius,
-                                glowOpacity: glowOpacity,
-                                unplayedOpacity: 0.3,
-                                maximumUnplayedBlurRadius: maximumUnplayedBlurRadius,
-                                playedRise: playedRise,
-                                maximumLongSyllableScale: maximumLongSyllableScale,
-                                longSyllableExpansionPadding: longSyllableExpansionPadding
-                            ),
-                            layoutConfiguration: .init(
-                                width: timedLayoutWidth,
-                                centersLines: alignment == .center
-                            )
-                        )
-                    )
-                    .frame(
-                        width: timedLayoutWidth,
-                        alignment: alignment.frameAlignment
-                    )
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: alignment.frameAlignment
-                    )
-                    .scaleEffect(
-                        playbackScale(at: playbackTime),
-                        anchor: .center
-                    )
+                timedLyricView(playbackTime: playbackTime)
             }
             .transition(.opacity)
         } else {
@@ -214,8 +188,74 @@ struct SynchronizedLyricText: View {
             || (usesPseudoTiming && hasPseudoSyllables)
     }
 
-    private var activeSynchronizedText: Text {
+    @ViewBuilder
+    private func timedLyricView(playbackTime: TimeInterval) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *),
+           let activeSynchronizedText {
+            activeSynchronizedText
+                .font(primaryFont)
+                .foregroundStyle(primaryColor)
+                .multilineTextAlignment(alignment.textAlignment)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .textRenderer(
+                    LyricGlowTextRenderer(
+                        playbackTime: playbackTime,
+                        style: .init(
+                            glowRadius: glowRadius,
+                            glowOpacity: glowOpacity,
+                            unplayedOpacity: 0.3,
+                            maximumUnplayedBlurRadius: maximumUnplayedBlurRadius,
+                            playedRise: playedRise,
+                            maximumLongSyllableScale: maximumLongSyllableScale,
+                            longSyllableExpansionPadding: longSyllableExpansionPadding
+                        ),
+                        layoutConfiguration: .init(
+                            width: timedLayoutWidth,
+                            centersLines: alignment == .center
+                        )
+                    )
+                )
+                .frame(
+                    width: timedLayoutWidth,
+                    alignment: alignment.frameAlignment
+                )
+                .frame(
+                    maxWidth: .infinity,
+                    alignment: alignment.frameAlignment
+                )
+                .scaleEffect(
+                    playbackScale(at: playbackTime),
+                    anchor: .center
+                )
+        } else {
+            Text(verbatim: activeFallbackSynchronizedText)
+                .font(primaryFont)
+                .foregroundStyle(primaryColor)
+                .multilineTextAlignment(alignment.textAlignment)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(
+                    width: timedLayoutWidth,
+                    alignment: alignment.frameAlignment
+                )
+                .frame(
+                    maxWidth: .infinity,
+                    alignment: alignment.frameAlignment
+                )
+                .scaleEffect(
+                    playbackScale(at: playbackTime),
+                    anchor: .center
+                )
+        }
+    }
+
+    private var activeSynchronizedText: Text? {
         usesPseudoTiming ? pseudoSynchronizedText : synchronizedText
+    }
+
+    private var activeFallbackSynchronizedText: String {
+        usesPseudoTiming ? fallbackPseudoSynchronizedText : fallbackSynchronizedText
     }
 
     private var primaryFont: Font {
@@ -276,6 +316,8 @@ struct SynchronizedLyricText: View {
         return layoutWidth / max(maximumScale, 1)
     }
 
+    private static let lyricGlowTailDuration: TimeInterval = 0.55
+
     private func playbackScale(at playbackTime: TimeInterval) -> CGFloat {
         guard !accessibilityReduceMotion,
               let playbackScaleRange,
@@ -284,7 +326,7 @@ struct SynchronizedLyricText: View {
         }
 
         let glowTailDuration = settings.lyricsGlowEnabled
-            ? LyricGlowTextRenderer.glowTailDuration
+            ? Self.lyricGlowTailDuration
             : 0
         let playbackScaleEndTime = timedPlaybackRange.upperBound
             + glowTailDuration

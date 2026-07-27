@@ -22,7 +22,7 @@ struct OpenSourceLicensesView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("播放器、横屏布局、歌词动效和专辑体验改编自 youshen2/MeloX。")
                         .font(.subheadline)
-                    Text("已适配 EVA、TextPV 和全屏天际歌词样式。MeloX 以 GPL-3.0 发布，TextPV 使用的 PV Tool 模板另遵循其非商业许可。")
+                    Text("已适配播放器、横屏布局和滚动歌词体验。MeloX 以 GPL-3.0 发布。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -61,27 +61,6 @@ struct OpenSourceLicensesView: View {
                         title: "第三方说明",
                         resource: "ThirdPartyNotices",
                         fileExtension: "md"
-                    )
-                }
-                NavigationLink("PV Tool 非商业许可") {
-                    BundledTextDocumentView(
-                        title: "PV Tool 非商业许可",
-                        resource: "PVTool-LICENSE",
-                        fileExtension: "txt"
-                    )
-                }
-                NavigationLink("PV Tool 声明") {
-                    BundledTextDocumentView(
-                        title: "PV Tool 声明",
-                        resource: "PVTool-NOTICE",
-                        fileExtension: "txt"
-                    )
-                }
-                NavigationLink("思源宋体许可") {
-                    BundledTextDocumentView(
-                        title: "思源宋体许可",
-                        resource: "SourceHanSerif-LICENSE",
-                        fileExtension: "txt"
                     )
                 }
             }

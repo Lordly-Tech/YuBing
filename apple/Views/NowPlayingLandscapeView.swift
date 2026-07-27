@@ -16,34 +16,13 @@ struct NowPlayingLandscapeView: View {
     let artworkNamespace: Namespace.ID
     let onDismiss: () -> Void
 
-    @State private var showsSkylineLyrics = false
-
     var body: some View {
-        ZStack {
-            if showsSkylineLyrics, page == .lyrics {
-                SkylineLyricsView(
-                    artworkData: song.artworkData,
-                    lyrics: lyrics,
-                    errorMessage: lyricError,
-                    highlightedLyricID: highlightedLyricID,
-                    onExit: exitSkylineLyrics
-                )
-                .transition(.opacity)
-            } else {
-                standardPlayer
-                    .transition(.opacity)
+        standardPlayer
+            .onChange(of: page) { _, newPage in
+                if newPage != .lyrics {
+                    showsLyricsControls = true
+                }
             }
-        }
-        .onChange(of: page) { _, newPage in
-            if newPage != .lyrics {
-                showsLyricsControls = true
-                showsSkylineLyrics = false
-            }
-        }
-        .animation(
-            accessibilityReduceMotion ? nil : .smooth(duration: 0.4),
-            value: showsSkylineLyrics
-        )
     }
 
     private var standardPlayer: some View {
@@ -75,7 +54,7 @@ struct NowPlayingLandscapeView: View {
     private var dismissalHandle: some View {
         Button(action: onDismiss) {
             Capsule()
-                .fill(.white.opacity(0.52))
+                .fill(Color.primary.opacity(0.52))
                 .frame(width: 38, height: 5)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(.rect)
@@ -84,7 +63,6 @@ struct NowPlayingLandscapeView: View {
         .frame(height: 28)
         .accessibilityLabel("收起播放器")
         .accessibilityHint("轻点收起，或向下拖动播放器")
-        .gesture(dismissalDragGesture)
     }
 
     private func artwork(side: CGFloat) -> some View {
@@ -132,7 +110,7 @@ struct NowPlayingLandscapeView: View {
     }
 
     private var usesExpandedAppleMusicLyricsLayout: Bool {
-        page == .lyrics && settings.lyricsStyle == .appleMusic
+        page == .lyrics
     }
 
     private var songHeader: some View {
@@ -144,22 +122,10 @@ struct NowPlayingLandscapeView: View {
 
                 Text(song.artistText)
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.64))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            if page == .lyrics, !lyrics.isEmpty {
-                Button(action: enterSkylineLyrics) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.title3.weight(.medium))
-                        .frame(width: 40, height: 40)
-                        .background(.white.opacity(0.13), in: .circle)
-                        .contentShape(.circle)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("打开全屏天际歌词")
-            }
 
             NowPlayingSongActions(
                 song: song,
@@ -228,28 +194,10 @@ struct NowPlayingLandscapeView: View {
         }
     }
 
-    private func enterSkylineLyrics() {
-        showsSkylineLyrics = true
-    }
-
-    private func exitSkylineLyrics() {
-        showsSkylineLyrics = false
-    }
-
     private func toggleArtworkDetails() {
         withAnimation(accessibilityReduceMotion ? nil : .smooth(duration: 0.3)) {
             page = page == .details ? .artwork : .details
         }
     }
 
-    private var dismissalDragGesture: some Gesture {
-        DragGesture(minimumDistance: 8)
-            .onEnded { value in
-                guard value.translation.height > 60,
-                      abs(value.translation.height) > abs(value.translation.width) else {
-                    return
-                }
-                onDismiss()
-            }
-    }
 }

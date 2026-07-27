@@ -59,7 +59,7 @@ struct NowPlayingSongDetailsPage: View {
 
                 Text(song.artistText)
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.64))
+                    .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -70,13 +70,13 @@ struct NowPlayingSongDetailsPage: View {
         VStack(spacing: 0) {
             ForEach(Array(detailRows.enumerated()), id: \.element.id) { index, row in
                 if index > 0 {
-                    Divider().overlay(.white.opacity(0.12))
+                    Divider().overlay(Color.primary.opacity(0.12))
                 }
                 valueRow(title: row.title, value: row.value)
             }
         }
         .padding(.horizontal, 16)
-        .background(.white.opacity(0.08), in: .rect(cornerRadius: 16))
+        .background(Color.primary.opacity(0.08), in: .rect(cornerRadius: 16))
     }
 
     private var detailRows: [SongDetailRow] {

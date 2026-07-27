@@ -21,6 +21,7 @@ struct YuBingApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .preferredColorScheme(appSettings.appearance.colorScheme)
                 .environment(\.locale, Locale(identifier: appLanguage.localeIdentifier))
                 .id(appLanguage.localeIdentifier)
                 .environmentObject(store)

@@ -58,7 +58,7 @@ struct AppleMusicLyricsView: View {
                     systemImage: "quote.bubble",
                     description: Text(errorMessage)
                 )
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.primary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(.rect)
                 .onTapGesture {
@@ -66,8 +66,8 @@ struct AppleMusicLyricsView: View {
                 }
             } else {
                 ProgressView("正在载入歌词")
-                    .tint(.white)
-                    .foregroundStyle(.white)
+                    .tint(Color.primary)
+                    .foregroundStyle(Color.primary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(.rect)
                     .onTapGesture {
@@ -274,17 +274,15 @@ struct AppleMusicLyricsView: View {
                     )
                     .frame(width: proxy.size.width + glowOverflow * 2)
                 }
-                .onScrollPhaseChange { _, newPhase in
-                    switch newPhase {
-                    case .tracking, .interacting:
+                .yuBingLyricsScrollPhaseTracking(
+                    onBrowsing: {
                         browsingGeneration += 1
                         isBrowsingLyrics = true
-                    case .idle:
+                    },
+                    onIdle: {
                         schedulePlaybackFollowing()
-                    case .decelerating, .animating:
-                        break
                     }
-                }
+                )
                 .onChange(of: highlightedLyricID) { _, newValue in
                     guard newValue == nil else { return }
                     visualHighlightedLyricID = nil
@@ -1128,4 +1126,28 @@ private struct RetainedCascadeLyric: Identifiable, Equatable {
     let id: LyricLine.ID
     let frame: CGRect
     let movementDistance: CGFloat
+}
+
+
+private extension View {
+    @ViewBuilder
+    func yuBingLyricsScrollPhaseTracking(
+        onBrowsing: @escaping () -> Void,
+        onIdle: @escaping () -> Void
+    ) -> some View {
+        if #available(iOS 18.0, macOS 15.0, watchOS 11.0, *) {
+            self.onScrollPhaseChange { _, newPhase in
+                switch newPhase {
+                case .tracking, .interacting:
+                    onBrowsing()
+                case .idle:
+                    onIdle()
+                case .decelerating, .animating:
+                    break
+                }
+            }
+        } else {
+            self
+        }
+    }
 }

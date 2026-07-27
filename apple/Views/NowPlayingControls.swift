@@ -1,6 +1,5 @@
 #if os(iOS)
 import AVKit
-import MediaPlayer
 import UIKit
 #endif
 import Foundation
@@ -15,23 +14,17 @@ struct NowPlayingProgressControl: View {
         VStack(spacing: 2) {
             progressSlider
 
-            HStack {
+            HStack(spacing: 12) {
                 Text(formatMusicTime(player.progress))
+                    .frame(minWidth: 40, alignment: .leading)
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 Text("−\(formatMusicTime(max(player.duration - player.progress, 0)))")
-            }
-            .overlay {
-                Text(
-                    song.metadata.qualityDescription.isEmpty
-                        ? song.item.fileExtension.uppercased()
-                        : song.metadata.qualityDescription
-                )
-                    .lineLimit(1)
+                    .frame(minWidth: 40, alignment: .trailing)
             }
             .font(.caption2.monospacedDigit())
-            .foregroundStyle(.white.opacity(0.5))
+            .foregroundStyle(.secondary)
         }
         .frame(height: 52)
     }
@@ -58,7 +51,7 @@ struct NowPlayingProgressControl: View {
             ),
             in: 0...progressMaximum
         )
-        .tint(.white)
+        .tint(Color.primary)
         .accessibilityLabel("播放进度")
         .accessibilityValue(
             "已播放 \(formatMusicTime(player.progress))，总时长 \(formatMusicTime(progressMaximum))"
@@ -105,7 +98,7 @@ struct NowPlayingTransportControls: View {
                     if player.isPreparing {
                         ProgressView()
                             .controlSize(isCompact ? .regular : .large)
-                            .tint(.white)
+                            .tint(Color.primary)
                     } else {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: playSymbolSize, weight: .medium))
@@ -152,88 +145,114 @@ struct NowPlayingTransportControls: View {
 
 struct NowPlayingVolumeControl: View {
     @EnvironmentObject private var player: AudioPlayerController
+    @State private var isAdjustingVolume = false
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "speaker.fill")
-                .font(.caption2)
+                .font(.system(size: 11, weight: .semibold))
 
-            volumeSlider
+            AppleMusicVolumeSlider(
+                value: Binding(
+                    get: { player.volume },
+                    set: { player.setVolume($0) }
+                ),
+                isAdjusting: $isAdjustingVolume
+            )
 
             Image(systemName: "speaker.wave.3.fill")
-                .font(.caption)
+                .font(.system(size: 13, weight: .semibold))
         }
-        .foregroundStyle(.white.opacity(0.62))
-        .frame(height: 42)
+        .foregroundStyle(Color.primary.opacity(isAdjustingVolume ? 0.86 : 0.62))
+        .frame(height: 38)
+        .animation(.easeOut(duration: 0.16), value: isAdjustingVolume)
     }
+}
 
-    @ViewBuilder
-    private var volumeSlider: some View {
-        #if os(iOS)
-        SystemVolumeSlider()
-            .frame(maxWidth: .infinity)
-            .frame(height: 32)
-            .layoutPriority(1)
-            .accessibilityLabel("系统音量")
-        #else
-        Slider(
-            value: Binding(
-                get: { player.volume },
-                set: { player.setVolume($0) }
-            ),
-            in: 0...1
-        )
-        .tint(.white)
+private struct AppleMusicVolumeSlider: View {
+    @Binding var value: Double
+    @Binding var isAdjusting: Bool
+
+    private let trackHeight: CGFloat = 5
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = max(proxy.size.width, 1)
+            let clampedValue = min(max(value, 0), 1)
+
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.primary.opacity(0.18))
+                    .frame(height: trackHeight)
+
+                Capsule()
+                    .fill(Color.primary.opacity(0.82))
+                    .frame(width: width * clampedValue, height: trackHeight)
+
+                Circle()
+                    .fill(Color.primary)
+                    .frame(
+                        width: isAdjusting ? 17 : 13,
+                        height: isAdjusting ? 17 : 13
+                    )
+                    .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+                    .offset(
+                        x: min(
+                            max(width * clampedValue - (isAdjusting ? 8.5 : 6.5), 0),
+                            width - (isAdjusting ? 17 : 13)
+                        )
+                    )
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        if !isAdjusting { isAdjusting = true }
+                        value = min(max(gesture.location.x / width, 0), 1)
+                    }
+                    .onEnded { gesture in
+                        value = min(max(gesture.location.x / width, 0), 1)
+                        withAnimation(.easeOut(duration: 0.16)) {
+                            isAdjusting = false
+                        }
+                    }
+            )
+        }
+        .frame(height: 30)
+        .accessibilityElement()
         .accessibilityLabel("播放器音量")
-        #endif
+        .accessibilityValue("\(Int(value * 100))%")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                value = min(value + 0.05, 1)
+            case .decrement:
+                value = max(value - 0.05, 0)
+            @unknown default:
+                break
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: isAdjusting)
     }
 }
 
 struct NowPlayingPageSelector: View {
-    @Environment(AppSettings.self) private var settings
-
     @Binding var page: NowPlayingPage
 
     var body: some View {
-        HStack {
-            Spacer()
-
+        HStack(spacing: 0) {
             pageButton(
                 page: .lyrics,
                 systemImage: "quote.bubble",
                 accessibilityLabel: "歌词"
             )
 
-            Spacer()
-
-            Menu {
-                Picker("歌词样式", selection: lyricsStyleBinding) {
-                    ForEach([LyricsStyle.appleMusic, .eva]) { style in
-                        Label(style.title, systemImage: style.systemImage)
-                            .tag(style)
-                    }
-                }
-
-                TextPVStyleMenu(page: $page)
-            } label: {
-                Image(systemName: "textformat.size")
-                    .font(.title3)
-                    .frame(width: 44, height: 44)
-                    .contentShape(.circle)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("歌词样式")
-            .accessibilityValue(settings.lyricsStyle.title)
-            .accessibilityHint("轻点切换歌词样式")
-
-            Spacer()
-
             #if os(iOS)
             AirPlayRouteButton()
-                .frame(width: 44, height: 44)
+                .frame(width: 48, height: 44)
                 .accessibilityLabel("AirPlay")
-
-            Spacer()
+                .frame(maxWidth: .infinity)
             #endif
 
             pageButton(
@@ -241,23 +260,8 @@ struct NowPlayingPageSelector: View {
                 systemImage: "list.bullet",
                 accessibilityLabel: "播放队列"
             )
-
-            Spacer()
         }
-        .foregroundStyle(.white.opacity(0.72))
         .frame(height: 50)
-    }
-
-    private var lyricsStyleBinding: Binding<LyricsStyle> {
-        Binding(
-            get: { settings.lyricsStyle },
-            set: { style in
-                settings.lyricsStyle = style
-                withAnimation(.smooth(duration: 0.3)) {
-                    page = .lyrics
-                }
-            }
-        )
     }
 
     private func pageButton(
@@ -273,12 +277,14 @@ struct NowPlayingPageSelector: View {
             }
         } label: {
             Image(systemName: systemImage)
-                .font(.title3)
-                .frame(width: 44, height: 44)
-                .background(.white.opacity(isSelected ? 0.2 : 0), in: .circle)
+                .font(.system(size: 19, weight: isSelected ? .semibold : .regular))
+                .foregroundStyle(Color.primary.opacity(isSelected ? 0.95 : 0.62))
+                .frame(width: 48, height: 44)
+                .background(Color.primary.opacity(isSelected ? 0.18 : 0), in: .circle)
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -291,65 +297,18 @@ func formatMusicTime(_ value: TimeInterval) -> String {
 }
 
 #if os(iOS)
-private struct SystemVolumeSlider: UIViewRepresentable {
-    final class Coordinator {
-        let volumeView = MPVolumeView(
-            frame: CGRect(x: 0, y: 0, width: 200, height: 32)
-        )
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeUIView(context: Context) -> UIView {
-        let container = UIView(
-            frame: CGRect(x: 0, y: 0, width: 200, height: 32)
-        )
-        container.backgroundColor = .clear
-
-        let volumeView = context.coordinator.volumeView
-        volumeView.showsVolumeSlider = true
-        volumeView.showsRouteButton = false
-        volumeView.tintColor = .white
-        volumeView.frame = container.bounds
-        volumeView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        container.addSubview(volumeView)
-        return container
-    }
-
-    func updateUIView(_ container: UIView, context: Context) {
-        let volumeView = context.coordinator.volumeView
-        volumeView.showsVolumeSlider = true
-        volumeView.showsRouteButton = false
-        volumeView.tintColor = .white
-        volumeView.frame = container.bounds
-    }
-
-    func sizeThatFits(
-        _ proposal: ProposedViewSize,
-        uiView: UIView,
-        context: Context
-    ) -> CGSize? {
-        CGSize(
-            width: proposal.width ?? 200,
-            height: proposal.height ?? 32
-        )
-    }
-}
-
 private struct AirPlayRouteButton: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView {
         let routePicker = AVRoutePickerView(frame: .zero)
         routePicker.prioritizesVideoDevices = false
-        routePicker.tintColor = .white
+        routePicker.tintColor = .label
         routePicker.activeTintColor = .systemPink
         return routePicker
     }
 
     func updateUIView(_ routePicker: AVRoutePickerView, context: Context) {
         routePicker.prioritizesVideoDevices = false
-        routePicker.tintColor = .white
+        routePicker.tintColor = .label
         routePicker.activeTintColor = .systemPink
     }
 }

@@ -13,7 +13,7 @@ struct NowPlayingArtworkPage: View {
         GeometryReader { proxy in
             let artworkSize = max(
                 170,
-                min(proxy.size.width - 28, proxy.size.height - 104)
+                min(proxy.size.width, proxy.size.height - 104)
             )
 
             VStack(spacing: 0) {
@@ -48,7 +48,7 @@ struct NowPlayingArtworkPage: View {
 
                         Text(song.artistText)
                             .font(.title3)
-                            .foregroundStyle(.white.opacity(0.64))
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -61,7 +61,6 @@ struct NowPlayingArtworkPage: View {
                     )
                 }
             }
-            .padding(.horizontal, 14)
             .padding(.bottom, 14)
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -78,42 +77,57 @@ struct NowPlayingSongActions: View {
 
     @State private var addToPlaylistItem: LibraryItem?
     @State private var showsLyricsEffects = false
-    @State private var showsMoreOptions = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 9) {
             Button {
                 store.toggleFavorite(song.item)
             } label: {
-                Image(systemName: store.isFavorite(song.item) ? "star.fill" : "star")
-                    .font(.title3.weight(.medium))
-                    .frame(width: 40, height: 40)
-                    .background(.white.opacity(0.13), in: .circle)
-                    .contentShape(.circle)
+                actionIcon(
+                    store.isFavorite(song.item) ? "star.fill" : "star",
+                    isActive: store.isFavorite(song.item)
+                )
             }
             .buttonStyle(.plain)
             .accessibilityLabel(store.isFavorite(song.item) ? "取消收藏" : "收藏")
 
-            Button {
-                showsMoreOptions = true
+            Menu {
+                Button {
+                    onToggleDetails()
+                } label: {
+                    Label(
+                        isShowingDetails ? "返回封面" : "歌曲资料",
+                        systemImage: isShowingDetails ? "rectangle.portrait" : "info.circle"
+                    )
+                }
+
+                Button {
+                    addToPlaylistItem = song.item
+                } label: {
+                    Label("添加到歌单", systemImage: "text.badge.plus")
+                }
+
+                Button {
+                    showsSleepTimer = true
+                } label: {
+                    Label("定时关闭", systemImage: "timer")
+                }
+
+                Button {
+                    showsLyricsEffects = true
+                } label: {
+                    Label("歌词动效", systemImage: "sparkles")
+                }
+
+                ShareLink(item: song.item.url) {
+                    Label("分享", systemImage: "square.and.arrow.up")
+                }
             } label: {
-                Image(systemName: "ellipsis")
-                    .font(.title3.weight(.semibold))
-                    .frame(width: 40, height: 40)
-                    .background(.white.opacity(0.13), in: .circle)
-                    .contentShape(.circle)
+                actionIcon("ellipsis")
             }
             .buttonStyle(.plain)
+            .menuIndicator(.hidden)
             .accessibilityLabel("更多")
-        }
-        .confirmationDialog("更多", isPresented: $showsMoreOptions, titleVisibility: .hidden) {
-            Button(isShowingDetails ? "返回封面" : "歌曲资料") { onToggleDetails() }
-            Button("添加到歌单") { addToPlaylistItem = song.item }
-            Button("定时关闭") { showsSleepTimer = true }
-            Button("歌词动效") { showsLyricsEffects = true }
-            ShareLink(item: song.item.url) {
-                Label("分享", systemImage: "square.and.arrow.up")
-            }
         }
         .sheet(item: $addToPlaylistItem) { item in
             AddToLocalPlaylistSheet(item: item)
@@ -125,5 +139,14 @@ struct NowPlayingSongActions: View {
                 LyricsEffectsSettingsView()
             }
         }
+    }
+
+    private func actionIcon(_ systemImage: String, isActive: Bool = false) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(Color.primary.opacity(isActive ? 0.98 : 0.86))
+            .frame(width: 42, height: 42)
+            .background(Color.primary.opacity(isActive ? 0.2 : 0.13), in: .circle)
+            .contentShape(.circle)
     }
 }

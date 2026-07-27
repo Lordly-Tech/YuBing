@@ -33,6 +33,7 @@ struct ReadingLibraryView: View {
     @State private var query = ""
     @State private var isFormatGuidePresented = false
     @State private var editingBook: LibraryItem?
+    @State private var deletingItem: LibraryItem?
 
     private var items: [LibraryItem] {
         store.items.filter { item in
@@ -63,8 +64,12 @@ struct ReadingLibraryView: View {
                 } else if shelfStyle == .covers {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 145, maximum: 230), spacing: 16)], spacing: 20) {
                         ForEach(items) { item in
-                            NavigationLink(value: item) {
-                                LibraryItemCard(item: item, onEditBook: { editingBook = item })
+                            LibraryItemOpenControl(item: item) {
+                                LibraryItemCard(
+                                    item: item,
+                                    onEditBook: { editingBook = item },
+                                    onDelete: { deletingItem = item }
+                                )
                             }
                             .buttonStyle(.plain)
                         }
@@ -72,12 +77,23 @@ struct ReadingLibraryView: View {
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(items) { item in
-                            NavigationLink(value: item) {
-                                LibraryItemRow(item: item, onEditBook: { editingBook = item })
-                                    .padding(.horizontal, 16)
+                            LibraryItemOpenControl(item: item) {
+                                LibraryItemRow(
+                                    item: item,
+                                    onEditBook: { editingBook = item },
+                                    onDelete: { deletingItem = item }
+                                )
+                                .padding(.horizontal, 16)
                                     .padding(.vertical, 6)
                             }
                             .buttonStyle(.plain)
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deletingItem = item
+                                } label: {
+                                    Label("删除", systemImage: "trash")
+                                }
+                            }
                             Divider().padding(.leading, 80)
                         }
                     }
@@ -106,6 +122,31 @@ struct ReadingLibraryView: View {
         .sheet(item: $editingBook) { item in
             BookMetadataEditor(item: item)
         }
+        .confirmationDialog(
+            deleteDialogTitle,
+            isPresented: deletePresented,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let deletingItem { store.delete(deletingItem) }
+                deletingItem = nil
+            }
+            Button("取消", role: .cancel) { deletingItem = nil }
+        } message: {
+            Text("此操作会从本地资料库中删除文件。")
+        }
+    }
+
+    private var deletePresented: Binding<Bool> {
+        Binding(
+            get: { deletingItem != nil },
+            set: { if !$0 { deletingItem = nil } }
+        )
+    }
+
+    private var deleteDialogTitle: String {
+        guard let deletingItem else { return "删除项目？" }
+        return "删除“\(deletingItem.displayName)”？"
     }
 
     private var readingControls: some View {
@@ -269,6 +310,7 @@ private struct ReaderFormatGuideView: View {
 struct GalleryView: View {
     @EnvironmentObject private var store: LibraryStore
     @State private var query = ""
+    @State private var deletingItem: LibraryItem?
 
     private var media: [LibraryItem] {
         store.items
@@ -283,10 +325,36 @@ struct GalleryView: View {
             emptyTitle: "图库是空的",
             emptyMessage: "请从首页添加照片或视频。",
             emptySymbol: "photo.on.rectangle.angled",
-            importAction: nil
+            importAction: nil,
+            onDelete: { deletingItem = $0 }
         )
         .navigationTitle("图库")
         .searchable(text: $query, prompt: "搜索照片或视频")
+        .confirmationDialog(
+            deleteDialogTitle,
+            isPresented: deletePresented,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let deletingItem { store.delete(deletingItem) }
+                deletingItem = nil
+            }
+            Button("取消", role: .cancel) { deletingItem = nil }
+        } message: {
+            Text("此操作会从本地资料库中删除文件。")
+        }
+    }
+
+    private var deletePresented: Binding<Bool> {
+        Binding(
+            get: { deletingItem != nil },
+            set: { if !$0 { deletingItem = nil } }
+        )
+    }
+
+    private var deleteDialogTitle: String {
+        guard let deletingItem else { return "删除项目？" }
+        return "删除“\(deletingItem.displayName)”？"
     }
 }
 
@@ -296,6 +364,7 @@ struct LibraryGridContent: View {
     let emptyMessage: String
     let emptySymbol: String
     let importAction: AnyView?
+    var onDelete: ((LibraryItem) -> Void)? = nil
 
     var body: some View {
         if items.isEmpty {
@@ -309,8 +378,11 @@ struct LibraryGridContent: View {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 145, maximum: 230), spacing: 16)], spacing: 20) {
                     ForEach(items) { item in
-                        NavigationLink(value: item) {
-                            LibraryItemCard(item: item)
+                        LibraryItemOpenControl(item: item) {
+                            LibraryItemCard(
+                                item: item,
+                                onDelete: onDelete.map { delete in { delete(item) } }
+                            )
                         }
                         .buttonStyle(.plain)
                     }

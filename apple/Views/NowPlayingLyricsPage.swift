@@ -54,15 +54,10 @@ struct NowPlayingLyricsPage: View {
                 songHeader
             }
 
-            lyricsStyleContent
-                .id(settings.lyricsStyle)
+            lyricsContent
                 .transition(.opacity)
         }
         .padding(.bottom, presentation == .portrait ? 12 : 0)
-        .animation(
-            accessibilityReduceMotion ? nil : .smooth(duration: 0.3),
-            value: settings.lyricsStyle
-        )
     }
 
     private var songHeader: some View {
@@ -82,7 +77,7 @@ struct NowPlayingLyricsPage: View {
 
                 Text(song.artistText)
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.64))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -106,12 +101,12 @@ struct NowPlayingLyricsPage: View {
     }
 
     @ViewBuilder
-    private var lyricsStyleContent: some View {
+    private var lyricsContent: some View {
         if lyrics.isEmpty, let untimedText = normalizedUntimedText {
             ScrollView {
                 Text(verbatim: untimedText)
                     .font(.system(size: settings.lyricsFontSize, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 24)
                     .padding(.bottom, appleMusicBottomOverlayHeight)
@@ -120,31 +115,14 @@ struct NowPlayingLyricsPage: View {
             .contentShape(.rect)
             .onTapGesture { onToggleInterface?() }
         } else {
-            switch settings.lyricsStyle {
-            case .appleMusic:
-                AppleMusicLyricsView(
-                    lyrics: lyrics,
-                    errorMessage: errorMessage,
-                    highlightedLyricID: highlightedLyricID,
-                    isInterfaceHidden: isInterfaceHidden,
-                    bottomOverlayHeight: appleMusicBottomOverlayHeight,
-                    onToggleInterface: onToggleInterface
-                )
-            case .eva:
-                EVALyricsView(
-                    lyrics: lyrics,
-                    errorMessage: errorMessage,
-                    highlightedLyricID: highlightedLyricID,
-                    onToggleInterface: onToggleInterface
-                )
-            case .textPV:
-                TextPVLyricsView(
-                    lyrics: lyrics,
-                    errorMessage: errorMessage,
-                    highlightedLyricID: highlightedLyricID,
-                    onToggleInterface: onToggleInterface
-                )
-            }
+            AppleMusicLyricsView(
+                lyrics: lyrics,
+                errorMessage: errorMessage,
+                highlightedLyricID: highlightedLyricID,
+                isInterfaceHidden: isInterfaceHidden,
+                bottomOverlayHeight: appleMusicBottomOverlayHeight,
+                onToggleInterface: onToggleInterface
+            )
         }
     }
 

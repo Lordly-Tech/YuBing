@@ -95,7 +95,6 @@
 	</array>
 	<key>UIAppFonts</key>
 	<array>
-		<string>SourceHanSerifCN-Heavy.otf</string>
 	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>

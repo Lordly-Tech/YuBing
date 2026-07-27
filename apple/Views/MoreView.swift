@@ -22,6 +22,7 @@ struct MoreView: View {
             featuresSection
             openSourceSection
             languageSection
+            appearanceSection
             librarySection
             permissionSection
             legalSection
@@ -143,6 +144,29 @@ struct MoreView: View {
         }
     }
 
+    private var appearanceSection: some View {
+        Section {
+            Picker(selection: appearanceSelection) {
+                ForEach(AppAppearance.allCases) { appearance in
+                    Label(appearance.title, systemImage: appearance.systemImage)
+                        .tag(appearance)
+                }
+            } label: {
+                MoreRowLabel(
+                    title: "外观",
+                    subtitle: settings.appearance.title,
+                    systemImage: settings.appearance.systemImage,
+                    tint: .indigo
+                )
+            }
+            .pickerStyle(.menu)
+        } header: {
+            Text("显示")
+        } footer: {
+            Text("可跟随系统自动切换，也可以始终使用浅色或深色外观。")
+        }
+    }
+
     @ViewBuilder
     private var permissionSection: some View {
         #if os(iOS)
@@ -235,6 +259,13 @@ struct MoreView: View {
             return "\(AppLocalization.string("当前使用"))：\(selectedLanguage.resolvedName)"
         }
         return selectedLanguage.resolvedName
+    }
+
+    private var appearanceSelection: Binding<AppAppearance> {
+        Binding(
+            get: { settings.appearance },
+            set: { settings.appearance = $0 }
+        )
     }
 }
 

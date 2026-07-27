@@ -42,27 +42,25 @@ struct ItemDestinationView: View {
 private struct MusicPlayerDestinationBridge: View {
     @Environment(\.dismiss) private var dismiss
     let item: LibraryItem
-    @State private var presentedItem: LibraryItem?
+    @State private var didRequestPresentation = false
 
     var body: some View {
         Color.clear
             .navigationTitle(item.displayName)
             .onAppear {
-                if presentedItem == nil {
-                    presentedItem = item
+                guard !didRequestPresentation else { return }
+                didRequestPresentation = true
+                NotificationCenter.default.post(name: .yuBingOpenPlayer, object: item)
+                DispatchQueue.main.async {
+                    dismiss()
                 }
-            }
-            .fullScreenCover(item: $presentedItem, onDismiss: {
-                dismiss()
-            }) { item in
-                NowPlayingView(startingItem: item)
-                    .presentationBackground(.clear)
             }
     }
 }
 #endif
 
 private struct DocumentPreviewScreen: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: LibraryStore
     #if os(iOS)
     @EnvironmentObject private var watchTransfer: WatchTransferService
@@ -70,6 +68,7 @@ private struct DocumentPreviewScreen: View {
 
     let item: LibraryItem
     let message: String?
+    @State private var showsDeleteConfirmation = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -103,7 +102,25 @@ private struct DocumentPreviewScreen: View {
                 }
                 #endif
                 ShareLink(item: item.url)
+                Button(role: .destructive) {
+                    showsDeleteConfirmation = true
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
             }
+        }
+        .confirmationDialog(
+            "删除“\(item.displayName)”？",
+            isPresented: $showsDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                store.delete(item)
+                dismiss()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作会从本地资料库中删除文件。")
         }
     }
 }

@@ -2,6 +2,7 @@ import ImageIO
 import SwiftUI
 
 struct PhotoViewer: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: LibraryStore
     #if os(iOS)
     @EnvironmentObject private var watchTransfer: WatchTransferService
@@ -13,6 +14,7 @@ struct PhotoViewer: View {
     @State private var lastScale: CGFloat = 1
     @State private var loadFailed = false
     @State private var areControlsVisible = false
+    @State private var showsDeleteConfirmation = false
 
     var body: some View {
         ZStack {
@@ -65,7 +67,25 @@ struct PhotoViewer: View {
                 }
                 #endif
                 ShareLink(item: item.url)
+                Button(role: .destructive) {
+                    showsDeleteConfirmation = true
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
             }
+        }
+        .confirmationDialog(
+            "删除“\(item.displayName)”？",
+            isPresented: $showsDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                store.delete(item)
+                dismiss()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作会从本地资料库中删除文件。")
         }
         .task { loadImage() }
     }

@@ -1,5 +1,24 @@
 import SwiftUI
 
+struct LibraryItemOpenControl<Content: View>: View {
+    let item: LibraryItem
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        if item.kind == .music {
+            Button {
+                NotificationCenter.default.post(name: .yuBingOpenPlayer, object: item)
+            } label: {
+                content()
+            }
+        } else {
+            NavigationLink(value: item) {
+                content()
+            }
+        }
+    }
+}
+
 struct LibraryItemCard: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var player: AudioPlayerController

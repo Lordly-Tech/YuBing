@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(iOS 18.0, macOS 15.0, *)
 struct LyricTimingTextAttribute: TextAttribute, Hashable, Sendable {
     let startTime: TimeInterval
     let endTime: TimeInterval
@@ -14,6 +15,7 @@ struct LyricTimingTextAttribute: TextAttribute, Hashable, Sendable {
 /// sweeping highlight that competes with the lyric glow. The played glyph and
 /// its original glow are composited once before lift and long-syllable scale
 /// transforms are applied, keeping their relative brightness stable.
+@available(iOS 18.0, macOS 15.0, *)
 struct LyricGlowTextRenderer: TextRenderer {
     struct Style: Equatable, Sendable {
         let glowRadius: CGFloat
@@ -389,6 +391,7 @@ struct LyricGlowTextRenderer: TextRenderer {
     }
 }
 
+@available(iOS 18.0, macOS 15.0, *)
 private extension LyricGlowTextRenderer {
     struct RunVisualState {
         let rawProgress: Double

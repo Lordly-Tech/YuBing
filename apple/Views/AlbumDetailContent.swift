@@ -88,6 +88,7 @@ struct MusicCollectionTrackContent: View {
     let tracks: [LibraryItem]
     let queue: [LibraryItem]
     @Binding var addToPlaylistItem: LibraryItem?
+    @State private var deletingTrack: LibraryItem?
 
     var body: some View {
         Group {
@@ -115,7 +116,8 @@ struct MusicCollectionTrackContent: View {
                             .contextMenu {
                                 LocalTrackContextActions(
                                     item: track,
-                                    addToPlaylistItem: $addToPlaylistItem
+                                    addToPlaylistItem: $addToPlaylistItem,
+                                    onDelete: { deletingTrack = track }
                                 )
                             }
 
@@ -138,6 +140,12 @@ struct MusicCollectionTrackContent: View {
                                 ShareLink(item: track.url) {
                                     Label("分享", systemImage: "square.and.arrow.up")
                                 }
+
+                                Button(role: .destructive) {
+                                    deletingTrack = track
+                                } label: {
+                                    Label("删除歌曲", systemImage: "trash")
+                                }
                             } label: {
                                 Image(systemName: "ellipsis")
                                     .font(.body.weight(.semibold))
@@ -153,6 +161,13 @@ struct MusicCollectionTrackContent: View {
                                 ? Color.primary.opacity(0.10)
                                 : .clear
                         )
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                deletingTrack = track
+                            } label: {
+                                Label("删除歌曲", systemImage: "trash")
+                            }
+                        }
 
                         if index < tracks.count - 1 {
                             Divider()
@@ -166,6 +181,31 @@ struct MusicCollectionTrackContent: View {
         }
         .transition(.opacity)
         .animation(.easeInOut(duration: 0.2), value: tracks)
+        .confirmationDialog(
+            deleteTrackDialogTitle,
+            isPresented: deleteTrackPresented,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let deletingTrack { store.delete(deletingTrack) }
+                deletingTrack = nil
+            }
+            Button("取消", role: .cancel) { deletingTrack = nil }
+        } message: {
+            Text("此操作会从本地资料库中删除歌曲文件，并自动从歌单中移除。")
+        }
+    }
+
+    private var deleteTrackPresented: Binding<Bool> {
+        Binding(
+            get: { deletingTrack != nil },
+            set: { if !$0 { deletingTrack = nil } }
+        )
+    }
+
+    private var deleteTrackDialogTitle: String {
+        guard let deletingTrack else { return "删除歌曲？" }
+        return "删除“\(deletingTrack.displayName)”？"
     }
 }
 

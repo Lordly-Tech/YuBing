@@ -17,7 +17,7 @@ struct NowPlayingQueuePage: View {
                     Image(systemName: "shuffle")
                         .frame(width: 40, height: 40)
                         .background(
-                            .white.opacity(player.isShuffleEnabled ? 0.24 : 0.1),
+                            Color.primary.opacity(player.isShuffleEnabled ? 0.24 : 0.1),
                             in: .circle
                         )
                         .contentShape(.circle)
@@ -31,7 +31,7 @@ struct NowPlayingQueuePage: View {
                     Image(systemName: player.repeatMode.symbol)
                         .frame(width: 40, height: 40)
                         .background(
-                            .white.opacity(player.repeatMode == .off ? 0.1 : 0.24),
+                            Color.primary.opacity(player.repeatMode == .off ? 0.1 : 0.24),
                             in: .circle
                         )
                         .contentShape(.circle)
@@ -60,7 +60,7 @@ struct NowPlayingQueuePage: View {
 
                                     Text(player.metadataByPath[item.relativePath]?.artist ?? "本地音乐")
                                         .font(.caption)
-                                        .foregroundStyle(.white.opacity(0.58))
+                                        .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                 }
 
@@ -72,7 +72,7 @@ struct NowPlayingQueuePage: View {
                                             ? "speaker.wave.2.fill"
                                             : "speaker.fill"
                                     )
-                                    .foregroundStyle(.white.opacity(0.72))
+                                    .foregroundStyle(Color.primary.opacity(0.72))
                                     .accessibilityLabel("当前歌曲")
                                 }
                             }
@@ -83,7 +83,7 @@ struct NowPlayingQueuePage: View {
 
                         if index < player.queue.count - 1 {
                             Divider()
-                                .overlay(.white.opacity(0.12))
+                                .overlay(Color.primary.opacity(0.12))
                                 .padding(.leading, 60)
                         }
                     }
@@ -93,7 +93,7 @@ struct NowPlayingQueuePage: View {
             .overlay {
                 if player.queue.isEmpty {
                     ContentUnavailableView("播放队列为空", systemImage: "list.bullet")
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.primary)
                 }
             }
         }

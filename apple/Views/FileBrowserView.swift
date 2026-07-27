@@ -94,7 +94,7 @@ struct FileBrowserView: View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 145, maximum: 230), spacing: 16)], spacing: 20) {
                 ForEach(visibleItems) { item in
-                    NavigationLink(value: item) {
+                    LibraryItemOpenControl(item: item) {
                         LibraryItemCard(
                             item: item,
                             onEditBook: item.kind == .novel || item.kind == .comic ? { editingBook = item } : nil,
@@ -116,7 +116,7 @@ struct FileBrowserView: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(visibleItems) { item in
-                    NavigationLink(value: item) {
+                    LibraryItemOpenControl(item: item) {
                         LibraryItemRow(
                             item: item,
                             onEditBook: item.kind == .novel || item.kind == .comic ? { editingBook = item } : nil,
@@ -128,6 +128,13 @@ struct FileBrowserView: View {
                         .padding(.vertical, 7)
                     }
                     .buttonStyle(.plain)
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            deletingItem = item
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
+                    }
                     Divider().padding(.leading, 80)
                 }
             }
