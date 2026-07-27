@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct NowPlayingLandscapeView: View {
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     @Binding var showsSleepTimer: Bool
 

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct LibraryItemCard: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     let item: LibraryItem
     var onEditBook: (() -> Void)? = nil
     var onRename: (() -> Void)? = nil
@@ -96,7 +96,7 @@ struct LibraryItemCard: View {
 
 struct LibraryItemRow: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     let item: LibraryItem
     var onEditBook: (() -> Void)? = nil
     var onRename: (() -> Void)? = nil

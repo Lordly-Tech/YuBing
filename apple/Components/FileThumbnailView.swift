@@ -11,7 +11,7 @@ private typealias YuBingPlatformImage = UIImage
 
 struct FileThumbnailView: View {
     @EnvironmentObject private var readingStore: ReadingStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     let item: LibraryItem
     var size: CGSize = CGSize(width: 160, height: 160)
 

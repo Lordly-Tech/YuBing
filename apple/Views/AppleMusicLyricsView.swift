@@ -5,7 +5,7 @@ struct AppleMusicLyricsView: View {
     nonisolated private static let expandedBottomDistanceScale: CGFloat = 0.68
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     @Environment(AppSettings.self) private var settings
 
     let lyrics: [LyricLine]

@@ -3,7 +3,7 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var readingStore: ReadingStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     private var recentItems: [LibraryItem] {
         let stored = store.recents
@@ -226,7 +226,7 @@ private struct ReadingTimeDetailView: View {
 }
 
 private struct ListeningTimeDetailView: View {
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     var body: some View {
         List {

@@ -20,7 +20,7 @@ struct NowPlayingView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(AppSettings.self) private var settings
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     let startingItem: LibraryItem
     var queueItems: [LibraryItem]? = nil

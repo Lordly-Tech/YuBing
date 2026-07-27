@@ -36,7 +36,7 @@ enum SynchronizedLyricTextAlignment: Equatable {
 struct SynchronizedLyricText: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.effectiveLyricsRefreshRate) private var effectiveLyricsRefreshRate
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     @Environment(AppSettings.self) private var settings
 
     let line: LyricLine

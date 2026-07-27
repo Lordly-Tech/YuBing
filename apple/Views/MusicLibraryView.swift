@@ -19,7 +19,7 @@ struct MusicAlbum: Identifiable {
 }
 struct MusicLibraryView: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     @State private var query = ""
     @State private var showsCreatePlaylist = false
     @State private var newPlaylistName = ""
@@ -242,7 +242,7 @@ struct MusicSectionTitle: View {
 }
 
 struct LocalTrackRow: View {
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     let item: LibraryItem
     var index: Int?
     var showsArtwork = false
@@ -305,7 +305,7 @@ struct LocalTrackRow: View {
 
 private struct LocalPlaylistCard: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     let playlist: MusicPlaylist
 
     private var tracks: [LibraryItem] { store.tracks(in: playlist) }
@@ -365,7 +365,7 @@ private struct LocalPlaylistCard: View {
 
 private struct LocalPlaylistDetailView: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     let playlist: MusicPlaylist
     @State private var addToPlaylistItem: LibraryItem?
     @State private var renameText = ""
@@ -460,7 +460,7 @@ private struct LocalPlaylistDetailView: View {
 
 private struct LocalPlaylistArtworkView: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     let playlist: MusicPlaylist
     let side: CGFloat
 

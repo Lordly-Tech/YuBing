@@ -8,7 +8,7 @@ extension Notification.Name {
 
 struct RootView: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     @State private var presentedPlayer: LibraryItem?
     @Namespace private var playerTransitionNamespace
 
@@ -84,7 +84,7 @@ struct RootView: View {
 }
 
 private struct CompactRootView: View {
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     let openPlayer: (LibraryItem) -> Void
     let playerTransitionID: String
     let playerTransitionNamespace: Namespace.ID
@@ -201,7 +201,7 @@ private struct CompactRootView: View {
 }
 
 private struct SplitRootView: View {
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     let openPlayer: (LibraryItem) -> Void
     let playerTransitionID: String
     let playerTransitionNamespace: Namespace.ID

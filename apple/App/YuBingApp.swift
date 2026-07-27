@@ -23,7 +23,7 @@ struct YuBingApp: App {
                 .environment(\.locale, Locale(identifier: appLanguage.localeIdentifier))
                 .id(appLanguage.localeIdentifier)
                 .environmentObject(store)
-                .environmentObject(player)
+                .environment(player)
                 .environment(appSettings)
                 .environmentObject(readingStore)
                 .environmentObject(wifiTransfer)

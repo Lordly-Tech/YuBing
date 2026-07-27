@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MiniPlayerView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     var isInline = false
     var alwaysShowsSubtitle = false

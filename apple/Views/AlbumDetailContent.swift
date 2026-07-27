@@ -3,7 +3,7 @@ import SwiftUI
 
 struct AlbumDetailContent: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     let album: MusicAlbum
     let tracks: [LibraryItem]
@@ -83,7 +83,7 @@ struct AlbumDetailContent: View {
 
 struct MusicCollectionTrackContent: View {
     @EnvironmentObject private var store: LibraryStore
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     let tracks: [LibraryItem]
     let queue: [LibraryItem]
@@ -170,7 +170,7 @@ struct MusicCollectionTrackContent: View {
 }
 
 struct StandardMusicCollectionDetailHero: View {
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
     @Environment(\.colorScheme) private var colorScheme
 
     let artworkData: Data?

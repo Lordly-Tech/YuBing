@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct NowPlayingQueuePage: View {
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {

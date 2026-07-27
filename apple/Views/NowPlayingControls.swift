@@ -7,7 +7,7 @@ import Foundation
 import SwiftUI
 
 struct NowPlayingProgressControl: View {
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     let song: NowPlayingSong
 
@@ -72,7 +72,7 @@ struct NowPlayingProgressControl: View {
 
 struct NowPlayingTransportControls: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     var isCompact = false
 
@@ -151,7 +151,7 @@ struct NowPlayingTransportControls: View {
 }
 
 struct NowPlayingVolumeControl: View {
-    @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AudioPlayerController.self) private var player
 
     var body: some View {
         HStack(spacing: 10) {
