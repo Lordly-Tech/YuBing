@@ -7,7 +7,7 @@
 1. 使用 Xcode 26 或更高版本打开 `YuBing.xcodeproj`。
 2. 为 `YuBing`、`YuBingMac` 和 `YuBingWatch` 目标选择开发团队。
 3. 如需修改 Bundle Identifier，请保持 Watch 标识以 iOS 标识为前缀。
-4. iPhone / iPad 最低 iOS 18，Mac 最低 macOS 15，Watch 最低 watchOS 10。
+4. iPhone / iPad 最低 iOS 17，Mac 最低 macOS 15，Watch 最低 watchOS 11。
 
 `YuBing.xcodeproj` 可以直接打开，不要求额外安装生成工具；`project.yml` 作为工程定义一并维护。
 

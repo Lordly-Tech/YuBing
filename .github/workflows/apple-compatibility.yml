@@ -1,0 +1,49 @@
+name: Apple Platform Compatibility
+
+on:
+  pull_request:
+    paths:
+      - 'apple/**'
+      - '.github/workflows/apple-compatibility.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apple/**'
+      - '.github/workflows/apple-compatibility.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          bash apple/generate-project.sh
+
+      - name: Build for iOS 17
+        run: |
+          xcodebuild build \
+            -project apple/YuBing.xcodeproj \
+            -scheme YuBing \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            IPHONEOS_DEPLOYMENT_TARGET=17.0 \
+            WATCHOS_DEPLOYMENT_TARGET=11.0
+
+      - name: Build for watchOS 11
+        run: |
+          xcodebuild build \
+            -project apple/YuBing.xcodeproj \
+            -scheme YuBingWatch \
+            -configuration Debug \
+            -destination 'generic/platform=watchOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            WATCHOS_DEPLOYMENT_TARGET=11.0

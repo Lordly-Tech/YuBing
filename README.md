@@ -39,9 +39,9 @@
 ## 运行环境
 
 - Xcode 26 或更高版本
-- iOS / iPadOS 18.0 或更高版本
+- iOS / iPadOS 17.0 或更高版本
 - macOS 15.0 或更高版本
-- watchOS 10.0 或更高版本
+- watchOS 11.0 或更高版本
 
 ## 构建
 

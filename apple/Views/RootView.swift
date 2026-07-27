@@ -46,11 +46,9 @@ struct RootView: View {
         .fullScreenCover(item: $presentedPlayer) { item in
             NowPlayingView(startingItem: item)
                 .presentationBackground(.clear)
-                .navigationTransition(
-                    .zoom(
-                        sourceID: playerTransitionID,
-                        in: playerTransitionNamespace
-                    )
+                .adaptivePlayerNavigationTransition(
+                    sourceID: playerTransitionID,
+                    in: playerTransitionNamespace
                 )
         }
         #else
@@ -137,7 +135,7 @@ private struct CompactRootView: View {
                         if let item = player.currentItem { openPlayer(item) }
                     }
                     .gesture(hideMiniPlayerGesture)
-                    .matchedTransitionSource(
+                    .adaptiveMatchedTransitionSource(
                         id: playerTransitionID,
                         in: playerTransitionNamespace
                     )
@@ -161,7 +159,7 @@ private struct CompactRootView: View {
             MiniPlayerView(isInline: false, alwaysShowsSubtitle: true) {
                 if let item = player.currentItem { openPlayer(item) }
             }
-            .matchedTransitionSource(
+            .adaptiveMatchedTransitionSource(
                 id: playerTransitionID,
                 in: playerTransitionNamespace
             )
@@ -318,7 +316,7 @@ private struct SplitRootView: View {
             MiniPlayerView(isInline: false, alwaysShowsSubtitle: true) {
                 if let item = player.currentItem { openPlayer(item) }
             }
-            .matchedTransitionSource(
+            .adaptiveMatchedTransitionSource(
                 id: playerTransitionID,
                 in: playerTransitionNamespace
             )
@@ -374,6 +372,30 @@ private extension View {
 }
 
 extension View {
+    @ViewBuilder
+    func adaptivePlayerNavigationTransition(
+        sourceID: String,
+        in namespace: Namespace.ID
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            navigationTransition(.zoom(sourceID: sourceID, in: namespace))
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func adaptiveMatchedTransitionSource(
+        id: String,
+        in namespace: Namespace.ID
+    ) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            matchedTransitionSource(id: id, in: namespace)
+        } else {
+            self
+        }
+    }
+
     func immersiveSplitDetail() -> some View {
         modifier(ImmersiveSplitDetailModifier())
     }
