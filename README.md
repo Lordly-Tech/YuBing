@@ -5,7 +5,9 @@
 
 你的本地文件、音乐与阅读中心，全平台一张网。
 
-<img width="1024" height="1024" alt="画板 1" src="https://github.com/user-attachments/assets/7b00c976-40f0-4bad-a4db-0b8cc4ba5f7f" />
+<p align="center">
+  <img width="256" height="256" alt="鱼饼icon" src="https://github.com/user-attachments/assets/7b00c976-40f0-4bad-a4db-0b8cc4ba5f7f" />
+</p>
 
 ## 主要功能
 

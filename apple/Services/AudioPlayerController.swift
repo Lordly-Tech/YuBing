@@ -298,6 +298,7 @@ enum AudioRepeatMode: String, CaseIterable, Identifiable {
 @MainActor
 final class AudioPlayerController: ObservableObject {
     @Published private(set) var currentItem: LibraryItem?
+    @Published private(set) var hasActivePlaybackSession = false
     @Published private(set) var isPlaying = false
     @Published private(set) var isPreparing = false
     @Published private(set) var currentTime: TimeInterval = 0
@@ -362,6 +363,9 @@ final class AudioPlayerController: ObservableObject {
 
     private func preparePlayback(for item: LibraryItem, startAt: TimeInterval, autoplay: Bool) {
         preparationTask?.cancel()
+        if autoplay {
+            hasActivePlaybackSession = true
+        }
         let generation = UUID()
         playbackGeneration = generation
         currentItem = item
@@ -439,6 +443,7 @@ final class AudioPlayerController: ObservableObject {
             if let first = queue.first { play(first, in: queue) }
             return
         }
+        hasActivePlaybackSession = true
         if engine.hasCurrentItem {
             if isPlaying {
                 engine.pause()
@@ -751,6 +756,7 @@ final class AudioPlayerController: ObservableObject {
     private func bindRemoteCommands() {
         nowPlayingSession.onPlay = { [weak self] in
             guard let self else { return }
+            self.hasActivePlaybackSession = true
             if self.engine.hasCurrentItem {
                 self.engine.play()
             } else if let item = self.currentItem, !self.isResolvingSource {

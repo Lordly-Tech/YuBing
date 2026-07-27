@@ -6,6 +6,7 @@ struct YuBingApp: App {
     @StateObject private var store = LibraryStore()
     @StateObject private var player = AudioPlayerController()
     @State private var appSettings: AppSettings
+    @State private var screenAwakeCoordinator: ScreenAwakeCoordinator
     @StateObject private var readingStore = ReadingStore()
     @StateObject private var wifiTransfer = WiFiTransferService()
     #if os(iOS)
@@ -14,6 +15,7 @@ struct YuBingApp: App {
 
     init() {
         _appSettings = State(initialValue: AppSettings())
+        _screenAwakeCoordinator = State(initialValue: ScreenAwakeCoordinator())
     }
 
     var body: some Scene {
@@ -24,6 +26,7 @@ struct YuBingApp: App {
                 .environmentObject(store)
                 .environmentObject(player)
                 .environment(appSettings)
+                .environment(screenAwakeCoordinator)
                 .environmentObject(readingStore)
                 .environmentObject(wifiTransfer)
                 .onAppear { wifiTransfer.attach(store: store) }

@@ -7,6 +7,9 @@ enum NowPlayingLyricsPresentation: Equatable {
 }
 
 struct NowPlayingLyricsPage: View {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(AppSettings.self) private var settings
+
     let song: NowPlayingSong
     let lyrics: [LyricLine]
     let untimedText: String?
@@ -51,32 +54,15 @@ struct NowPlayingLyricsPage: View {
                 songHeader
             }
 
-            if lyrics.isEmpty, let untimedText = normalizedUntimedText {
-                ScrollView {
-                    Text(verbatim: untimedText)
-                        .font(.system(size: 25, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 24)
-                        .padding(.bottom, appleMusicBottomOverlayHeight)
-                }
-                .scrollIndicators(.hidden)
-                .contentShape(.rect)
-                .onTapGesture {
-                    onToggleInterface?()
-                }
-            } else {
-                AppleMusicLyricsView(
-                    lyrics: lyrics,
-                    errorMessage: errorMessage,
-                    highlightedLyricID: highlightedLyricID,
-                    isInterfaceHidden: isInterfaceHidden,
-                    bottomOverlayHeight: appleMusicBottomOverlayHeight,
-                    onToggleInterface: onToggleInterface
-                )
-            }
+            lyricsStyleContent
+                .id(settings.lyricsStyle)
+                .transition(.opacity)
         }
         .padding(.bottom, presentation == .portrait ? 12 : 0)
+        .animation(
+            accessibilityReduceMotion ? nil : .smooth(duration: 0.3),
+            value: settings.lyricsStyle
+        )
     }
 
     private var songHeader: some View {
@@ -115,7 +101,50 @@ struct NowPlayingLyricsPage: View {
         case .portrait:
             226
         case .landscape:
-            0
+            50
+        }
+    }
+
+    @ViewBuilder
+    private var lyricsStyleContent: some View {
+        if lyrics.isEmpty, let untimedText = normalizedUntimedText {
+            ScrollView {
+                Text(verbatim: untimedText)
+                    .font(.system(size: settings.lyricsFontSize, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 24)
+                    .padding(.bottom, appleMusicBottomOverlayHeight)
+            }
+            .scrollIndicators(.hidden)
+            .contentShape(.rect)
+            .onTapGesture { onToggleInterface?() }
+        } else {
+            switch settings.lyricsStyle {
+            case .appleMusic:
+                AppleMusicLyricsView(
+                    lyrics: lyrics,
+                    errorMessage: errorMessage,
+                    highlightedLyricID: highlightedLyricID,
+                    isInterfaceHidden: isInterfaceHidden,
+                    bottomOverlayHeight: appleMusicBottomOverlayHeight,
+                    onToggleInterface: onToggleInterface
+                )
+            case .eva:
+                EVALyricsView(
+                    lyrics: lyrics,
+                    errorMessage: errorMessage,
+                    highlightedLyricID: highlightedLyricID,
+                    onToggleInterface: onToggleInterface
+                )
+            case .textPV:
+                TextPVLyricsView(
+                    lyrics: lyrics,
+                    errorMessage: errorMessage,
+                    highlightedLyricID: highlightedLyricID,
+                    onToggleInterface: onToggleInterface
+                )
+            }
         }
     }
 

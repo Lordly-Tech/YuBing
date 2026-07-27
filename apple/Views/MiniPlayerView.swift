@@ -9,7 +9,7 @@ struct MiniPlayerView: View {
     let onExpand: () -> Void
 
     var body: some View {
-        if let item = player.currentItem {
+        if player.hasActivePlaybackSession, let item = player.currentItem {
             HStack(spacing: isInline ? 8 : 10) {
                 Button(action: onExpand) {
                     HStack(spacing: isInline ? 8 : 10) {

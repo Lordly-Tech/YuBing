@@ -76,7 +76,9 @@ private struct PDFKitView {
         view.displaysPageBreaks = true
         view.displayDirection = displayMode == .pages ? .horizontal : .vertical
         view.displayMode = displayMode == .pages ? .singlePage : .singlePageContinuous
+        #if os(iOS)
         view.usePageViewController(displayMode == .pages, withViewOptions: nil)
+        #endif
     }
 }
 

@@ -9,6 +9,33 @@ struct LyricsEffectsSettingsView: View {
 
         Form {
             Section {
+                Picker("歌词样式", selection: $settings.lyricsStyle) {
+                    ForEach(LyricsStyle.allCases) { style in
+                        Label(style.title, systemImage: style.systemImage)
+                            .tag(style)
+                    }
+                }
+
+                if settings.lyricsStyle == .textPV {
+                    NavigationLink {
+                        TextPVSettingsView()
+                    } label: {
+                        LabeledContent("文字PV设置", value: settings.textPV.style.title)
+                    }
+                }
+
+                NavigationLink {
+                    SkylineLyricsSettingsView()
+                } label: {
+                    Label("全屏天际歌词", systemImage: "arrow.up.left.and.arrow.down.right")
+                }
+            } header: {
+                Text("歌词样式")
+            } footer: {
+                Text(settings.lyricsStyle.description)
+            }
+
+            Section {
                 Toggle(isOn: $settings.lyricsWordByWord) {
                     LyricsSettingRowLabel(
                         title: "逐字动效",

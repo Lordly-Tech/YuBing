@@ -1,0 +1,14 @@
+{
+  "originHash" : "9492aa1d4e835250398eda75276ee9df298e31e95981f07ec5a669fdaa4d86bc",
+  "pins" : [
+    {
+      "identity" : "ffmpeg-libav-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tylerjonesio/ffmpeg-libav-spm.git",
+      "state" : {
+        "revision" : "70acff8279dc8a8e87cce5eb53fc52104aa47703"
+      }
+    }
+  ],
+  "version" : 3
+}

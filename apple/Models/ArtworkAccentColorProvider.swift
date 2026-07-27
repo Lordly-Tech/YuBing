@@ -45,9 +45,22 @@ struct ArtworkDetailAssets: @unchecked Sendable {
 
 actor ArtworkAccentColorProvider {
     static let shared = ArtworkAccentColorProvider()
+    nonisolated static let fallback = SIMD3<Double>(repeating: 0.86)
 
     private let context = CIContext(options: [.cacheIntermediates: false])
     private let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+
+    func accentColor(for artworkData: Data?) -> SIMD3<Double> {
+        guard let artworkData,
+              let image = CIImage(
+                data: artworkData,
+                options: [.applyOrientationProperty: true]
+              ) else {
+            return Self.fallback
+        }
+
+        return readableAccent(averageColor(of: downsampled(image)))
+    }
 
     func detailAssets(
         for artworkData: Data?,

@@ -129,10 +129,11 @@ private struct CompactRootView: View {
 
     #if os(iOS)
     @available(iOS 26.0, *)
+    @ViewBuilder
     private var modernTabs: some View {
-        tabs
-            .tabViewBottomAccessory {
-                if player.currentItem != nil, selection != .reading, !isMiniPlayerHiddenByGesture {
+        if shouldShowMiniPlayer {
+            tabs
+                .tabViewBottomAccessory {
                     MeloXMiniPlayerAccessory {
                         if let item = player.currentItem { openPlayer(item) }
                     }
@@ -142,22 +143,21 @@ private struct CompactRootView: View {
                         in: playerTransitionNamespace
                     )
                 }
-            }
-            .tabBarMinimizeBehavior(.onScrollDown)
+                .tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            tabs
+                .tabBarMinimizeBehavior(.onScrollDown)
+        }
     }
     #endif
 
     private var fallbackTabs: some View {
-        tabs.overlay(alignment: .bottom) {
-            floatingMiniPlayer(maxWidth: 620)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 10)
-        }
+        tabs
     }
 
     @ViewBuilder
     private func floatingMiniPlayer(maxWidth: CGFloat) -> some View {
-        if player.currentItem != nil, selection != .reading, !isMiniPlayerHiddenByGesture {
+        if shouldShowMiniPlayer {
             MiniPlayerView(isInline: false, alwaysShowsSubtitle: true) {
                 if let item = player.currentItem { openPlayer(item) }
             }
@@ -171,6 +171,13 @@ private struct CompactRootView: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .gesture(hideMiniPlayerGesture)
         }
+    }
+
+    private var shouldShowMiniPlayer: Bool {
+        player.hasActivePlaybackSession
+            && player.currentItem != nil
+            && selection != .reading
+            && !isMiniPlayerHiddenByGesture
     }
 
     private var hideMiniPlayerGesture: some Gesture {
@@ -193,8 +200,27 @@ private struct CompactRootView: View {
             content()
                 .libraryDestinations()
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            #if os(iOS)
+            if #unavailable(iOS 26.0) {
+                fallbackMiniPlayerInset(for: section)
+            }
+            #else
+            fallbackMiniPlayerInset(for: section)
+            #endif
+        }
         .tabItem { Label(section.title, systemImage: section.symbol) }
         .tag(section)
+    }
+
+    @ViewBuilder
+    private func fallbackMiniPlayerInset(for section: AppSection) -> some View {
+        if selection == section {
+            floatingMiniPlayer(maxWidth: 620)
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
+        }
     }
 }
 
@@ -234,9 +260,10 @@ private struct SplitRootView: View {
                     }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .bottom) {
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 floatingMiniPlayer(maxWidth: 720)
                     .padding(.horizontal, 24)
+                    .padding(.top, 14)
                     .padding(.bottom, 18)
             }
         }
@@ -279,9 +306,10 @@ private struct SplitRootView: View {
                     .libraryDestinations()
             }
         }
-        .overlay(alignment: .bottom) {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             floatingMiniPlayer(maxWidth: 720)
                 .padding(.horizontal, 24)
+                .padding(.top, 14)
                 .padding(.bottom, 18)
         }
         .onReceive(NotificationCenter.default.publisher(for: .yuBingOpenSection)) { notification in
@@ -294,7 +322,8 @@ private struct SplitRootView: View {
 
     @ViewBuilder
     private func floatingMiniPlayer(maxWidth: CGFloat) -> some View {
-        if player.currentItem != nil, selection != .reading, !isMiniPlayerHiddenByGesture {
+        if player.hasActivePlaybackSession, player.currentItem != nil,
+           selection != .reading, !isMiniPlayerHiddenByGesture {
             MiniPlayerView(isInline: false, alwaysShowsSubtitle: true) {
                 if let item = player.currentItem { openPlayer(item) }
             }

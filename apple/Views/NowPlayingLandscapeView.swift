@@ -1,8 +1,12 @@
 import SwiftUI
 
 struct NowPlayingLandscapeView: View {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @EnvironmentObject private var player: AudioPlayerController
+    @Environment(AppSettings.self) private var settings
 
+    @Binding var page: NowPlayingPage
+    @Binding var showsLyricsControls: Bool
     @Binding var showsSleepTimer: Bool
 
     let song: NowPlayingSong
@@ -12,95 +16,237 @@ struct NowPlayingLandscapeView: View {
     let artworkNamespace: Namespace.ID
     let onDismiss: () -> Void
 
+    @State private var showsSkylineLyrics = false
+
     var body: some View {
-        GeometryReader { proxy in
-            let spacing = min(max(proxy.size.width * 0.035, 24), 44)
-            let isCompactHeight = proxy.size.height < 480
-            let reservedControlHeight: CGFloat = isCompactHeight ? 194 : 220
-            let artworkSide = min(
-                max(proxy.size.height - reservedControlHeight, 132),
-                proxy.size.width * 0.34,
-                430
-            )
-
-            HStack(spacing: spacing) {
-                albumPage(side: artworkSide, isCompactHeight: isCompactHeight)
-                    .frame(width: min(proxy.size.width * 0.4, 470))
-
-                lyricsPage
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            if showsSkylineLyrics, page == .lyrics {
+                SkylineLyricsView(
+                    artworkData: song.artworkData,
+                    lyrics: lyrics,
+                    errorMessage: lyricError,
+                    highlightedLyricID: highlightedLyricID,
+                    onExit: exitSkylineLyrics
+                )
+                .transition(.opacity)
+            } else {
+                standardPlayer
+                    .transition(.opacity)
             }
-            .frame(maxWidth: 1_180, maxHeight: .infinity)
-            .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 28)
-        .safeAreaPadding(.vertical, 12)
-        .contentShape(.rect)
-        .simultaneousGesture(dismissalDragGesture)
-        .accessibilityAction(named: "收起播放器") {
-            onDismiss()
+        .onChange(of: page) { _, newPage in
+            if newPage != .lyrics {
+                showsLyricsControls = true
+                showsSkylineLyrics = false
+            }
+        }
+        .animation(
+            accessibilityReduceMotion ? nil : .smooth(duration: 0.4),
+            value: showsSkylineLyrics
+        )
+    }
+
+    private var standardPlayer: some View {
+        VStack(spacing: 0) {
+            dismissalHandle
+
+            GeometryReader { proxy in
+                let artworkSide = min(
+                    proxy.size.height,
+                    proxy.size.width * 0.43,
+                    460
+                )
+
+                HStack(spacing: landscapeSpacing(for: proxy.size.width)) {
+                    artwork(side: artworkSide)
+
+                    rightPanel
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: 1_100, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, 20)
+        .safeAreaPadding(.top, 2)
+        .safeAreaPadding(.bottom, 8)
+    }
+
+    private var dismissalHandle: some View {
+        Button(action: onDismiss) {
+            Capsule()
+                .fill(.white.opacity(0.52))
+                .frame(width: 38, height: 5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .frame(height: 28)
+        .accessibilityLabel("收起播放器")
+        .accessibilityHint("轻点收起，或向下拖动播放器")
+        .gesture(dismissalDragGesture)
+    }
+
+    private func artwork(side: CGFloat) -> some View {
+        ArtworkImage(data: song.artworkData, cornerRadius: 12)
+            .frame(width: side, height: side)
+            .scaleEffect(player.isPlaying || !settings.shrinksPausedArtwork ? 1 : 0.9)
+            .shadow(color: .black.opacity(0.28), radius: 24, y: 12)
+            .animation(.smooth(duration: 0.45), value: player.isPlaying)
+            .contentShape(.rect)
+            .onTapGesture(perform: toggleArtworkDetails)
+            .accessibilityElement()
+            .accessibilityLabel(page == .details ? "返回封面" : "查看歌曲资料")
+            .accessibilityHint("轻点切换封面和歌曲资料")
+            .accessibilityAction { toggleArtworkDetails() }
+    }
+
+    private var rightPanel: some View {
+        VStack(spacing: 0) {
+            songHeader
+
+            if usesExpandedAppleMusicLyricsLayout {
+                pageContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .bottom) {
+                        pageSelector
+                    }
+            } else {
+                pageContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                pageSelector
+            }
         }
     }
 
-    private func albumPage(side: CGFloat, isCompactHeight: Bool) -> some View {
-        VStack(spacing: isCompactHeight ? 10 : 16) {
-            Spacer(minLength: 0)
+    private var pageSelector: some View {
+        NowPlayingPageSelector(page: $page)
+            .opacity(hidesLyricsControls ? 0 : 1)
+            .allowsHitTesting(!hidesLyricsControls)
+            .accessibilityHidden(hidesLyricsControls)
+    }
 
-            ArtworkImage(data: song.artworkData, cornerRadius: 12)
-                .frame(width: side, height: side)
-                .shadow(color: .black.opacity(0.3), radius: 24, y: 12)
+    private var hidesLyricsControls: Bool {
+        page == .lyrics && !showsLyricsControls
+    }
 
-            VStack(spacing: 4) {
+    private var usesExpandedAppleMusicLyricsLayout: Bool {
+        page == .lyrics && settings.lyricsStyle == .appleMusic
+    }
+
+    private var songHeader: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(song.name)
-                    .font(.title3.weight(.semibold))
+                    .font(.headline)
                     .lineLimit(1)
 
                 Text(song.artistText)
                     .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(.white.opacity(0.64))
                     .lineLimit(1)
             }
-            .frame(maxWidth: side)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            playbackControls(width: side, isCompactHeight: isCompactHeight)
+            if page == .lyrics, !lyrics.isEmpty {
+                Button(action: enterSkylineLyrics) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.title3.weight(.medium))
+                        .frame(width: 40, height: 40)
+                        .background(.white.opacity(0.13), in: .circle)
+                        .contentShape(.circle)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("打开全屏天际歌词")
+            }
 
-            Spacer(minLength: 0)
+            NowPlayingSongActions(
+                song: song,
+                showsSleepTimer: $showsSleepTimer,
+                isShowingDetails: page == .details,
+                onToggleDetails: toggleArtworkDetails
+            )
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(height: 52)
     }
 
-    private func playbackControls(width: CGFloat, isCompactHeight: Bool) -> some View {
-        VStack(spacing: isCompactHeight ? 0 : 6) {
-            NowPlayingProgressControl(song: song)
-
-            NowPlayingTransportControls(isCompact: isCompactHeight)
+    @ViewBuilder
+    private var pageContent: some View {
+        switch page {
+        case .artwork:
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                NowPlayingProgressControl(song: song)
+                NowPlayingTransportControls()
+                NowPlayingVolumeControl()
+                Spacer(minLength: 0)
+            }
+            .transition(.opacity)
+        case .details:
+            NowPlayingSongDetailsPage(
+                song: song,
+                showsSleepTimer: $showsSleepTimer,
+                showsArtworkToggle: false,
+                artworkNamespace: artworkNamespace,
+                onShowArtwork: toggleArtworkDetails
+            )
+            .transition(.opacity)
+        case .lyrics:
+            NowPlayingLyricsPage(
+                song: song,
+                lyrics: lyrics,
+                untimedText: player.currentMetadata.lyrics?.untimedText,
+                errorMessage: lyricError,
+                highlightedLyricID: highlightedLyricID,
+                presentation: .landscape,
+                isInterfaceHidden: hidesLyricsControls,
+                artworkNamespace: artworkNamespace,
+                showsSleepTimer: $showsSleepTimer,
+                onToggleInterface: toggleLyricsControls,
+                onShowDetails: { page = .details }
+            )
+            .accessibilityAction(
+                named: showsLyricsControls ? "隐藏播放器控制" : "显示播放器控制"
+            ) {
+                toggleLyricsControls()
+            }
+            .transition(.opacity)
+        case .queue:
+            NowPlayingQueuePage()
+                .transition(.opacity)
         }
-        .foregroundStyle(.white)
-        .frame(maxWidth: max(width, 240))
     }
 
-    private var lyricsPage: some View {
-        NowPlayingLyricsPage(
-            song: song,
-            lyrics: lyrics,
-            untimedText: player.currentMetadata.lyrics?.untimedText,
-            errorMessage: lyricError,
-            highlightedLyricID: highlightedLyricID,
-            presentation: .landscape,
-            isInterfaceHidden: true,
-            artworkNamespace: artworkNamespace,
-            showsSleepTimer: $showsSleepTimer
-        )
+    private func landscapeSpacing(for width: CGFloat) -> CGFloat {
+        min(max(width * 0.035, 18), 38)
+    }
+
+    private func toggleLyricsControls() {
+        withAnimation(accessibilityReduceMotion ? nil : .smooth(duration: 0.3)) {
+            showsLyricsControls.toggle()
+        }
+    }
+
+    private func enterSkylineLyrics() {
+        showsSkylineLyrics = true
+    }
+
+    private func exitSkylineLyrics() {
+        showsSkylineLyrics = false
+    }
+
+    private func toggleArtworkDetails() {
+        withAnimation(accessibilityReduceMotion ? nil : .smooth(duration: 0.3)) {
+            page = page == .details ? .artwork : .details
+        }
     }
 
     private var dismissalDragGesture: some Gesture {
-        DragGesture(minimumDistance: 18)
+        DragGesture(minimumDistance: 8)
             .onEnded { value in
-                let verticalDistance = value.translation.height
-                let predictedDistance = value.predictedEndTranslation.height
-                guard verticalDistance > 90,
-                      predictedDistance > 150,
-                      abs(verticalDistance) > abs(value.translation.width) * 1.25 else {
+                guard value.translation.height > 60,
+                      abs(value.translation.height) > abs(value.translation.width) else {
                     return
                 }
                 onDismiss()

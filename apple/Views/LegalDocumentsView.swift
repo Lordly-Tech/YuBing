@@ -182,7 +182,9 @@ struct LegalDocumentView: View {
         }
         .textSelection(.enabled)
         .navigationTitle(document.title)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     private var header: some View {

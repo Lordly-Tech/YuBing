@@ -22,6 +22,7 @@ struct NowPlayingView: View {
     @State private var showsLyricsControls = true
     @State private var showsSleepTimer = false
     @State private var highlightedLyricID: LyricLine.ID?
+    @State private var showsTextPVLandscapeSuggestion = false
     @Namespace private var pageArtworkNamespace
 
     private var localTracks: [LibraryItem] {
@@ -48,10 +49,29 @@ struct NowPlayingView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                NowPlayingBackground(artworkData: song.artworkData)
+                if usesMonochromeLyricsBackground {
+                    Color.black
+                        .ignoresSafeArea()
+                } else {
+                    NowPlayingBackground(artworkData: song.artworkData)
+                }
 
-                if proxy.size.width > proxy.size.height {
+                if usesFullScreenTextPV {
+                    TextPVFullScreenPlayerView(
+                        page: $page,
+                        showsControls: $showsLyricsControls,
+                        song: song,
+                        lyrics: lyrics,
+                        errorMessage: lyricError,
+                        highlightedLyricID: highlightedLyricID,
+                        onDismiss: { dismiss() },
+                        onToggleInterface: toggleLyricsControls
+                    )
+                    .transition(.opacity)
+                } else if proxy.size.width > proxy.size.height {
                     NowPlayingLandscapeView(
+                        page: $page,
+                        showsLyricsControls: $showsLyricsControls,
                         showsSleepTimer: $showsSleepTimer,
                         song: song,
                         lyrics: lyrics,
@@ -63,10 +83,26 @@ struct NowPlayingView: View {
                 } else {
                     portraitContent
                 }
+
+                if usesFullScreenTextPV,
+                   showsTextPVLandscapeSuggestion,
+                   proxy.size.width <= proxy.size.height {
+                    Label("建议切换至横屏观看文字PV", systemImage: "rectangle.landscape.rotate")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 11)
+                        .background(.regularMaterial, in: .capsule)
+                        .shadow(color: .black.opacity(0.24), radius: 12, y: 5)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .safeAreaPadding(.top, 58)
+                        .accessibilityLabel("建议切换至横屏观看文字PV")
+                }
             }
             .foregroundStyle(.white)
         }
         .preferredColorScheme(.dark)
+        .ignoresSafeArea()
         .onAppear {
             page = NowPlayingPage(rawValue: rememberedPage) ?? .artwork
             if let queueItems {
@@ -83,6 +119,24 @@ struct NowPlayingView: View {
         }
         .task(id: lyricSynchronizationTrigger) {
             await synchronizeHighlightedLyric()
+        }
+        .task(id: usesFullScreenTextPV) {
+            guard usesFullScreenTextPV else {
+                showsTextPVLandscapeSuggestion = false
+                return
+            }
+
+            withAnimation(accessibilityReduceMotion ? nil : .smooth(duration: 0.25)) {
+                showsTextPVLandscapeSuggestion = true
+            }
+            do {
+                try await Task.sleep(for: .seconds(3.2))
+            } catch {
+                return
+            }
+            withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.2)) {
+                showsTextPVLandscapeSuggestion = false
+            }
         }
         .onChange(of: page) { _, newPage in
             if newPage != .lyrics {
@@ -119,7 +173,7 @@ struct NowPlayingView: View {
         VStack(spacing: 0) {
             dismissalHandle
 
-            if page == .lyrics {
+            if usesExpandedAppleMusicLyricsLayout {
                 pageContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay(alignment: .bottom) {
@@ -151,6 +205,18 @@ struct NowPlayingView: View {
 
     private var hidesLyricsControls: Bool {
         page == .lyrics && !showsLyricsControls
+    }
+
+    private var usesExpandedAppleMusicLyricsLayout: Bool {
+        page == .lyrics && settings.lyricsStyle == .appleMusic
+    }
+
+    private var usesFullScreenTextPV: Bool {
+        page == .lyrics && settings.lyricsStyle == .textPV
+    }
+
+    private var usesMonochromeLyricsBackground: Bool {
+        page == .lyrics && settings.lyricsStyle.usesMonochromePlayerBackground
     }
 
     private var dismissalHandle: some View {
