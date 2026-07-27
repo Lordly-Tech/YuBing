@@ -4,7 +4,7 @@ import SwiftUI
 struct YuBingApp: App {
     @AppStorage(AppLocalization.preferenceKey) private var appLanguageRaw = AppLanguage.system.rawValue
     @StateObject private var store = LibraryStore()
-    @StateObject private var player = AudioPlayerController()
+    @State private var player: AudioPlayerController
     @State private var appSettings: AppSettings
     @StateObject private var readingStore = ReadingStore()
     @StateObject private var wifiTransfer = WiFiTransferService()
@@ -14,6 +14,7 @@ struct YuBingApp: App {
 
     init() {
         _appSettings = State(initialValue: AppSettings())
+        _player = State(initialValue: AudioPlayerController())
     }
 
     var body: some Scene {
@@ -22,7 +23,7 @@ struct YuBingApp: App {
                 .environment(\.locale, Locale(identifier: appLanguage.localeIdentifier))
                 .id(appLanguage.localeIdentifier)
                 .environmentObject(store)
-                .environmentObject(player)
+                .environment(player)
                 .environment(appSettings)
                 .environmentObject(readingStore)
                 .environmentObject(wifiTransfer)
