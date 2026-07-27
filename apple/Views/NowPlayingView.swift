@@ -187,16 +187,17 @@ struct NowPlayingView: View {
 
     @ViewBuilder
     private var pageContent: some View {
-        switch page {
-        case .artwork:
+        ZStack(alignment: .center) {
             NowPlayingArtworkPage(
                 song: song,
                 showsSleepTimer: $showsSleepTimer,
                 artworkNamespace: pageArtworkNamespace,
                 onShowDetails: showDetails
             )
-            .transition(.opacity)
-        case .details:
+            .opacity(page == .artwork ? 1 : 0)
+            .allowsHitTesting(page == .artwork)
+            .accessibilityHidden(page != .artwork)
+
             NowPlayingSongDetailsPage(
                 song: song,
                 showsSleepTimer: $showsSleepTimer,
@@ -204,8 +205,10 @@ struct NowPlayingView: View {
                 artworkNamespace: pageArtworkNamespace,
                 onShowArtwork: showArtwork
             )
-            .transition(.opacity)
-        case .lyrics:
+            .opacity(page == .details ? 1 : 0)
+            .allowsHitTesting(page == .details)
+            .accessibilityHidden(page != .details)
+
             NowPlayingLyricsPage(
                 song: song,
                 lyrics: lyrics,
@@ -219,16 +222,22 @@ struct NowPlayingView: View {
                 onToggleInterface: toggleLyricsControls,
                 onShowDetails: showDetails
             )
+            .opacity(page == .lyrics ? 1 : 0)
+            .allowsHitTesting(page == .lyrics)
+            .accessibilityHidden(page != .lyrics)
             .accessibilityAction(
                 named: showsLyricsControls ? "隐藏播放器控制" : "显示播放器控制"
             ) {
                 toggleLyricsControls()
             }
-            .transition(.opacity)
-        case .queue:
+
             NowPlayingQueuePage()
-                .transition(.opacity)
+                .opacity(page == .queue ? 1 : 0)
+                .allowsHitTesting(page == .queue)
+                .accessibilityHidden(page != .queue)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .clipped()
     }
 
     private var lyricError: String? {
@@ -294,15 +303,11 @@ struct NowPlayingView: View {
     }
 
     private func showDetails() {
-        withAnimation(NowPlayingPage.changeAnimation) {
-            page = .details
-        }
+        page = .details
     }
 
     private func showArtwork() {
-        withAnimation(NowPlayingPage.changeAnimation) {
-            page = .artwork
-        }
+        page = .artwork
     }
 
     private func toggleLyricsControls() {
