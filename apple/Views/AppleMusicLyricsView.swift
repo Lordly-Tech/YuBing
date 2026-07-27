@@ -106,6 +106,9 @@ struct AppleMusicLyricsView: View {
             let hiddenInterfaceBlurScale = CGFloat(
                 settings.lyricsHiddenInterfaceBlurScale
             )
+            let activeDistanceBlurScale = isInterfaceHidden
+                ? hiddenInterfaceBlurScale
+                : distanceBlurScale
             let dimAmount = settings.lyricsDimAmount
             let currentLineScale = lyricsCurrentLineScale
 
@@ -164,35 +167,20 @@ struct AppleMusicLyricsView: View {
                                 )
                                 .contentShape(.rect)
                                 .visualEffect { content, geometry in
-                                    let frame = geometry.frame(in: .scrollView(axis: .vertical))
-                                    let visualMidY = frame.midY + movementOffset
-                                    let distance = Self.lyricVisualDistance(
-                                        visualMidY: visualMidY,
+                                    Self.lyricDistanceEffect(
+                                        content,
+                                        frame: geometry.frame(
+                                            in: .scrollView(axis: .vertical)
+                                        ),
+                                        movementOffset: movementOffset,
+                                        viewportHeight: proxy.size.height,
                                         focusAnchorY: focusAnchorY,
+                                        lyricStride: lyricStride,
+                                        blurIntensity: blurIntensity,
+                                        distanceBlurScale: activeDistanceBlurScale,
+                                        dimAmount: dimAmount,
                                         softensFollowingLyrics: isInterfaceHidden
                                     )
-                                    let activeDistanceBlurScale = isInterfaceHidden
-                                        ? hiddenInterfaceBlurScale
-                                        : distanceBlurScale
-                                    let bottomRevealOpacity = Self.lyricBottomRevealOpacity(
-                                        frame: frame,
-                                        movementOffset: movementOffset,
-                                        viewportHeight: proxy.size.height
-                                    )
-                                    let distanceBlurRadius: CGFloat = Self.lyricDistanceBlurRadius(
-                                        forPixelDistance: distance,
-                                        lyricStride: lyricStride,
-                                        intensity: blurIntensity * activeDistanceBlurScale
-                                    )
-                                    let resolvedOpacity: Double = Self.lyricOpacity(
-                                        forPixelDistance: distance,
-                                        lyricStride: lyricStride,
-                                        dimAmount: dimAmount
-                                    ) * bottomRevealOpacity
-                                    return content
-                                        .blur(radius: distanceBlurRadius)
-                                        .opacity(resolvedOpacity)
-                                        .offset(y: movementOffset)
                                 }
                                 .blur(radius: focusBlurRadius)
                                 .animation(focusEffectAnimation, value: focusBlurRadius)
@@ -983,6 +971,52 @@ struct AppleMusicLyricsView: View {
         let revealDistance = min(max(frame.height * 0.8, 32), 72)
         let progress = (viewportHeight - visualMinY) / revealDistance
         return Double(min(max(progress, 0), 1))
+    }
+
+    /// Applies the distance-based blur, fade and scroll offset in one place.
+    ///
+    /// Kept as a generic function with a written-out return type so the
+    /// `visualEffect` closure stays a single expression. Chaining the effects
+    /// inline made the type checker resolve every intermediate `VisualEffect`
+    /// against the surrounding modifier stack, which blew the expression
+    /// type-check budget for the whole lyric row.
+    nonisolated private static func lyricDistanceEffect<E: VisualEffect>(
+        _ content: E,
+        frame: CGRect,
+        movementOffset: CGFloat,
+        viewportHeight: CGFloat,
+        focusAnchorY: CGFloat,
+        lyricStride: CGFloat,
+        blurIntensity: CGFloat,
+        distanceBlurScale: CGFloat,
+        dimAmount: Double,
+        softensFollowingLyrics: Bool
+    ) -> some VisualEffect {
+        let distance = lyricVisualDistance(
+            visualMidY: frame.midY + movementOffset,
+            focusAnchorY: focusAnchorY,
+            softensFollowingLyrics: softensFollowingLyrics
+        )
+        let blurRadius = lyricDistanceBlurRadius(
+            forPixelDistance: distance,
+            lyricStride: lyricStride,
+            intensity: blurIntensity * distanceBlurScale
+        )
+        let bottomRevealOpacity = lyricBottomRevealOpacity(
+            frame: frame,
+            movementOffset: movementOffset,
+            viewportHeight: viewportHeight
+        )
+        let opacity = lyricOpacity(
+            forPixelDistance: distance,
+            lyricStride: lyricStride,
+            dimAmount: dimAmount
+        ) * bottomRevealOpacity
+
+        return content
+            .blur(radius: blurRadius)
+            .opacity(opacity)
+            .offset(y: movementOffset)
     }
 
     nonisolated private static func lyricEmphasis(
