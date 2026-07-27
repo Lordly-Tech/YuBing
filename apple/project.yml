@@ -5,7 +5,7 @@ options:
   # 否则 zh-Hans 不会产出 Localizable.strings，简体会回退到 zh-Hant。
   developmentLanguage: zh-Hans
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "18.0"
     macOS: "15.0"
     watchOS: "11.0"
   xcodeVersion: "26.0"
