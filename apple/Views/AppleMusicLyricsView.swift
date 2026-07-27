@@ -124,92 +124,24 @@ struct AppleMusicLyricsView: View {
                     for: proxy.size.height
                 )
                 let lyricLayoutWidth = max(proxy.size.width / currentLineScale, 1)
+                let rowContext = LyricRowContext(
+                    usesPseudoTiming: usesPseudoTiming,
+                    currentLineScale: currentLineScale,
+                    lyricLayoutWidth: lyricLayoutWidth,
+                    viewportHeight: proxy.size.height,
+                    focusAnchorY: focusAnchorY,
+                    lyricStride: lyricStride,
+                    blurIntensity: blurIntensity,
+                    distanceBlurScale: activeDistanceBlurScale,
+                    focusNeighborIDs: focusNeighborIDs,
+                    dimAmount: dimAmount,
+                    focusEffectAnimation: focusEffectAnimation
+                )
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: CGFloat(settings.lyricsLineSpacing)) {
                         ForEach(lyrics) { line in
-                            let isPlaybackLine = line.id == visualHighlightedLyricID
-                            let isCascadeFocusLine = line.id == visualCascadeFocusLyricID
-                            let isActualPlaybackLine = line.id == highlightedLyricID
-                            let isPrecedingFocusLine = line.id == focusNeighborIDs.preceding
-                            let isFollowingFocusLine = line.id == focusNeighborIDs.following
-                            let isBrowsingFocus = isBrowsingLyrics && line.id == scrollPositionID
-                            let isRetainedTopCascadeLine = retainedTopCascadeLyrics.contains {
-                                $0.id == line.id
-                            }
-                            let movementOffset = lyricMovementOffsetByID[line.id, default: 0]
-                            let focusBlurRadius = Self.lyricFocusBlurRadius(
-                                intensity: blurIntensity,
-                                isPrecedingFocusLine: isPrecedingFocusLine,
-                                isFollowingFocusLine: isFollowingFocusLine
-                            )
-
-                            SynchronizedLyricText(
-                                line: line,
-                                isPlaybackLine: isPlaybackLine,
-                                usesPseudoTiming: usesPseudoTiming,
-                                fontSize: CGFloat(settings.lyricsFontSize),
-                                visualScale: isCascadeFocusLine ? currentLineScale : 1,
-                                layoutWidth: lyricLayoutWidth
-                            )
-                                .opacity(
-                                    isRetainedTopCascadeLine
-                                        ? 0
-                                        : Self.lyricEmphasis(
-                                            isPlaybackLine: isPlaybackLine,
-                                            isBrowsingFocus: isBrowsingFocus,
-                                            dimAmount: dimAmount
-                                        )
-                                )
-                                .animation(
-                                    focusEffectAnimation,
-                                    value: isPlaybackLine
-                                )
-                                .contentShape(.rect)
-                                .visualEffect { content, geometry in
-                                    Self.lyricDistanceEffect(
-                                        content,
-                                        frame: geometry.frame(
-                                            in: .scrollView(axis: .vertical)
-                                        ),
-                                        movementOffset: movementOffset,
-                                        viewportHeight: proxy.size.height,
-                                        focusAnchorY: focusAnchorY,
-                                        lyricStride: lyricStride,
-                                        blurIntensity: blurIntensity,
-                                        distanceBlurScale: activeDistanceBlurScale,
-                                        dimAmount: dimAmount,
-                                        softensFollowingLyrics: isInterfaceHidden
-                                    )
-                                }
-                                .blur(radius: focusBlurRadius)
-                                .animation(focusEffectAnimation, value: focusBlurRadius)
-                                .onGeometryChange(for: CGRect.self) { geometry in
-                                    geometry.frame(in: .scrollView(axis: .vertical))
-                                } action: { frame in
-                                    lyricFrames.frames[line.id] = frame
-                                }
-                                .gesture(lyricTapGesture(for: line))
-                                .id(line.id)
-                                .onDisappear {
-                                    lyricFrames.frames.removeValue(forKey: line.id)
-                                }
-                                .accessibilityLabel(
-                                    line.accessibilityText(
-                                        includingTranslation: settings.lyricsTranslationEnabled
-                                    )
-                                )
-                                .accessibilityValue(
-                                    lyricAccessibilityValue(
-                                        isPlaybackLine: isActualPlaybackLine,
-                                        isBrowsingFocus: isBrowsingFocus
-                                    )
-                                )
-                                .accessibilityHint(settings.lyricsTapToSeek ? "双击跳转到这行歌词" : "歌词跳转已在设置中关闭")
-                                .accessibilityAddTraits(settings.lyricsTapToSeek ? .isButton : [])
-                                .accessibilityAction {
-                                    seek(to: line)
-                                }
+                            lyricRow(line: line, context: rowContext)
                         }
                     }
                     .scrollTargetLayout()
@@ -301,6 +233,105 @@ struct AppleMusicLyricsView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func lyricRow(
+        line: LyricLine,
+        context: LyricRowContext
+    ) -> some View {
+        let isPlaybackLine = line.id == visualHighlightedLyricID
+        let isCascadeFocusLine = line.id == visualCascadeFocusLyricID
+        let isActualPlaybackLine = line.id == highlightedLyricID
+        let isBrowsingFocus = isBrowsingLyrics && line.id == scrollPositionID
+        let isRetainedTopCascadeLine = retainedTopCascadeLyrics.contains {
+            $0.id == line.id
+        }
+        let movementOffset = lyricMovementOffsetByID[line.id, default: 0]
+        let focusBlurRadius = Self.lyricFocusBlurRadius(
+            intensity: context.blurIntensity,
+            isPrecedingFocusLine: line.id == context.focusNeighborIDs.preceding,
+            isFollowingFocusLine: line.id == context.focusNeighborIDs.following
+        )
+
+        SynchronizedLyricText(
+            line: line,
+            isPlaybackLine: isPlaybackLine,
+            usesPseudoTiming: context.usesPseudoTiming,
+            fontSize: CGFloat(settings.lyricsFontSize),
+            visualScale: isCascadeFocusLine ? context.currentLineScale : 1,
+            layoutWidth: context.lyricLayoutWidth
+        )
+        .opacity(
+            isRetainedTopCascadeLine
+                ? 0
+                : Self.lyricEmphasis(
+                    isPlaybackLine: isPlaybackLine,
+                    isBrowsingFocus: isBrowsingFocus,
+                    dimAmount: context.dimAmount
+                )
+        )
+        .animation(context.focusEffectAnimation, value: isPlaybackLine)
+        .contentShape(.rect)
+        .visualEffect { content, geometry in
+            Self.lyricDistanceEffect(
+                content,
+                frame: geometry.frame(in: .scrollView(axis: .vertical)),
+                movementOffset: movementOffset,
+                viewportHeight: context.viewportHeight,
+                focusAnchorY: context.focusAnchorY,
+                lyricStride: context.lyricStride,
+                blurIntensity: context.blurIntensity,
+                distanceBlurScale: context.distanceBlurScale,
+                dimAmount: context.dimAmount,
+                softensFollowingLyrics: isInterfaceHidden
+            )
+        }
+        .blur(radius: focusBlurRadius)
+        .animation(context.focusEffectAnimation, value: focusBlurRadius)
+        .onGeometryChange(for: CGRect.self) { geometry in
+            geometry.frame(in: .scrollView(axis: .vertical))
+        } action: { frame in
+            lyricFrames.frames[line.id] = frame
+        }
+        .gesture(lyricTapGesture(for: line))
+        .id(line.id)
+        .onDisappear {
+            lyricFrames.frames.removeValue(forKey: line.id)
+        }
+        .accessibilityLabel(
+            line.accessibilityText(
+                includingTranslation: settings.lyricsTranslationEnabled
+            )
+        )
+        .accessibilityValue(
+            lyricAccessibilityValue(
+                isPlaybackLine: isActualPlaybackLine,
+                isBrowsingFocus: isBrowsingFocus
+            )
+        )
+        .accessibilityHint(settings.lyricsTapToSeek ? "双击跳转到这行歌词" : "歌词跳转已在设置中关闭")
+        .accessibilityAddTraits(settings.lyricsTapToSeek ? .isButton : [])
+        .accessibilityAction {
+            seek(to: line)
+        }
+    }
+
+    private struct LyricRowContext {
+        let usesPseudoTiming: Bool
+        let currentLineScale: CGFloat
+        let lyricLayoutWidth: CGFloat
+        let viewportHeight: CGFloat
+        let focusAnchorY: CGFloat
+        let lyricStride: CGFloat
+        let blurIntensity: CGFloat
+        let distanceBlurScale: CGFloat
+        let focusNeighborIDs: (
+            preceding: LyricLine.ID?,
+            following: LyricLine.ID?
+        )
+        let dimAmount: Double
+        let focusEffectAnimation: Animation?
     }
 
     @ViewBuilder
