@@ -1,12 +1,18 @@
-# 鱼饼 YuBing
-
-[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
-[![Apple platforms](https://img.shields.io/badge/platforms-iPhone%20%7C%20iPad%20%7C%20Mac%20%7C%20Apple%20Watch-black.svg)](#运行环境)
-
-你的本地文件、音乐与阅读中心，全平台一张网。
+<h1 align="center">鱼饼 YuBing</h1>
 
 <p align="center">
-  <img width="256" height="256" alt="鱼饼icon" src="https://github.com/user-attachments/assets/7b00c976-40f0-4bad-a4db-0b8cc4ba5f7f" />
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-GPLv3-blue.svg" alt="License: GPL v3">
+  </a>
+  <a href="#运行环境">
+    <img src="https://img.shields.io/badge/platforms-iPhone%20%7C%20iPad%20%7C%20Mac%20%7C%20Apple%20Watch-black.svg" alt="Apple platforms">
+  </a>
+</p>
+
+<p align="center">你的本地文件、音乐与阅读中心，全平台一张网。</p>
+
+<p align="center">
+  <img width="256" height="256" alt="鱼饼icon" src="https://github.com/user-attachments/assets/7b00c976-40f0-4bad-a4db-0b8cc4ba5f7f">
 </p>
 
 ## 主要功能
