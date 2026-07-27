@@ -226,11 +226,8 @@ private struct SplitRootView: View {
                     .libraryDestinations()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .top) {
-                centeredSectionPicker
-                    .padding(.top, 8)
-                    .padding(.horizontal, 96)
-                    .allowsHitTesting(true)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                centeredSectionBar
             }
             .overlay(alignment: .bottom) {
                 floatingMiniPlayer(maxWidth: 720)
@@ -246,17 +243,29 @@ private struct SplitRootView: View {
         }
     }
 
+    private var centeredSectionBar: some View {
+        HStack {
+            Spacer(minLength: 0)
+            centeredSectionPicker
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+        .padding(.horizontal, 16)
+        .background(.bar)
+    }
+
     private var centeredSectionPicker: some View {
         Picker("板块", selection: $selection) {
             ForEach(AppSection.allCases) { section in
-                Label(section.title, systemImage: section.symbol)
+                Image(systemName: section.symbol)
+                    .accessibilityLabel(section.title)
                     .tag(section)
             }
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .frame(maxWidth: 430)
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(width: 320)
     }
 
     @ViewBuilder
