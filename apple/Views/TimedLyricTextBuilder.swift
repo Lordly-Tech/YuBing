@@ -2,7 +2,27 @@ import CoreText
 import SwiftUI
 
 enum TimedLyricTextBuilder {
+    /// Per-glyph timing is carried by `LyricTimingTextAttribute`, which needs
+    /// the iOS 18 `TextRenderer` pipeline. Older systems get the same string
+    /// without attributes, so the line still reads correctly — it just cannot
+    /// be swept glyph by glyph.
     static func text(
+        from syllables: [LyricSyllable],
+        constrainedWidth: CGFloat?,
+        fontSize: CGFloat
+    ) -> Text {
+        if #available(iOS 18, *) {
+            return timedText(
+                from: syllables,
+                constrainedWidth: constrainedWidth,
+                fontSize: fontSize
+            )
+        }
+        return Text(verbatim: syllables.map(\.text).joined())
+    }
+
+    @available(iOS 18, *)
+    private static func timedText(
         from syllables: [LyricSyllable],
         constrainedWidth: CGFloat?,
         fontSize: CGFloat

@@ -179,22 +179,19 @@ struct AppleMusicLyricsView: View {
                                         movementOffset: movementOffset,
                                         viewportHeight: proxy.size.height
                                     )
+                                    let distanceBlurRadius: CGFloat = Self.lyricDistanceBlurRadius(
+                                        forPixelDistance: distance,
+                                        lyricStride: lyricStride,
+                                        intensity: blurIntensity * activeDistanceBlurScale
+                                    )
+                                    let resolvedOpacity: Double = Self.lyricOpacity(
+                                        forPixelDistance: distance,
+                                        lyricStride: lyricStride,
+                                        dimAmount: dimAmount
+                                    ) * bottomRevealOpacity
                                     return content
-                                        .blur(
-                                            radius: Self.lyricDistanceBlurRadius(
-                                                forPixelDistance: distance,
-                                                lyricStride: lyricStride,
-                                                intensity: blurIntensity
-                                                    * activeDistanceBlurScale
-                                            )
-                                        )
-                                        .opacity(
-                                            Self.lyricOpacity(
-                                                forPixelDistance: distance,
-                                                lyricStride: lyricStride,
-                                                dimAmount: dimAmount
-                                            ) * bottomRevealOpacity
-                                        )
+                                        .blur(radius: distanceBlurRadius)
+                                        .opacity(resolvedOpacity)
                                         .offset(y: movementOffset)
                                 }
                                 .blur(radius: focusBlurRadius)

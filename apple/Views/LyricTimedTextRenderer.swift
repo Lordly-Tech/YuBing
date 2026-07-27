@@ -266,6 +266,7 @@ struct LyricTimedTextRenderer: TextRenderer {
     }
 }
 
+@available(iOS 18, *)
 private extension LyricTimedTextRenderer {
     struct RunVisualState {
         let revealProgress: Double
