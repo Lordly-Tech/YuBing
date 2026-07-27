@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(iOS 18, *)
 struct LyricTimingTextAttribute: TextAttribute, Hashable, Sendable {
     let startTime: TimeInterval
     let endTime: TimeInterval
@@ -13,7 +14,7 @@ struct LyricTimingTextAttribute: TextAttribute, Hashable, Sendable {
 /// Each glyph fades uniformly from its unplayed style to white, lifts slightly
 /// as it is sung, and long syllables get a short expansion envelope. All of it
 /// is derived analytically from `playbackTime`, so the sweep stays continuous
-/// between frames instead of restarting an animation per tick.
+@available(iOS 18, *)
 struct LyricTimedTextRenderer: TextRenderer {
     struct Style: Equatable, Sendable {
         let unplayedOpacity: Double

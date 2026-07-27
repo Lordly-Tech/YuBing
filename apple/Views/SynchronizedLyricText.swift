@@ -151,39 +151,57 @@ struct SynchronizedLyricText: View {
                 let playbackTime = player.estimatedProgress(at: context.date)
                     + settings.lyricsAdvanceTime
 
-                activeSynchronizedText
+                let text = activeSynchronizedText
                     .font(primaryFont)
                     .foregroundStyle(primaryColor)
                     .multilineTextAlignment(alignment.textAlignment)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
-                    .textRenderer(
-                        LyricTimedTextRenderer(
-                            playbackTime: playbackTime,
-                            style: .init(
-                                unplayedOpacity: 0.3,
-                                maximumUnplayedBlurRadius: maximumUnplayedBlurRadius,
-                                playedRise: playedRise,
-                                maximumLongSyllableScale: maximumLongSyllableScale
-                            ),
-                            layoutConfiguration: .init(
-                                width: timedLayoutWidth,
-                                centersLines: alignment == .center
+
+                if #available(iOS 18, *) {
+                    text
+                        .textRenderer(
+                            LyricTimedTextRenderer(
+                                playbackTime: playbackTime,
+                                style: .init(
+                                    unplayedOpacity: 0.3,
+                                    maximumUnplayedBlurRadius: maximumUnplayedBlurRadius,
+                                    playedRise: playedRise,
+                                    maximumLongSyllableScale: maximumLongSyllableScale
+                                ),
+                                layoutConfiguration: .init(
+                                    width: timedLayoutWidth,
+                                    centersLines: alignment == .center
+                                )
                             )
                         )
-                    )
-                    .frame(
-                        width: timedLayoutWidth,
-                        alignment: alignment.frameAlignment
-                    )
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: alignment.frameAlignment
-                    )
-                    .scaleEffect(
-                        playbackScale(at: playbackTime),
-                        anchor: .center
-                    )
+                        .frame(
+                            width: timedLayoutWidth,
+                            alignment: alignment.frameAlignment
+                        )
+                        .frame(
+                            maxWidth: .infinity,
+                            alignment: alignment.frameAlignment
+                        )
+                        .scaleEffect(
+                            playbackScale(at: playbackTime),
+                            anchor: .center
+                        )
+                } else {
+                    text
+                        .frame(
+                            width: timedLayoutWidth,
+                            alignment: alignment.frameAlignment
+                        )
+                        .frame(
+                            maxWidth: .infinity,
+                            alignment: alignment.frameAlignment
+                        )
+                        .scaleEffect(
+                            playbackScale(at: playbackTime),
+                            anchor: .center
+                        )
+                }
             }
             .transition(.opacity)
         } else {

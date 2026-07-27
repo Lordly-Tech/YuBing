@@ -295,51 +295,66 @@ enum AudioRepeatMode: String, CaseIterable, Identifiable {
         }
     }
 }
-@MainActor
-final class AudioPlayerController: ObservableObject {
-    @Published private(set) var currentItem: LibraryItem?
-    @Published private(set) var isPlaying = false
-    @Published private(set) var isPreparing = false
-    @Published private(set) var currentTime: TimeInterval = 0
-    @Published private(set) var duration: TimeInterval = 0
-    @Published private(set) var queue: [LibraryItem] = []
-    @Published private(set) var currentMetadata = EmbeddedAudioMetadata.empty
-    @Published private(set) var metadataByPath: [String: EmbeddedAudioMetadata] = [:]
-    @Published private(set) var playbackRate: Float = 1
-    @Published private(set) var volume: Double = 1
-    @Published private(set) var repeatMode: AudioRepeatMode = .off
-    @Published private(set) var isShuffleEnabled = false
-    @Published private(set) var sleepTimerEnd: Date?
-    @Published private(set) var stopAfterCurrentTrack = false
-    @Published private(set) var seekRevision = 0
-    @Published private(set) var totalListeningTime: TimeInterval
-    @Published var playbackError: String?
+import Observation
 
+@MainActor
+@Observable
+final class AudioPlayerController {
+    private(set) var currentItem: LibraryItem?
+    private(set) var isPlaying = false
+    private(set) var isPreparing = false
+    private(set) var currentTime: TimeInterval = 0
+    private(set) var duration: TimeInterval = 0
+    private(set) var queue: [LibraryItem] = []
+    private(set) var currentMetadata = EmbeddedAudioMetadata.empty
+    private(set) var metadataByPath: [String: EmbeddedAudioMetadata] = [:]
+    private(set) var playbackRate: Float = 1
+    private(set) var volume: Double = 1
+    private(set) var repeatMode: AudioRepeatMode = .off
+    private(set) var isShuffleEnabled = false
+    private(set) var sleepTimerEnd: Date?
+    private(set) var stopAfterCurrentTrack = false
+    private(set) var seekRevision = 0
+    private(set) var totalListeningTime: TimeInterval
+    var playbackError: String?
+
+    @ObservationIgnored
     private let engine: AudioPlaybackEngine
 
+    @ObservationIgnored
     private let nowPlayingSession: AudioNowPlayingSession
 
+    @ObservationIgnored
     private let persistence = AudioPlaybackPersistence()
 
+    @ObservationIgnored
     private var playbackQueue = AudioPlaybackQueue()
 
+    @ObservationIgnored
     private var preparationTask: Task<Void, Never>?
 
+    @ObservationIgnored
     private var sleepTask: Task<Void, Never>?
 
+    @ObservationIgnored
     private var playbackGeneration = UUID()
 
+    @ObservationIgnored
     private var shouldResumeAfterInterruption = false
 
+    @ObservationIgnored
     private var isResolvingSource = false
 
+    @ObservationIgnored
     private var lastPersistedSecond = -1
 
+    @ObservationIgnored
     private var lastListeningTick = Date()
 
     /// Deliberately untracked: `estimatedProgress(at:)` reads this from
     /// per-frame view bodies, so tracking it would invalidate those views on
     /// every progress sample and undo the point of the migration.
+    @ObservationIgnored
     private var lastProgressUpdateDate = Date()
 
     private static let totalListeningTimeKey = "yubing.totalListeningTime"
