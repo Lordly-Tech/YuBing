@@ -14,7 +14,7 @@ settings:
     SWIFT_VERSION: "5.0"
     SWIFT_STRICT_CONCURRENCY: minimal
     MARKETING_VERSION: "1.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    CURRENT_PROJECT_VERSION: "96"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
     INFOPLIST_KEY_CFBundleAllowMixedLocalizations: true
