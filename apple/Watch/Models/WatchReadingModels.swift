@@ -66,7 +66,7 @@ enum WatchBookLoader {
             originalFileName: item.name,
             format: item.fileExtension,
             chapters: [
-                WatchBookChapter(index: 0, title: "全文", text: text, startOffset: 0, length: length)
+                WatchBookChapter(index: 0, title: NSLocalizedString("全文", comment: ""), text: text, startOffset: 0, length: length)
             ],
             totalLength: length,
             coverData: nil,
@@ -79,10 +79,12 @@ enum WatchBookLoader {
 extension TimeInterval {
     var watchReadingDuration: String {
         let minutes = max(Int(self / 60), 0)
-        if minutes < 1 { return "< 1 分钟" }
-        if minutes < 60 { return "\(minutes) 分钟" }
+        if minutes < 1 { return NSLocalizedString("< 1 分钟", comment: "") }
+        if minutes < 60 { return String(format: NSLocalizedString("%@ 分钟", comment: ""), "\(minutes)") }
         let hours = minutes / 60
         let remainder = minutes % 60
-        return remainder == 0 ? "\(hours) 小时" : "\(hours) 小时 \(remainder) 分钟"
+        return remainder == 0
+            ? String(format: NSLocalizedString("%@ 小时", comment: ""), "\(hours)")
+            : String(format: NSLocalizedString("%@ 小时 %@ 分钟", comment: ""), "\(hours)", "\(remainder)")
     }
 }

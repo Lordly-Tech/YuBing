@@ -14,7 +14,7 @@ final class WatchLibraryStore: NSObject, ObservableObject {
     @Published private(set) var favoritePaths: Set<String>
     @Published private(set) var recentPaths: [String]
     @Published private(set) var readingRecords: [String: WatchReaderRecord]
-    @Published private(set) var transferStatus = "等待 iPhone 传输"
+    @Published private(set) var transferStatus = NSLocalizedString("等待 iPhone 传输", comment: "")
     @Published var alert: WatchLibraryAlert?
 
     let libraryURL: URL
@@ -42,7 +42,7 @@ final class WatchLibraryStore: NSObject, ObservableObject {
             try fileManager.createDirectory(at: libraryURL, withIntermediateDirectories: true)
             items = Self.scanLibrary(at: libraryURL)
         } catch {
-            alert = WatchLibraryAlert(title: "无法打开资料库", message: error.localizedDescription)
+            alert = WatchLibraryAlert(title: NSLocalizedString("无法打开资料库", comment: ""), message: error.localizedDescription)
         }
 
         if WCSession.isSupported() {
@@ -176,7 +176,10 @@ final class WatchLibraryStore: NSObject, ObservableObject {
     func createFolder(named name: String, in folder: URL) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("/") else {
-            alert = WatchLibraryAlert(title: "名称不可用", message: "请输入不含斜杠的名称。")
+            alert = WatchLibraryAlert(
+                title: NSLocalizedString("名称不可用", comment: ""),
+                message: NSLocalizedString("请输入不含斜杠的名称。", comment: "")
+            )
             return
         }
         do {
@@ -184,14 +187,17 @@ final class WatchLibraryStore: NSObject, ObservableObject {
             try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
             refresh()
         } catch {
-            alert = WatchLibraryAlert(title: "创建失败", message: error.localizedDescription)
+            alert = WatchLibraryAlert(title: NSLocalizedString("创建失败", comment: ""), message: error.localizedDescription)
         }
     }
 
     func rename(_ item: WatchLibraryItem, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("/") else {
-            alert = WatchLibraryAlert(title: "名称不可用", message: "请输入不含斜杠的名称。")
+            alert = WatchLibraryAlert(
+                title: NSLocalizedString("名称不可用", comment: ""),
+                message: NSLocalizedString("请输入不含斜杠的名称。", comment: "")
+            )
             return
         }
         let finalName = item.isDirectory || (trimmed as NSString).pathExtension.isEmpty
@@ -199,7 +205,10 @@ final class WatchLibraryStore: NSObject, ObservableObject {
             : trimmed
         let destination = item.url.deletingLastPathComponent().appendingPathComponent(finalName, isDirectory: item.isDirectory)
         guard !fileManager.fileExists(atPath: destination.path) else {
-            alert = WatchLibraryAlert(title: "名称已存在", message: "当前文件夹已有同名项目。")
+            alert = WatchLibraryAlert(
+                title: NSLocalizedString("名称已存在", comment: ""),
+                message: NSLocalizedString("当前文件夹已有同名项目。", comment: "")
+            )
             return
         }
         do {
@@ -208,7 +217,7 @@ final class WatchLibraryStore: NSObject, ObservableObject {
             replacePathPrefix(oldPrefix, with: relativePath(for: destination))
             refresh()
         } catch {
-            alert = WatchLibraryAlert(title: "重命名失败", message: error.localizedDescription)
+            alert = WatchLibraryAlert(title: NSLocalizedString("重命名失败", comment: ""), message: error.localizedDescription)
         }
     }
 
@@ -221,7 +230,7 @@ final class WatchLibraryStore: NSObject, ObservableObject {
             replacePathPrefix(oldPrefix, with: relativePath(for: destination))
             refresh()
         } catch {
-            alert = WatchLibraryAlert(title: "移动失败", message: error.localizedDescription)
+            alert = WatchLibraryAlert(title: NSLocalizedString("移动失败", comment: ""), message: error.localizedDescription)
         }
     }
 
@@ -234,18 +243,18 @@ final class WatchLibraryStore: NSObject, ObservableObject {
             if let removedBookID { readingRecords.removeValue(forKey: removedBookID) }
             refresh()
         } catch {
-            alert = WatchLibraryAlert(title: "删除失败", message: error.localizedDescription)
+            alert = WatchLibraryAlert(title: NSLocalizedString("删除失败", comment: ""), message: error.localizedDescription)
         }
     }
 
     private func finishReceiving(_ result: Result<String, Error>) {
         switch result {
         case .success(let fileName):
-            transferStatus = "已收到 \(fileName)"
+            transferStatus = String(format: NSLocalizedString("已收到 %@", comment: ""), fileName)
             refresh()
         case .failure(let error):
-            alert = WatchLibraryAlert(title: "接收失败", message: error.localizedDescription)
-            transferStatus = "上次传输失败"
+            alert = WatchLibraryAlert(title: NSLocalizedString("接收失败", comment: ""), message: error.localizedDescription)
+            transferStatus = NSLocalizedString("上次传输失败", comment: "")
         }
     }
 
@@ -396,7 +405,7 @@ extension WatchLibraryStore: WCSessionDelegate {
             if let error {
                 self?.transferStatus = error.localizedDescription
             } else {
-                self?.transferStatus = "已连接 iPhone"
+                self?.transferStatus = NSLocalizedString("已连接 iPhone", comment: "")
                 self?.publishManifest()
             }
         }

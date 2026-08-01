@@ -53,7 +53,7 @@ struct FileImportButton: View {
             case .success(let urls):
                 store.importFiles(urls, into: destination)
             case .failure(let error):
-                store.alert = LibraryAlert(title: "无法导入", message: error.localizedDescription)
+                store.alert = LibraryAlert(title: AppLocalization.string("无法导入"), message: error.localizedDescription)
             }
         }
     }
@@ -124,7 +124,7 @@ struct LibraryImportMenu: View {
             case .success(let urls):
                 store.importFiles(urls, into: destination)
             case .failure(let error):
-                store.alert = LibraryAlert(title: "无法导入", message: error.localizedDescription)
+                store.alert = LibraryAlert(title: AppLocalization.string("无法导入"), message: error.localizedDescription)
             }
         }
         .photosPicker(isPresented: $showsPhotoPicker, selection: $photoSelection, maxSelectionCount: 0, matching: photoScope.filter)
@@ -186,7 +186,7 @@ struct WiFiTransferPanel: View {
                     if transfer.isStarting {
                         ProgressView()
                     } else {
-                        Label(transfer.isRunning ? "停止传输" : "开始传输", systemImage: transfer.isRunning ? "stop.fill" : "play.fill")
+                        Label(AppLocalization.string(transfer.isRunning ? "停止传输" : "开始传输"), systemImage: transfer.isRunning ? "stop.fill" : "play.fill")
                     }
                 }
                 .disabled(transfer.isStarting)
@@ -277,7 +277,10 @@ struct SystemMusicImportButton: View {
         defer { isImporting = false }
         let status = await SystemMusicLibraryAccess.requestAuthorizationIfNeeded()
         guard status == .authorized else {
-            store.alert = LibraryAlert(title: "无法访问音乐库", message: "请在系统设置中允许鱼饼访问媒体与 Apple Music。")
+            store.alert = LibraryAlert(
+                title: AppLocalization.string("无法访问音乐库"),
+                message: AppLocalization.string("请在系统设置中允许鱼饼访问媒体与 Apple Music。")
+            )
             return
         }
 
@@ -298,11 +301,14 @@ struct SystemMusicImportButton: View {
         }
         if imported == 0 {
             store.alert = LibraryAlert(
-                title: "没有可导入的本地歌曲",
-                message: skipped > 0 ? "云端或受 DRM 保护的歌曲不能复制，请先在系统音乐 App 中下载无保护文件。" : "系统音乐库中没有歌曲。"
+                title: AppLocalization.string("没有可导入的本地歌曲"),
+                message: AppLocalization.string(skipped > 0 ? "云端或受 DRM 保护的歌曲不能复制，请先在系统音乐 App 中下载无保护文件。" : "系统音乐库中没有歌曲。")
             )
         } else if skipped > 0 {
-            store.alert = LibraryAlert(title: "导入完成", message: "已导入 \(imported) 首，跳过 \(skipped) 首云端或受保护歌曲。")
+            store.alert = LibraryAlert(
+                title: AppLocalization.string("导入完成"),
+                message: AppLocalization.format("已导入 %@ 首，跳过 %@ 首云端或受保护歌曲。", "\(imported)", "\(skipped)")
+            )
         }
     }
 }

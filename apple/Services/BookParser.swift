@@ -17,13 +17,13 @@ enum BookParserError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsupportedFormat(let format):
-            "暂不支持读取 \(format.uppercased()) 文件。"
+            AppLocalization.format("暂不支持读取 %@ 文件。", format.uppercased())
         case .unreadable(let message):
-            message
+            AppLocalization.string(message)
         case .protectedBook:
-            "这本书带有 DRM 或密码保护，鱼饼无法读取。请导入无 DRM 的文件。"
+            AppLocalization.string("这本书带有 DRM 或密码保护，鱼饼无法读取。请导入无 DRM 的文件。")
         case .unsupportedCompression:
-            "电子书使用了当前版本无法解压的压缩方式。"
+            AppLocalization.string("电子书使用了当前版本无法解压的压缩方式。")
         }
     }
 }
@@ -66,7 +66,7 @@ enum BookParser {
 
     private static func makeBook(title: String, format: String, text: String, coverData: Data? = nil) -> ParsedBook {
         let normalized = normalize(text)
-        let chapters = BookChapterDetector.chapters(in: normalized, fallbackTitle: "全文")
+        let chapters = BookChapterDetector.chapters(in: normalized, fallbackTitle: AppLocalization.string("全文"))
         return ParsedBook(
             title: title,
             format: format,
@@ -142,7 +142,7 @@ enum BookParser {
         let sections = (0..<document.pageCount).compactMap { index -> (title: String, text: String)? in
             guard let text = document.page(at: index)?.string?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !text.isEmpty else { return nil }
-            return ("第 \(index + 1) 页", text)
+            return (AppLocalization.format("第 %@ 页", "\(index + 1)"), text)
         }
         guard !sections.isEmpty else {
             throw BookParserError.unreadable("这是图片型 PDF，没有可提取的文字；仍可使用 PDF 阅读器查看原页面。")
@@ -192,7 +192,7 @@ private enum BookChapterDetector {
         let value = BookParser.normalize(text)
         let source = value as NSString
         guard source.length > 0 else {
-            return [BookChapter(index: 0, title: fallbackTitle, text: "（没有可显示的文字）", startOffset: 0, length: 1)]
+            return [BookChapter(index: 0, title: fallbackTitle, text: AppLocalization.string("（没有可显示的文字）"), startOffset: 0, length: 1)]
         }
 
         let regex = try? NSRegularExpression(pattern: headingPattern)
@@ -204,7 +204,7 @@ private enum BookChapterDetector {
                 return (match.range.location, title)
             }
             if let first = boundaries.first, first.offset > 300 {
-                boundaries.insert((0, "开始"), at: 0)
+                boundaries.insert((0, AppLocalization.string("开始")), at: 0)
             }
             return validated(build(text: source, boundaries: boundaries))
         }
@@ -227,7 +227,7 @@ private enum BookChapterDetector {
                 result.append(
                     BookChapter(
                         index: result.count,
-                        title: title.isEmpty ? "第 \(result.count + 1) 章" : title,
+                        title: title.isEmpty ? AppLocalization.format("第 %@ 章", "\(result.count + 1)") : title,
                         text: chapter.text,
                         startOffset: globalOffset + chapter.startOffset,
                         length: chapter.length
@@ -238,7 +238,7 @@ private enum BookChapterDetector {
         }
 
         if result.isEmpty {
-            return [BookChapter(index: 0, title: "全文", text: "（没有可显示的文字）", startOffset: 0, length: 1)]
+            return [BookChapter(index: 0, title: AppLocalization.string("全文"), text: AppLocalization.string("（没有可显示的文字）"), startOffset: 0, length: 1)]
         }
         return validated(result)
     }
@@ -372,7 +372,9 @@ private enum BookChapterDetector {
         return ranges.enumerated().map { index, range in
             let volume = index / 20 + 1
             let chapter = index % 20 + 1
-            let title = useVolumes ? "第 \(volume) 卷 · 第 \(chapter) 章" : "智能分章 \(index + 1)"
+            let title = useVolumes
+                ? AppLocalization.format("第 %@ 卷 · 第 %@ 章", "\(volume)", "\(chapter)")
+                : AppLocalization.format("智能分章 %@", "\(index + 1)")
             return BookChapter(
                 index: index,
                 title: title,

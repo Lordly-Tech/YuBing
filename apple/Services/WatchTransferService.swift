@@ -26,7 +26,7 @@ final class WatchTransferService: NSObject, ObservableObject {
     @Published private(set) var isPaired = false
     @Published private(set) var isWatchAppInstalled = false
     @Published private(set) var pendingCount = 0
-    @Published private(set) var lastStatus = "正在连接 Apple Watch"
+    @Published private(set) var lastStatus = AppLocalization.string("正在连接 Apple Watch")
     @Published private(set) var watchItems: [WatchManifestItem] = []
     @Published private(set) var activeTransferProgress: [WatchTransferProgressItem] = []
 
@@ -45,13 +45,13 @@ final class WatchTransferService: NSObject, ObservableObject {
     var activeTransferTitle: String? {
         guard let first = activeTransferProgress.first else { return nil }
         if activeTransferProgress.count == 1 { return first.name }
-        return "\(first.name) 等 \(activeTransferProgress.count) 个文件"
+        return AppLocalization.format("%@ 等 %@ 个文件", first.name, "\(activeTransferProgress.count)")
     }
 
     override init() {
         super.init()
         guard WCSession.isSupported() else {
-            lastStatus = "此设备不支持 Watch 连接"
+            lastStatus = AppLocalization.string("此设备不支持 Watch 连接")
             return
         }
         let session = WCSession.default
@@ -73,29 +73,29 @@ final class WatchTransferService: NSObject, ObservableObject {
         // the failure case where the companion Watch app is not installed.
         NotificationCenter.default.post(name: .yuBingWatchTransferDidStart, object: nil)
         #if targetEnvironment(simulator)
-        lastStatus = "Watch 文件传输需要在配对真机上测试"
+        lastStatus = AppLocalization.string("Watch 文件传输需要在配对真机上测试")
         return
         #endif
         guard let session, session.activationState == .activated else {
-            lastStatus = "Watch 连接尚未就绪"
+            lastStatus = AppLocalization.string("Watch 连接尚未就绪")
             return
         }
         guard session.isPaired else {
-            lastStatus = "请先将 Apple Watch 与此 iPhone 配对"
+            lastStatus = AppLocalization.string("请先将 Apple Watch 与此 iPhone 配对")
             return
         }
         guard session.isWatchAppInstalled else {
-            lastStatus = "Apple Watch 尚未安装鱼饼 Watch App，请先安装后再传输"
+            lastStatus = AppLocalization.string("Apple Watch 尚未安装鱼饼 Watch App，请先安装后再传输")
             return
         }
 
         let compatible = items.filter(\.isWatchCompatible)
         guard !compatible.isEmpty else {
-            lastStatus = "所选项目不支持在 Watch 上打开"
+            lastStatus = AppLocalization.string("所选项目不支持在 Watch 上打开")
             return
         }
 
-        lastStatus = "准备传输 \(compatible.count) 个文件"
+        lastStatus = AppLocalization.format("准备传输 %@ 个文件", "\(compatible.count)")
         Task { [weak self] in
             guard let self else { return }
             var enqueued = 0
@@ -103,12 +103,12 @@ final class WatchTransferService: NSObject, ObservableObject {
             for item in compatible {
                 do {
                     if item.kind == .novel {
-                        self.lastStatus = "正在为 Watch 整理《\(item.displayName)》"
+                        self.lastStatus = AppLocalization.format("正在为 Watch 整理《%@》", item.displayName)
                         let transfer = try await self.makeWatchBookTransfer(for: item)
                         let fileTransfer = session.transferFile(transfer.url, metadata: transfer.metadata)
                         self.track(fileTransfer, name: transfer.metadata["name"] as? String ?? item.name, byteCount: transfer.metadata["byteCount"] as? Int64 ?? item.byteCount)
                     } else if item.kind == .music {
-                        self.lastStatus = "正在为 Watch 准备《\(item.displayName)》"
+                        self.lastStatus = AppLocalization.format("正在为 Watch 准备《%@》", item.displayName)
                         let transfer = try await self.makeWatchAudioTransfer(for: item)
                         let fileTransfer = session.transferFile(transfer.url, metadata: transfer.metadata)
                         self.track(
@@ -136,14 +136,14 @@ final class WatchTransferService: NSObject, ObservableObject {
                     }
                     enqueued += 1
                 } catch {
-                    failures.append("\(item.displayName)：\(error.localizedDescription)")
+                    failures.append(AppLocalization.format("%@：%@", item.displayName, error.localizedDescription))
                 }
             }
             self.pendingCount = session.outstandingFileTransfers.count
             if failures.isEmpty {
-                self.lastStatus = "已加入后台传输队列（\(enqueued) 个）"
+                self.lastStatus = AppLocalization.format("已加入后台传输队列（%@ 个）", "\(enqueued)")
             } else if enqueued > 0 {
-                self.lastStatus = "已发送 \(enqueued) 个，\(failures.count) 个转换失败"
+                self.lastStatus = AppLocalization.format("已发送 %@ 个，%@ 个转换失败", "\(enqueued)", "\(failures.count)")
             } else {
                 self.lastStatus = failures.joined(separator: "\n")
             }
@@ -294,9 +294,9 @@ final class WatchTransferService: NSObject, ObservableObject {
         isWatchAppInstalled = session.isWatchAppInstalled
         pendingCount = session.outstandingFileTransfers.count
         if session.isPaired, session.isWatchAppInstalled {
-            lastStatus = pendingCount == 0 ? "Apple Watch 已就绪" : "还有 \(pendingCount) 个文件正在传输"
+            lastStatus = pendingCount == 0 ? AppLocalization.string("Apple Watch 已就绪") : AppLocalization.format("还有 %@ 个文件正在传输", "\(pendingCount)")
         } else {
-            lastStatus = "未找到已安装 鱼饼 的配对手表"
+            lastStatus = AppLocalization.string("未找到已安装鱼饼的配对手表")
         }
     }
 
@@ -326,7 +326,7 @@ final class WatchTransferService: NSObject, ObservableObject {
         guard let index = activeTransferProgress.firstIndex(where: { $0.id == id }) else { return }
         activeTransferProgress[index].fractionCompleted = min(max(fraction, 0), 1)
         if let progress = overallProgress {
-            lastStatus = "正在传输 \(Int(progress * 100))%"
+            lastStatus = AppLocalization.format("正在传输 %@%%", "\(Int(progress * 100))")
         }
     }
 
@@ -378,11 +378,11 @@ extension WatchTransferService: WCSessionDelegate {
             self?.finishTracking(fileTransfer)
             self?.pendingCount = session.outstandingFileTransfers.count
             if let error {
-                self?.lastStatus = "传输失败：\(error.localizedDescription)"
+                self?.lastStatus = AppLocalization.format("传输失败：%@", error.localizedDescription)
             } else if !(self?.activeTransferProgress.isEmpty ?? true) {
-                self?.lastStatus = "还有 \(session.outstandingFileTransfers.count) 个文件正在传输"
+                self?.lastStatus = AppLocalization.format("还有 %@ 个文件正在传输", "\(session.outstandingFileTransfers.count)")
             } else if session.outstandingFileTransfers.isEmpty {
-                self?.lastStatus = "文件已传到 Apple Watch"
+                self?.lastStatus = AppLocalization.string("文件已传到 Apple Watch")
             }
         }
     }

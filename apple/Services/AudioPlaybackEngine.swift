@@ -15,12 +15,12 @@ enum AudioPlaybackError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .audioSession(let error):
-            "无法启用音频播放：\(error.localizedDescription)"
+            AppLocalization.format("无法启用音频播放：%@", error.localizedDescription)
         case .itemFailed(let error):
             if let error {
-                "音源载入失败：\(error.localizedDescription)"
+                AppLocalization.format("音源载入失败：%@", error.localizedDescription)
             } else {
-                "音源载入失败，请稍后重试。"
+                AppLocalization.string("音源载入失败，请稍后重试。")
             }
         }
     }

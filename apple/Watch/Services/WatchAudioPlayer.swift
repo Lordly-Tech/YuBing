@@ -12,9 +12,9 @@ enum WatchRepeatMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .off: "顺序播放"
-        case .all: "列表循环"
-        case .one: "单曲循环"
+        case .off: NSLocalizedString("顺序播放", comment: "")
+        case .all: NSLocalizedString("列表循环", comment: "")
+        case .one: NSLocalizedString("单曲循环", comment: "")
         }
     }
 }

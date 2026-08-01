@@ -39,7 +39,7 @@ enum UniversalAudioSource {
                 try? FileManager.default.removeItem(at: temporary)
                 let message = String(cString: errorBuffer)
                 throw UniversalAudioError.conversionFailed(
-                    message.isEmpty ? "无法解码此音频格式。" : message
+                    message.isEmpty ? AppLocalization.string("无法解码此音频格式。") : message
                 )
             }
             if FileManager.default.fileExists(atPath: destination.path) {
@@ -66,7 +66,7 @@ enum UniversalAudioSource {
             .map { String(format: "%02x", $0) }
             .joined()
         guard let cachesDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
-            throw UniversalAudioError.conversionFailed("缓存目录不可用。")
+            throw UniversalAudioError.conversionFailed(AppLocalization.string("缓存目录不可用。"))
         }
         let directory = cachesDirectory.appendingPathComponent("YuBing Audio Cache", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -86,7 +86,7 @@ final class LibraryStore: ObservableObject {
             pruneMissingPlaylistTracks()
             adoptFavoritedTracksIntoLikedPlaylist()
         } catch {
-            alert = LibraryAlert(title: "无法打开资料库", message: error.localizedDescription)
+            alert = LibraryAlert(title: AppLocalization.string("无法打开资料库"), message: error.localizedDescription)
         }
     }
 
@@ -147,7 +147,7 @@ final class LibraryStore: ObservableObject {
     func createMusicPlaylist(named name: String, initialTrack: LibraryItem? = nil) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            alert = LibraryAlert(title: "名称不可用", message: "歌单名称不能为空。")
+            alert = LibraryAlert(title: AppLocalization.string("名称不可用"), message: AppLocalization.string("歌单名称不能为空。"))
             return
         }
         let initialPaths = initialTrack.map { [$0.relativePath] } ?? []
@@ -158,7 +158,7 @@ final class LibraryStore: ObservableObject {
     func rename(_ playlist: MusicPlaylist, to newName: String) {
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            alert = LibraryAlert(title: "名称不可用", message: "歌单名称不能为空。")
+            alert = LibraryAlert(title: AppLocalization.string("名称不可用"), message: AppLocalization.string("歌单名称不能为空。"))
             return
         }
         guard let index = musicPlaylists.firstIndex(where: { $0.id == playlist.id }) else { return }
@@ -255,7 +255,7 @@ final class LibraryStore: ObservableObject {
 
         refresh()
         if !failures.isEmpty {
-            alert = LibraryAlert(title: "部分文件未能导入", message: failures.joined(separator: "\n"))
+            alert = LibraryAlert(title: AppLocalization.string("部分文件未能导入"), message: failures.joined(separator: "\n"))
         }
     }
 
@@ -265,7 +265,7 @@ final class LibraryStore: ObservableObject {
             try data.write(to: destination, options: .atomic)
             refresh()
         } catch {
-            alert = LibraryAlert(title: "导入失败", message: error.localizedDescription)
+            alert = LibraryAlert(title: AppLocalization.string("导入失败"), message: error.localizedDescription)
         }
     }
 
@@ -278,14 +278,14 @@ final class LibraryStore: ObservableObject {
             try fileManager.copyItem(at: sourceURL, to: destination)
             refresh()
         } catch {
-            alert = LibraryAlert(title: "导入失败", message: error.localizedDescription)
+            alert = LibraryAlert(title: AppLocalization.string("导入失败"), message: error.localizedDescription)
         }
     }
 
     func createFolder(named name: String, in folder: URL) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("/") else {
-            alert = LibraryAlert(title: "名称不可用", message: "文件夹名称不能为空或包含斜杠。")
+            alert = LibraryAlert(title: AppLocalization.string("名称不可用"), message: AppLocalization.string("文件夹名称不能为空或包含斜杠。"))
             return
         }
         do {
@@ -295,14 +295,14 @@ final class LibraryStore: ObservableObject {
             )
             refresh()
         } catch {
-            alert = LibraryAlert(title: "无法新建文件夹", message: error.localizedDescription)
+            alert = LibraryAlert(title: AppLocalization.string("无法新建文件夹"), message: error.localizedDescription)
         }
     }
 
     func rename(_ item: LibraryItem, to newName: String) {
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("/") else {
-            alert = LibraryAlert(title: "名称不可用", message: "名称不能为空或包含斜杠。")
+            alert = LibraryAlert(title: AppLocalization.string("名称不可用"), message: AppLocalization.string("名称不能为空或包含斜杠。"))
             return
         }
 
@@ -315,7 +315,7 @@ final class LibraryStore: ObservableObject {
         let destination = item.url.deletingLastPathComponent().appendingPathComponent(finalName, isDirectory: item.isDirectory)
         guard destination.standardizedFileURL != item.url.standardizedFileURL else { return }
         guard !fileManager.fileExists(atPath: destination.path) else {
-            alert = LibraryAlert(title: "名称已存在", message: "当前文件夹中已有同名项目。")
+            alert = LibraryAlert(title: AppLocalization.string("名称已存在"), message: AppLocalization.string("当前文件夹中已有同名项目。"))
             return
         }
 
@@ -326,13 +326,13 @@ final class LibraryStore: ObservableObject {
             replacePathPrefix(oldPrefix, with: newPrefix)
             refresh()
         } catch {
-            alert = LibraryAlert(title: "重命名失败", message: error.localizedDescription)
+            alert = LibraryAlert(title: AppLocalization.string("重命名失败"), message: error.localizedDescription)
         }
     }
 
     func move(_ item: LibraryItem, to folder: URL) {
         guard !folder.standardizedFileURL.path.hasPrefix(item.url.standardizedFileURL.path + "/") else {
-            alert = LibraryAlert(title: "无法移动", message: "文件夹不能移入自身。")
+            alert = LibraryAlert(title: AppLocalization.string("无法移动"), message: AppLocalization.string("文件夹不能移入自身。"))
             return
         }
         let destination = uniqueDestination(in: folder, named: item.name)
@@ -342,7 +342,7 @@ final class LibraryStore: ObservableObject {
             replacePathPrefix(oldPrefix, with: relativePath(for: destination))
             refresh()
         } catch {
-            alert = LibraryAlert(title: "移动失败", message: error.localizedDescription)
+            alert = LibraryAlert(title: AppLocalization.string("移动失败"), message: error.localizedDescription)
         }
     }
 
@@ -353,7 +353,7 @@ final class LibraryStore: ObservableObject {
             recentPaths.removeAll { $0.hasPrefix(item.relativePath) }
             refresh()
         } catch {
-            alert = LibraryAlert(title: "删除失败", message: error.localizedDescription)
+            alert = LibraryAlert(title: AppLocalization.string("删除失败"), message: error.localizedDescription)
         }
     }
 

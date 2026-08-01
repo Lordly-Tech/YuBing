@@ -105,6 +105,10 @@ enum AppLocalization {
         return localizedString(key, language: sourceIdentifier) ?? key
     }
 
+    static func format(_ key: String, _ arguments: CVarArg...) -> String {
+        String(format: string(key), locale: Locale(identifier: selectedLanguage.localeIdentifier), arguments: arguments)
+    }
+
     private static func localizedString(_ key: String, language: String) -> String? {
         guard supportedIdentifiers.contains(language),
               let path = Bundle.main.path(forResource: language, ofType: "lproj"),
