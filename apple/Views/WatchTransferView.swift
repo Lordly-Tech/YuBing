@@ -86,18 +86,25 @@ struct WatchTransferView: View {
         }
         .navigationTitle("传到 Watch")
         .searchable(text: $query, prompt: "搜索兼容文件")
-        .safeAreaInset(edge: .bottom) {
-            Button {
-                transfer.send(store.items.filter { selectedPaths.contains($0.relativePath) })
-                selectedPaths.removeAll()
-            } label: {
-                Label(transferButtonTitle, systemImage: "applewatch.radiowaves.left.and.right")
-                    .frame(maxWidth: .infinity)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button {
+                    transferSelectedItems()
+                } label: {
+                    Label(transferButtonTitle, systemImage: "applewatch.radiowaves.left.and.right")
+                }
+                .disabled(!canTransferSelectedItems)
             }
-            .adaptiveGlassButton(prominent: true)
-            .disabled(selectedPaths.isEmpty || !transfer.isPaired || !transfer.isWatchAppInstalled)
-            .padding()
         }
+    }
+
+    private var canTransferSelectedItems: Bool {
+        !selectedPaths.isEmpty && transfer.isPaired && transfer.isWatchAppInstalled
+    }
+
+    private func transferSelectedItems() {
+        transfer.send(store.items.filter { selectedPaths.contains($0.relativePath) })
+        selectedPaths.removeAll()
     }
 
     private func symbol(for rawKind: String) -> String {

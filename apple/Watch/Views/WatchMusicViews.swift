@@ -9,23 +9,40 @@ struct WatchMusicLibraryView: View {
     @EnvironmentObject private var player: WatchAudioPlayer
     @State private var query = ""
 
-    private var mediaItems: [WatchLibraryItem] {
-        store.items(of: [.music])
-            .filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
-    }
-
     private var audioTracks: [WatchLibraryItem] { store.items(of: [.music]) }
+
+    private var mediaItems: [WatchLibraryItem] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return audioTracks }
+
+        return audioTracks.filter { item in
+            let metadata = player.metadataByPath[item.relativePath]
+            return [item.name, item.displayName, metadata?.title, metadata?.artist, metadata?.album]
+                .compactMap { $0 }
+                .contains { $0.localizedCaseInsensitiveContains(trimmedQuery) }
+        }
+    }
 
     var body: some View {
         Group {
-            if mediaItems.isEmpty {
+            if audioTracks.isEmpty {
                 ContentUnavailableView(
                     "还没有音乐",
                     systemImage: "music.note.list",
                     description: Text("从 iPhone 传入音乐后可离线播放。")
                 )
             } else {
-                List(mediaItems) { item in
+                VStack(spacing: 6) {
+                    compactSearchField
+
+                    if mediaItems.isEmpty {
+                        ContentUnavailableView(
+                            "没有匹配音乐",
+                            systemImage: "magnifyingglass",
+                            description: Text("换个关键词试试。")
+                        )
+                    } else {
+                        List(mediaItems) { item in
                     Button {
                         player.play(item, queue: audioTracks)
                         store.markOpened(item)
@@ -51,12 +68,13 @@ struct WatchMusicLibraryView: View {
                             .foregroundStyle(.pink)
                         }
                     }
-                    .task { _ = await player.loadMetadata(for: item) }
+                            .task { _ = await player.loadMetadata(for: item) }
+                        }
+                    }
                 }
             }
         }
         .navigationTitle("音乐")
-        .searchable(text: $query, prompt: "搜索")
         .toolbar {
             if let item = player.currentItem {
                 NavigationLink {
@@ -66,6 +84,31 @@ struct WatchMusicLibraryView: View {
                 }
             }
         }
+    }
+
+    private var compactSearchField: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "magnifyingglass")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            TextField("搜索", text: $query)
+                .textFieldStyle(.plain)
+                .font(.caption)
+                .submitLabel(.search)
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .frame(minHeight: 28)
+        .background(.thinMaterial, in: Capsule())
+        .padding(.horizontal, 2)
     }
 
     private func audioDetail(for item: WatchLibraryItem) -> String {
