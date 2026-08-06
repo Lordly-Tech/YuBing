@@ -27,8 +27,8 @@ extension LibraryKind {
 }
 
 enum YuBingMetrics {
-    static let compactCornerRadius: CGFloat = 8
-    static let panelCornerRadius: CGFloat = 12
+    static let compactCornerRadius: CGFloat = 14
+    static let panelCornerRadius: CGFloat = 22
     static let sidebarWidth: CGFloat = 240
     static let contentMaxWidth: CGFloat = 1180
 }

@@ -75,7 +75,8 @@ struct MoreView: View {
                 Image("AppIconDisplay")
                     .resizable()
                     .frame(width: 64, height: 64)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("鱼饼")
@@ -89,7 +90,7 @@ struct MoreView: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 12)
         }
     }
 

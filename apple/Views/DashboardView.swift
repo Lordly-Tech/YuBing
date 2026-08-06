@@ -59,12 +59,26 @@ struct DashboardView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .bottom, spacing: 16) {
+        ZStack(alignment: .bottomLeading) {
+            DashboardOrbitArtwork()
+                .frame(height: 244)
+
             VStack(alignment: .leading, spacing: 5) {
                 Text("🐟🍪！")
                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
             }
-            Spacer(minLength: 16)
+            .padding(24)
+        }
+        .background(
+            LinearGradient(colors: [Color.blue.opacity(0.14), Color.purple.opacity(0.08), .clear], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 30, style: .continuous)
+        )
+        .overlay(alignment: .topTrailing) {
+            Text("YU BING")
+                .font(.caption2.weight(.bold))
+                .tracking(2)
+                .foregroundStyle(.secondary)
+                .padding(22)
         }
     }
 
@@ -75,6 +89,7 @@ struct DashboardView: View {
             MetricTile(title: "照片", value: "\(store.items(of: .photo).count)", symbol: "photo.on.rectangle", tint: .green)
             MetricTile(title: "已用空间", value: store.totalBytes.formattedFileSize, symbol: "internaldrive", tint: .orange)
         }
+        .padding(.top, -8)
     }
 
     private var recentList: some View {
@@ -91,7 +106,11 @@ struct DashboardView: View {
                 }
             }
         }
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: YuBingMetrics.compactCornerRadius, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: YuBingMetrics.panelCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: YuBingMetrics.panelCornerRadius, style: .continuous)
+                .stroke(.primary.opacity(0.06))
+        }
     }
 
     private var timeSummaryGrid: some View {
@@ -194,7 +213,11 @@ private struct TimeSummaryCard: View {
             .frame(height: 132)
         }
         .padding(18)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: YuBingMetrics.panelCornerRadius, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: YuBingMetrics.panelCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: YuBingMetrics.panelCornerRadius, style: .continuous)
+                .stroke(tint.opacity(0.16), lineWidth: 1)
+        }
     }
 }
 
@@ -251,6 +274,39 @@ private struct ReadingArcShape: Shape {
         var path = Path()
         path.addArc(center: center, radius: radius, startAngle: start, endAngle: end, clockwise: false)
         return path
+    }
+}
+
+private struct DashboardOrbitArtwork: View {
+    var body: some View {
+        GeometryReader { proxy in
+            let size = min(proxy.size.width * 0.78, 310)
+            ZStack {
+                Circle()
+                    .fill(Color.blue.opacity(0.08))
+                    .frame(width: size * 0.82, height: size * 0.82)
+                ForEach([0.48, 0.66, 0.84, 1.0], id: \.self) { scale in
+                    Circle()
+                        .stroke(
+                            AngularGradient(colors: [.blue.opacity(0.05), .purple.opacity(0.34), .cyan.opacity(0.08), .blue.opacity(0.05)], center: .center),
+                            style: StrokeStyle(lineWidth: scale == 1 ? 1.5 : 1, lineCap: .round)
+                        )
+                        .frame(width: size * scale, height: size * scale)
+                }
+                Circle()
+                    .fill(.blue.gradient)
+                    .frame(width: 12, height: 12)
+                    .shadow(color: .blue.opacity(0.5), radius: 12)
+                    .offset(x: size * 0.28, y: -size * 0.2)
+                Image(systemName: "sparkles")
+                    .font(.title2.weight(.medium))
+                    .foregroundStyle(.purple.opacity(0.8))
+                    .offset(x: -size * 0.28, y: size * 0.2)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            .padding(.trailing, 8)
+        }
+        .allowsHitTesting(false)
     }
 }
 
