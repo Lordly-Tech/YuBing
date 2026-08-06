@@ -6,7 +6,7 @@ on:
       marketing_version:
         description: 'CFBundleShortVersionString, for example 1.0.0'
         required: false
-        default: '1.0.0'
+        default: '1.1.0'
       upload_to_testflight:
         description: 'Upload the exported IPA to TestFlight'
         required: true
@@ -16,7 +16,7 @@ on:
     tags: ['ios-v*']
 
 env:
-  MARKETING_VERSION: ${{ inputs.marketing_version || '1.0.0' }}
+  MARKETING_VERSION: ${{ inputs.marketing_version || '1.1.0' }}
   SHOULD_UPLOAD: ${{ inputs.upload_to_testflight || startsWith(github.ref, 'refs/tags/ios-v') }}
 
 jobs:
